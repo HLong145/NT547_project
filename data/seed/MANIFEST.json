@@ -1,0 +1,554 @@
+{
+  "generated_at": "2026-10-12T07:52:01+00:00",
+  "origin": "Shao et al., USENIX Security 2026 — https://zenodo.org/records/17984167",
+  "generator": "src/address_misuse/seed.py",
+  "sources": [
+    {
+      "path": "experiment/RQ1/BSC_CAMisuse_sample.csv",
+      "bytes": 17388,
+      "sha256": "d047ad209aeda3ea78b7901b6278d08a4ac69ff337e8471852ec6b68e60e8824"
+    },
+    {
+      "path": "experiment/RQ1/BSC_EOAMisuse_sample.csv",
+      "bytes": 16376,
+      "sha256": "ec7117875a393c5801365bbb4cf6d9d5720760454d0acab3443839ba040b770f"
+    },
+    {
+      "path": "experiment/RQ1/ETH_CAMisuse_sample.csv",
+      "bytes": 17434,
+      "sha256": "2593e3d7ef26c778fb875585aedd56dec4caa572c55aa2a8a7bb1704e9d08d0c"
+    },
+    {
+      "path": "experiment/RQ1/ETH_EOAMisuse_sample.csv",
+      "bytes": 16100,
+      "sha256": "27309717706823f248d1aa4a4abca39f1da064835f3dbabe2af4d51be422586c"
+    },
+    {
+      "path": "experiment/RQ2/bsc_github/CAMisuse.csv",
+      "bytes": 2030108,
+      "sha256": "2da6bbaab464efcc1d9962cbe9764114149f180628609f93529a5a980dd266ac"
+    },
+    {
+      "path": "experiment/RQ2/bsc_github/EOAMisuse_ADDR.csv",
+      "bytes": 477848,
+      "sha256": "f90903ff564d8359ba0dd22c0876091b945ee7b0f5a7649910e538535a94db62"
+    },
+    {
+      "path": "experiment/RQ2/bsc_github/EOAMisuse_KEY.csv",
+      "bytes": 813158,
+      "sha256": "f1c56dc2a6bff83063ac43c21e0fc2f148a3f4d1615f6989fd0d41b31a9a1668"
+    },
+    {
+      "path": "experiment/RQ2/bsc_stackexchange/CAMisuse.csv",
+      "bytes": 86079,
+      "sha256": "113548912b617cffaaff4b932888441962506c0f270be4bc02bc9476bf9347fe"
+    },
+    {
+      "path": "experiment/RQ2/bsc_stackexchange/EOAMisuse_ADDR.csv",
+      "bytes": 4133,
+      "sha256": "240eaf5f79409a2a969581d83bb029d16e8c968d5ef890f4f9c8567af517e1fa"
+    },
+    {
+      "path": "experiment/RQ2/bsc_stackexchange/EOAMisuse_KEY.csv",
+      "bytes": 57016,
+      "sha256": "b72b03a1eb347b3014299e16286cf77b905403b07c39ca866061a3bd3e39ffca"
+    },
+    {
+      "path": "experiment/RQ2/eth_github/CAMisuse.csv",
+      "bytes": 2602829,
+      "sha256": "c161f59d774236ab78d442cdf196f661f9d1f7be8927feaaa8c7dfa00c7b6ea5"
+    },
+    {
+      "path": "experiment/RQ2/eth_github/EOAMisuse_ADDR.csv",
+      "bytes": 387710,
+      "sha256": "5fabd13fd93a4dfc78587c968382904a45fb83c74d3df714af71dab298c8a2a7"
+    },
+    {
+      "path": "experiment/RQ2/eth_github/EOAMisuse_KEY.csv",
+      "bytes": 406464,
+      "sha256": "96c522e03d738b0f9473575e6bdf72745aad82aa91199fed736f4ca021e0fc93"
+    },
+    {
+      "path": "experiment/RQ2/eth_stackexchange/CAMisuse.csv",
+      "bytes": 80128,
+      "sha256": "412cf3d63fd48bbeba6d96f7212733ef912512257d03fbf4f0ac4d61d5ef8052"
+    },
+    {
+      "path": "experiment/RQ2/eth_stackexchange/EOAMisuse_ADDR.csv",
+      "bytes": 5834,
+      "sha256": "0222171a54859abd71cfadbc3a17dbea0b032b13c7e17e67fc856a9cb8013442"
+    },
+    {
+      "path": "experiment/RQ2/eth_stackexchange/EOAMisuse_KEY.csv",
+      "bytes": 41848,
+      "sha256": "f85709d19ad7b22921cc77c2dac2786d5368d59d41ea1911d11c9b6f878b9408"
+    },
+    {
+      "path": "experiment/RQ3/attack_pattern/BSC_CAMisuse_attack.csv",
+      "bytes": 34616,
+      "sha256": "8daf98f65e17317b5894ed73340e28b70cee6bc030a1a096e7a210cb2b113872"
+    },
+    {
+      "path": "experiment/RQ3/attack_pattern/BSC_EOAMisuse_eip7702.csv",
+      "bytes": 2488,
+      "sha256": "2596af7bf0c2182907749bcf948853055e8d8a9c3e654e451dbda0f945696720"
+    },
+    {
+      "path": "experiment/RQ3/attack_pattern/ETH_CAMisuse_attack.csv",
+      "bytes": 35952,
+      "sha256": "75efa53a03671937adc95dcb4ff5e2e705ddebe03ac8d8687125b770af5a2934"
+    },
+    {
+      "path": "experiment/RQ3/attack_pattern/ETH_EOAMisuse_eip7702.csv",
+      "bytes": 2431,
+      "sha256": "836025ac1bed0c8cebb805819252e7f5ed5fe279f17780f2c8f6808688055bdd"
+    },
+    {
+      "path": "experiment/RQ3/attack_pattern/bsc_simliar.csv",
+      "bytes": 12742,
+      "sha256": "d28aff8fc0f7c6be6cdaf1552cf98c762c212e6cd6fa5f23226489487016778d"
+    },
+    {
+      "path": "experiment/RQ3/attack_pattern/eth_simliar.csv",
+      "bytes": 16424,
+      "sha256": "3e4212907a10fd67da57abaf663e71f94ad61b00a4f9896933b3dfdce7bd3715"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/codes.zip",
+      "bytes": 4507836,
+      "sha256": "99d1a743c35fa7e5521d56dddc3131d70de3c70e53fcf088a9640f78834784de"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/codes_res.zip",
+      "bytes": 238157,
+      "sha256": "73aedbc4a24504025af324875626d5c1c613175c2cfb05afa7c509edf52efe43"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/eip7702_codes.zip",
+      "bytes": 100287,
+      "sha256": "9a0b67c978396070b0cf2e0852edc50d540394b654fbddf5a7f471e2aa598d5a"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/eip7702_codes_res.zip",
+      "bytes": 18264,
+      "sha256": "71df31dff76e5fefde1e1492b10dcebbbb1a5edd12fc945cf54f7bc26e89b35f"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/eip7702_map.csv",
+      "bytes": 403854,
+      "sha256": "71eaa3ca8359664c00f8238990dbc4b075e64e57b1e9c570a508aa26eb3e4164"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/eip7702_map_addr.csv",
+      "bytes": 419862,
+      "sha256": "638d8e28119efcf7a9f76d84de53af07b16dfd97a8d07576ada0fd8bb4fd2ac8"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/proxy_codes.zip",
+      "bytes": 244136,
+      "sha256": "e3fcbf08ccf18d57bba978d74b53e0480dda722473975f6844a899b68387858e"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/proxy_codes_res.zip",
+      "bytes": 18325,
+      "sha256": "598d75119a76f8f91d12ef2f42935595ca293f0144b8273eb86227b510ca9808"
+    },
+    {
+      "path": "experiment/RQ3/bsc_res/proxy_map.csv",
+      "bytes": 5220,
+      "sha256": "9a81e79a2069970de9a1e04334048efbe6a997712925494ee3ddb993070f8d66"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/codes.zip",
+      "bytes": 5640535,
+      "sha256": "456c8e56fb9e55abefef343670c2ad22b9c543b010ee0648335e50b35c7f608c"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/codes_res.zip",
+      "bytes": 238687,
+      "sha256": "f44f19a71c840f9c3d624068878fd850221e4bc8a5960d35cf06d16966147cca"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/eip7702_codes.zip",
+      "bytes": 125995,
+      "sha256": "9635b41dd47cb0f8aedc815ef6ea5a301cf8c74a32a8e40d22133a5bc613205a"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/eip7702_codes_res.zip",
+      "bytes": 21216,
+      "sha256": "4489654f1aa36fc65d34c20380b52b16cdf303cc3b1ec98a58cd296ef3823471"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/eip7702_map.csv",
+      "bytes": 344955,
+      "sha256": "cf70ae794925d0d5d883304dbec2117787df6461cccec1931e4285f60dd4bf4e"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/eip7702_map_addr.csv",
+      "bytes": 338691,
+      "sha256": "cd1b100655136e9746b5fc7776d525674eaacdadcdf2ecfc458ff0a4037387b4"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/proxy_codes.zip",
+      "bytes": 269829,
+      "sha256": "a6fc2062000a13cf065c583638de550037220882d819098be8ad232381e931f7"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/proxy_codes_res.zip",
+      "bytes": 26042,
+      "sha256": "f96b516bdd15299ae81a10539ca41942da035c60e8ffa039d9c8510ce7a76a65"
+    },
+    {
+      "path": "experiment/RQ3/eth_res/proxy_map.csv",
+      "bytes": 7308,
+      "sha256": "f8df54563905e95e536f00d41596886033dd66d8c431af1da4f3e01b43dd1ad5"
+    },
+    {
+      "path": "experiment/RQ3/sample/BSC_CAMisuse_contract_sample.csv",
+      "bytes": 4022,
+      "sha256": "4ec32459c7065a50389b15038a2b25cd410f5b12f9ce1c5e84917a2c48a178b5"
+    },
+    {
+      "path": "experiment/RQ3/sample/ETH_CAMisuse_contract_sample.csv",
+      "bytes": 4022,
+      "sha256": "21b6c2c31cb369b7bc2697550664dd4a72605705a26f5109cc64a8231e0e70bf"
+    },
+    {
+      "path": "experiment/dataset/all_repos.txt",
+      "bytes": 1743345,
+      "sha256": "d27331aa67d92d2552c9fe764013bdb7302463ad3022719c0079cf670a28cd82"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/bsc_addr_info_part0.csv",
+      "bytes": 37463101,
+      "sha256": "c18707c502610df216ab0c897d4f831d4e5e11ae7146f374e0c31737ec862485"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/bsc_addr_info_part1.csv",
+      "bytes": 38451629,
+      "sha256": "12339d79f2f46dc0a35130865e046ea210c74160e184c3e1d92971870540abca"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/bsc_addr_info_part2.csv",
+      "bytes": 35998604,
+      "sha256": "675ecdb67129337d9df5922a6086cab78d93a0582086e82250f76f4b051d8d03"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/bsc_addr_info_part3.csv",
+      "bytes": 32091278,
+      "sha256": "b312299b2a82fbf11f598a21a69abc9cb4dea4aeef677d9c78d9dcd482397bbd"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/eth_addr_info_part0.csv",
+      "bytes": 38660180,
+      "sha256": "0d8e5a56d7926530e91568691afde257cdbd51d6411d8476eabad03766af07cb"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/eth_addr_info_part1.csv",
+      "bytes": 38191394,
+      "sha256": "2474888fb7348e878cde6642ed8b00184c4d581da5052ba8cf24bf14887b01e4"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/eth_addr_info_part2.csv",
+      "bytes": 35308066,
+      "sha256": "33cbfd7a748e70e58e4d9b162ecfe13dd0e8885030e9ad0a0e1214bd233019fa"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/eth_addr_info_part3.csv",
+      "bytes": 37386871,
+      "sha256": "50a6e73190522570f743d82ee9dffb49d600c2685c1b03036f6225fe89004cdb"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/eth_addr_info_part4.csv",
+      "bytes": 36303489,
+      "sha256": "812bd81a1eb8eab00fd5a3c04e42396f3ce593562c405c6b625b285890e39a0a"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/eth_addr_info_part5.csv",
+      "bytes": 38474555,
+      "sha256": "1824a2b157ea135cc744e80bf0c9533c9c15cf2a7076f56d9f609326a4218da0"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/eth_addr_info_part6.csv",
+      "bytes": 36822627,
+      "sha256": "05bcfe49b83379efb0bbe04e91d4f8c4031b02c8e5bb967620098e23512c9b7e"
+    },
+    {
+      "path": "experiment/dataset/github/addrs_info/eth_addr_info_part7.csv",
+      "bytes": 36181422,
+      "sha256": "7a7fa97a4cb7ac0aad33d8224a49501ffd531cf942d088cdde161d5afcd5e4e5"
+    },
+    {
+      "path": "experiment/dataset/github/pkaddrs_info/bsc_pkaddr_info.csv",
+      "bytes": 585804,
+      "sha256": "53c7e48d3378a615bab7c8024df17c3c498be4a4a2912d675aacbbf22478d631"
+    },
+    {
+      "path": "experiment/dataset/github/pkaddrs_info/eth_pkaddr_info.csv",
+      "bytes": 194706,
+      "sha256": "4441f1f63d9b144697b3c5068900b2f6493a11982957fb2fdaf37d907d32e2c0"
+    },
+    {
+      "path": "experiment/dataset/stackexchange/addrs_info/bsc_addr_info.csv",
+      "bytes": 168036,
+      "sha256": "c2221c87d851d32c8190e5936f6bcad6157a2ed26e6d60846fd53a4349f6a1e1"
+    },
+    {
+      "path": "experiment/dataset/stackexchange/addrs_info/eth_addr_info.csv",
+      "bytes": 346111,
+      "sha256": "272eba753d1f1d40b1544e20c1cc6621e87e4e34b9385cc907deb536b7c4f0a5"
+    },
+    {
+      "path": "experiment/dataset/stackexchange/pkaddrs_info/bsc_pkaddr_info.csv",
+      "bytes": 31078,
+      "sha256": "f0d1e58a7e9ca015b858eb5f267facb43e49bb23163c9088aa0264ce58455744"
+    },
+    {
+      "path": "experiment/dataset/stackexchange/pkaddrs_info/eth_pkaddr_info.csv",
+      "bytes": 21288,
+      "sha256": "d4f15de6372d93056083be2855ee980f66bc8ab66cf0903a661aca92645b7821"
+    }
+  ],
+  "outputs": [
+    {
+      "table": "candidate_addresses",
+      "file": "candidate_addresses.parquet",
+      "rows": 7580130,
+      "columns": [
+        "chain",
+        "source",
+        "address",
+        "n_tx",
+        "balance_wei"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "f14929d1be83797ffc775ffababbc9998accd851d9f325f9cdb6793de25de6a1",
+      "note": "Địa chỉ ứng viên có giao dịch trên chain (dataset/*/addrs_info). Không có ngữ cảnh repo/file."
+    },
+    {
+      "table": "candidate_pk_addresses",
+      "file": "candidate_pk_addresses.parquet",
+      "rows": 17971,
+      "columns": [
+        "chain",
+        "source",
+        "address",
+        "n_tx"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "9fd58c699bddc17fb876e11fd9f6be3798286263c76601b564c8a1d0f28edbda",
+      "note": "Địa chỉ suy ra từ private key lộ (tác giả không công bố key)."
+    },
+    {
+      "table": "github_repos",
+      "file": "github_repos.parquet",
+      "rows": 63004,
+      "columns": [
+        "repo"
+      ],
+      "invalid_addresses": {},
+      "sha256": "b276eca65694d0c0ea4f3ca209df1c05b0dea3cc63bd211e606206899d46ee09",
+      "note": null
+    },
+    {
+      "table": "ca_misuse",
+      "file": "ca_misuse.parquet",
+      "rows": 50944,
+      "columns": [
+        "chain",
+        "source",
+        "address",
+        "subtype",
+        "n_tx",
+        "n_misuse_tx",
+        "cost_wei",
+        "value_wei",
+        "gas_wei",
+        "cost_native"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "25c98cbff587f6345449923c89ea1bb253536d98cc4c9b7fd6f46a16b83b3063",
+      "note": "RQ2. subtype: NCD = gọi hàm vào địa chỉ chưa từng có code; PCD = gọi trước khi contract được deploy."
+    },
+    {
+      "table": "eoa_misuse",
+      "file": "eoa_misuse.parquet",
+      "rows": 26715,
+      "columns": [
+        "chain",
+        "source",
+        "subtype",
+        "address",
+        "n_tx",
+        "n_misuse_tx",
+        "cost_wei",
+        "value_wei",
+        "gas_wei",
+        "cost_native"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "f739cf423525edf79e9d4b89f13baf047d1441d518350bb3731a7066a15b46c4",
+      "note": "RQ2. KEY = key lộ (gồm cả dòng loss = 0); ADDR = phát hiện theo pattern sweep + EIP-7702."
+    },
+    {
+      "table": "rq1_labels",
+      "file": "rq1_labels.parquet",
+      "rows": 1463,
+      "columns": [
+        "chain",
+        "misuse_type",
+        "address",
+        "label"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "8f6799892c318aaea3464f1c57831ba9bbf3da79be564e5b28427ff526b6e055",
+      "note": "Nhãn tay của tác giả, CHỈ trên các ca đã bị phát hiện (1 = TP, 0 = FP) → chỉ tính được precision."
+    },
+    {
+      "table": "rq3_contract_labels",
+      "file": "rq3_contract_labels.parquet",
+      "rows": 166,
+      "columns": [
+        "chain",
+        "address",
+        "detected",
+        "manual"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "14dfea8eeb8c9c1cf012fdea5dc3daf9de781c0286c9d17f8c12e2e8ca8efbd1",
+      "note": "Mẫu contract PCD: detected = kết quả symbolic exec, manual = nhãn tay."
+    },
+    {
+      "table": "rq3_pcd_patterns",
+      "file": "rq3_pcd_patterns.parquet",
+      "rows": 1162,
+      "columns": [
+        "chain",
+        "source",
+        "address",
+        "malicious",
+        "pattern"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "87bae35899a88a09a2b08f2647b46331df2f8481519ae01923f452b3deb3e16d",
+      "note": "Phân loại contract tại địa chỉ PCD (malicious, pattern)."
+    },
+    {
+      "table": "eip7702_delegate_stats",
+      "file": "eip7702_delegate_stats.parquet",
+      "rows": 101,
+      "columns": [
+        "chain",
+        "delegate",
+        "n_delegations",
+        "flag"
+      ],
+      "invalid_addresses": {
+        "delegate": 0
+      },
+      "sha256": "efceb00a5264c43e9d3c69c0644085a9bc6c9e95655f9a5b9b1329c258e9f208",
+      "note": "Contract được ủy quyền EIP-7702, số EOA ủy quyền, flag thô của tác giả (chưa rõ nghĩa: 1/0/-1)."
+    },
+    {
+      "table": "eip7702_delegations",
+      "file": "eip7702_delegations.parquet",
+      "rows": 17326,
+      "columns": [
+        "chain",
+        "eoa_list",
+        "eoa",
+        "delegate"
+      ],
+      "invalid_addresses": {
+        "eoa": 0,
+        "delegate": 0
+      },
+      "sha256": "5fe551a01c5fe45812b33fd13d4250504c57b16b789d08d968e81da3dafc533a",
+      "note": "EOA -> delegate. eoa_list = danh sách nguồn (KEY hoặc ADDR)."
+    },
+    {
+      "table": "proxy_map",
+      "file": "proxy_map.parquet",
+      "rows": 144,
+      "columns": [
+        "chain",
+        "proxy",
+        "logic"
+      ],
+      "invalid_addresses": {
+        "proxy": 0,
+        "logic": 0
+      },
+      "sha256": "d6abd2df2fd73eebebedbf80a06bafd09aef28c8186e3c076f9a0624407df32a",
+      "note": null
+    },
+    {
+      "table": "clones",
+      "file": "clones.parquet",
+      "rows": 316,
+      "columns": [
+        "chain",
+        "contract",
+        "n_exact_clones"
+      ],
+      "invalid_addresses": {
+        "contract": 0
+      },
+      "sha256": "74b5c108019680c11fd7ef105811751415a02d1450a3c6bf7c26769b8948ef29",
+      "note": null
+    },
+    {
+      "table": "bytecode",
+      "file": "bytecode.parquet",
+      "rows": 26575,
+      "columns": [
+        "chain",
+        "kind",
+        "address",
+        "bytecode"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "17aada5b410b4b512481a73842b462d6f5ff025b6216886f0e5e4019dee38178",
+      "note": null
+    },
+    {
+      "table": "symexec_results",
+      "file": "symexec_results.parquet",
+      "rows": 1325,
+      "columns": [
+        "chain",
+        "kind",
+        "address",
+        "time_s",
+        "delegatecall",
+        "delegatecall_instances",
+        "transfer_all_eth",
+        "transfer_msg_value",
+        "transfer_input_amount",
+        "self_destruct",
+        "push_transfer_selector"
+      ],
+      "invalid_addresses": {
+        "address": 0
+      },
+      "sha256": "6171171662b9b3f02e1d36de3cfb89218d3da2c504cc13acbfc344f9de7c137e",
+      "note": "Kết quả symbolic execution của tác giả cho từng bytecode."
+    }
+  ]
+}

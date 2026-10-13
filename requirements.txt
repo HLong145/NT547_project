@@ -1,0 +1,8 @@
+pandas>=3.0
+pyarrow>=26.0
+python-dotenv>=1.2
+pytest>=9.1
+requests>=2.32
+z3-solver>=4.13
+six>=1.16
+psutil>=7.0

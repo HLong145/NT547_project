@@ -1,0 +1,37 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Bí mật — KHÔNG BAO GIỜ commit
+.env
+*.pem
+*service-account*.json
+gcp-*.json
+
+# Dữ liệu tác giả (444 MB) — tải bằng: python -m address_misuse.fetch_author_data
+data/Address-Misuse/
+
+# Dữ liệu lớn / tái tạo được
+data/raw/
+# seed: tạo bằng `python -m address_misuse.seed` (MANIFEST.json vẫn được commit)
+data/seed/*.parquet
+data/interim/*
+!data/interim/crosschain_pilot.parquet
+!data/interim/symexec_repro.parquet
+
+# Paper gốc (bản quyền USENIX/tác giả) — tải tại link trong README
+docs/*.pdf
+
+# Editor / OS / Claude Code cục bộ
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.claude/
+CLAUDE.md
+CLAUDE.local.md
