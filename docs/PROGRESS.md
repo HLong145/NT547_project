@@ -16,7 +16,7 @@
 - ✅ D3 thời gian (ETH misuse, 5.132 địa chỉ): 90,9% contract có trước tx đầu tiên (FINDINGS_LOG).
 - ⬜ D3 còn: phía BSC (cần nguồn BSC) — đề xuất BSCTrace/NodeReal Free cho creation, Etherscan Lite cho txlist.
 - ⬜ Pilot rule còn thiếu: EOA ADDR và các địa chỉ có n_tx > 5.000 (nhóm thiệt hại lớn nhất). Cần Etherscan key.
-- ⬜ Viết bản nháp codebook gán nhãn (D5).
+- 🔄 D5: codebook v0.1 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Chờ chọn 2 người gán để chạy pilot.
 
 ## 2. Chờ người dùng
 
@@ -51,7 +51,9 @@
 - 🔄 **D4** Tập âm N1–N8.
   - ✅ N7: 18 contract hạ tầng đa chain đã kiểm chứng (`known_multichain.py`).
   - ⬜ Mở rộng N7 từ dữ liệu; làm N1–N6 và N8.
-- ⬜ **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
+- 🔄 **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
+  - ✅ Codebook v0.1, script lấy mẫu pilot 50 + tính κ.
+  - ⬜ Pilot 50 mẫu với 2 người gán → chỉnh codebook → gán ~2.000 mẫu (cần D4 xong).
 - ⬜ **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6.
 - ⬜ **D7** OSINT GitHub cho top ~3.000 địa chỉ (giúp truy nguồn NCD trên ETH từ testnet cũ).
 - ⬜ **D8** Đóng băng Dataset v1 (chia theo thời gian, không trùng địa chỉ giữa các tập, QA).
