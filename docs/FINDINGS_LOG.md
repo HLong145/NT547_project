@@ -2,6 +2,19 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-16 — D3 thời gian: contract ở chain khác có trước lúc misuse không (`crosschain_matrix timing`)
+
+So `first_create_ts` (thời điểm deploy sớm nhất **đã biết** ở mạng khác, từ Etherscan creation) với tx đầu tiên tới địa chỉ trên chain bị misuse (Etherscan `txlist` asc). Chỉ làm được cho **misuse trên ETH** có creation ở arb/polygon/sepolia/eth: 5.132 địa chỉ, 0 lỗi. Misuse trên BSC: chưa có nguồn lịch sử tx BSC miễn phí.
+
+| Nhãn | deployed_before | deployed_after | unknown |
+|---|---|---|---|
+| NCD-XC | 4.538 (249,1 ETH, 186.678 tx) | 377 (29,9 ETH) | 13.867 |
+| PCD-XC | 128 (304,8 ETH) | 89 (10,1 ETH) | 274 |
+
+- **90,9% (4.666/5.132) contract đã tồn tại ở chain khác trước tx đầu tiên trên ETH** → bằng chứng trực tiếp cho Type 4: người dùng dùng một địa chỉ contract có thật của chain khác, không phải địa chỉ ngẫu nhiên.
+- Khoảng cách tx đầu − deploy: trung vị 45 ngày (p10 0, p90 441). 8% trong vòng 1 ngày, 21% trong 7 ngày, 38% trong 30 ngày → nhiều ca xảy ra ngay sau khi dự án deploy đa chain (có thể chính đội dự án/người tích hợp gửi nhầm). Cần kiểm tra người gửi tx đầu có trùng deployer không.
+- Hạn chế: `first_create_ts` chỉ là mốc sớm nhất **đã biết** (thiếu BSC/OP/Base) nên tỉ lệ deployed_before là **cận dưới**. "tx đầu tiên" là mọi tx tới địa chỉ, không riêng tx misuse (với NCD gần như trùng nhau).
+
 ## 2026-10-16 — Ma trận cross-chain D3 (`python -m address_misuse.crosschain_matrix all`)
 
 Toàn bộ địa chỉ CA misuse (45.633 địa chỉ, 49.344 cặp (chain, địa chỉ), bỏ trùng bằng giá trị lớn nhất) × 8 mạng, `eth_getCode` block mới nhất, 0 lỗi. Nguồn gốc contract ở mạng khác: Etherscan `getcontractcreation` (gói free: eth/arb/polygon/sepolia), nonce CREATE suy cục bộ từ `create_address(creator, n)`. Kết quả: `data/interim/crosschain_matrix.parquet`.

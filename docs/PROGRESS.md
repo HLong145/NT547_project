@@ -13,13 +13,14 @@
 - ⏳ Chờ người dùng chốt Module 4: Snap (đề xuất) hay RPC proxy.
 - ✅ Pilot 500 địa chỉ ETH: snapshot khớp tác giả 500/500 (FINDINGS_LOG 2026-10-15).
 - ✅ D3 ma trận cross-chain đầy đủ (FINDINGS_LOG 2026-10-16).
-- ⬜ D3 còn: so block deploy ở chain kia với thời điểm misuse; lấp 14.955 unknown của ETH misuse (cần nguồn creation BSC).
+- ✅ D3 thời gian (ETH misuse, 5.132 địa chỉ): 90,9% contract có trước tx đầu tiên (FINDINGS_LOG).
+- ⬜ D3 còn: phía BSC (cần nguồn BSC) — đề xuất BSCTrace/NodeReal Free cho creation, Etherscan Lite cho txlist.
 - ⬜ Viết bản nháp codebook gán nhãn (D5).
 
 ## 2. Chờ người dùng
 
 - ✅ Etherscan API key đã có trong `.env` (gói miễn phí): eth, arb, polygon, sepolia OK; **bsc, op, base không hỗ trợ**.
-- ⏳ Chốt cách lấy dữ liệu BSC (và OP/Base): mua Etherscan Lite 1 tháng, RPC riêng, hoặc chỉ lấy top địa chỉ + mẫu (mốc quyết định cuối tuần 1).
+- ⏳ Chốt cách lấy dữ liệu BSC (và OP/Base). Đã khảo sát 2026-10-16: BscScan API đã gộp vào Etherscan V2 (free không có BSC); Etherscan Lite $49/tháng (mọi chain, 5 lệnh/s); NodeReal/BSCTrace Free 10M CU (có `nr_getContractCreationTransaction`, nhưng lịch sử tx giới hạn 100k block/lệnh, BSC đã ~128M block); top 1.000 địa chỉ BSC = ~99% thiệt hại.
 - ⏳ GCP project có bật BigQuery, kèm service-account JSON (để ngoài thư mục dự án; đường dẫn ghi trong `.env`).
 - ⏳ (Khuyến nghị) RPC riêng: Alchemy, Infura hoặc QuickNode.
 - ⏳ Chọn 2 người gán nhãn.
@@ -43,7 +44,8 @@
   - ✅ `crosschain.py`: `eth_getCode` song song trên 8 mạng, kèm verdict.
   - ✅ Pilot top 100 NCD mỗi chain (xem FINDINGS_LOG).
   - ✅ Ma trận đầy đủ `address × chain` (`crosschain_matrix.py`): deployer, nonce CREATE, factory, nhãn NCD-XC/PCD-XC, khả năng deploy lại.
-  - ⬜ Đối chiếu block deploy với thời điểm misuse; creation trên BSC/OP/Base.
+  - ✅ Đối chiếu thời điểm deploy với tx đầu tiên (`crosschain_matrix timing`) cho ETH misuse.
+  - ⬜ Phía BSC: creation trên BSC (BSCTrace `nr_getContractCreationTransaction`) và tx đầu tiên trên BSC.
 - ⬜ **D4** Tập âm N1–N8.
 - ⬜ **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
 - ⬜ **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6.
@@ -57,6 +59,8 @@
 - ⬜ Viết paper, Docker, slide (tuần 9–10).
 
 ## 4. Nhật ký (mới nhất ở trên)
+
+- **2026-10-16 — D3 thời gian (ETH misuse)**: bước `timing` mới, 5.132 địa chỉ, ~31 phút qua Etherscan free. 90,9% deployed_before. Phía BSC chờ nguồn dữ liệu.
 
 - **2026-10-16 — D3 xong** → `data/interim/crosschain_matrix.parquet` (49.344 dòng):
   - Bước RPC cũ treo >1 giờ: publicnode trả `null` cho đa số tx cũ trên arb/polygon nên mỗi lô bị thử lại 5 lần. Đã bỏ hẳn `eth_getTransactionByHash`: phân loại factory bằng `contractFactory` của Etherscan, nonce CREATE tìm cục bộ bằng `create_address(creator, n)` (17.287 cặp, 13 s).

@@ -1,4 +1,4 @@
-from address_misuse.crosschain_matrix import _code_record, _find_create_nonce, _redeploy, create_address
+from address_misuse.crosschain_matrix import _code_record, _find_create_nonce, _redeploy, _timing_label, create_address
 
 DEPLOYER = "0x6ac7ea33f8831ea9dcc53393aaa88b25a785dbf0"
 
@@ -38,3 +38,11 @@ def test_redeploy_labels():
 def test_find_create_nonce():
     assert _find_create_nonce(DEPLOYER, create_address(DEPLOYER, 300)) == 300
     assert _find_create_nonce(DEPLOYER, "0x" + "00" * 20, limit=50) is None
+
+
+def test_timing_label():
+    assert _timing_label(100, 200) == "deployed_before"
+    assert _timing_label("100", "100") == "deployed_before"
+    assert _timing_label(300, 200) == "deployed_after"
+    assert _timing_label(None, 200) == "unknown"
+    assert _timing_label(100, float("nan")) == "unknown"

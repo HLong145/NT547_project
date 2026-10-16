@@ -312,7 +312,58 @@ def cmd_origin(networks: list[str], creation_workers: int = 8):
     print(f"Ghi {len(rows):,} dòng origin → {path}")
 
 
-# ---------------------------------------------------------------- 3. build
+# ---------------------------------------------------------------- 3. timing
+
+def _first_create_ts(origin: pd.DataFrame) -> pd.Series:
+    """Thời điểm contract xuất hiện sớm nhất ở bất kỳ mạng khác, theo (chain, address)."""
+    o = origin.dropna(subset=["create_ts"]).copy()
+    o["create_ts"] = o.create_ts.astype(int)
+    return o.groupby(["chain", "address"]).create_ts.min()
+
+
+def cmd_timing(networks: list[str], workers: int = 8):
+    """tx đầu tiên tới địa chỉ trên chain bị misuse (Etherscan txlist asc, 1 bản ghi) — chỉ cho dòng XC đã biết
+    thời điểm deploy ở mạng khác. BSC không có trong gói Etherscan free nên bị bỏ qua."""
+    first = _first_create_ts(pd.DataFrame(_read_jsonl(XC_DIR / "origin.jsonl")))
+    path = XC_DIR / "first_tx.jsonl"
+    have = {(r["chain"], r["address"]) for r in _read_jsonl(path)}
+    todo = [k for k in first.index if k not in have]
+    skipped = sum(c not in ETHERSCAN_FREE for c, _ in todo)
+    todo = [k for k in todo if k[0] in ETHERSCAN_FREE]
+    print(f"tx đầu tiên: {len(todo):,} địa chỉ cần tra, bỏ qua {skipped:,} (chain không có trong Etherscan free)",
+          flush=True)
+    clients = {c: Etherscan(c) for c in {c for c, _ in todo}}
+
+    def job(k):
+        chain, a = k
+        try:
+            data = clients[chain].call("account", "txlist", address=a, startblock=0, endblock=99_999_999,
+                                       page=1, offset=1, sort="asc")
+            r = (data.get("result") or [None])[0]
+            return k, ({"ts": int(r["timeStamp"]), "block": int(r["blockNumber"]), "hash": r["hash"]} if r else {})
+        except Exception as e:
+            return k, e
+
+    t0, done = time.time(), 0
+    with path.open("a", encoding="utf-8") as f, ThreadPoolExecutor(workers) as ex:
+        for (chain, a), got in ex.map(job, todo):
+            done += 1
+            if isinstance(got, Exception):
+                print(f"  {chain} {a} lỗi: {str(got)[:100]}", flush=True)
+                continue
+            f.write(json.dumps({"chain": chain, "address": a, **got}) + "\n")
+            if done % 250 == 0:
+                f.flush()
+                print(f"  {done:,}/{len(todo):,} ({time.time() - t0:.0f}s)", flush=True)
+
+
+def _timing_label(first_create_ts, first_tx_ts) -> str:
+    if pd.isna(first_create_ts) or pd.isna(first_tx_ts):
+        return "unknown"
+    return "deployed_before" if int(first_create_ts) <= int(first_tx_ts) else "deployed_after"
+
+
+# ---------------------------------------------------------------- 4. build
 
 def _redeploy(o: dict, misuse_state: str) -> str:
     if o["kind"] == "eoa_create":
@@ -350,6 +401,17 @@ def cmd_build(networks: list[str]) -> pd.DataFrame:
                 "deployer_nonce_on_misuse_chain", "factory", "factory_on_misuse_chain", "redeploy"]
         best = best.reindex(columns=cols).rename(columns={"net": "origin_net"})
         m = m.merge(best, on=["chain", "address"], how="left")
+        fc = _first_create_ts(origin).rename("first_create_ts").reset_index()
+        m = m.merge(fc, on=["chain", "address"], how="left")
+        ft = pd.DataFrame(_read_jsonl(XC_DIR / "first_tx.jsonl"))
+        if not ft.empty:
+            ft = ft.drop_duplicates(["chain", "address"], keep="last").rename(
+                columns={"ts": "first_tx_ts", "block": "first_tx_block", "hash": "first_tx_hash"})
+            m = m.merge(ft.reindex(columns=["chain", "address", "first_tx_ts", "first_tx_block", "first_tx_hash"]),
+                        on=["chain", "address"], how="left")
+        else:
+            m["first_tx_ts"] = None
+        m["xc_timing"] = [_timing_label(c, t) for c, t in zip(m.first_create_ts, m.first_tx_ts)]
     out = INTERIM_DIR / "crosschain_matrix.parquet"
     INTERIM_DIR.mkdir(parents=True, exist_ok=True)
     m.to_parquet(out, index=False)
@@ -375,11 +437,20 @@ def summarize(m: pd.DataFrame, networks: list[str]):
             r = xc.groupby(xc.redeploy.fillna("chưa tra")).agg(n=("address", "size"), loss=("cost_native", "sum"))
             print("  khả năng deploy lại (NCD/PCD-XC):\n" + r.to_string())
             print("  kiểu tạo:", xc.kind.value_counts(dropna=False).to_dict())
+        if "xc_timing" in g:
+            r = xc.groupby(["xc_label", "xc_timing"]).agg(n=("address", "size"), loss=("cost_native", "sum"),
+                                                         misuse_tx=("n_misuse_tx", "sum"))
+            print("  contract ở mạng khác có trước tx đầu tiên trên chain bị misuse không:\n" + r.to_string())
+            k = xc[xc.xc_timing != "unknown"]
+            if len(k):
+                gap = (k.first_tx_ts.astype(float) - k.first_create_ts.astype(float)) / 86400
+                print(f"  khoảng cách (ngày, tx đầu − deploy): trung vị {gap.median():.0f}, "
+                      f"p10 {gap.quantile(.1):.0f}, p90 {gap.quantile(.9):.0f}")
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["code", "origin", "build", "all"])
+    ap.add_argument("step", choices=["code", "origin", "timing", "build", "all"])
     ap.add_argument("--networks", default=",".join(NETWORKS))
     a = ap.parse_args()
     nets = a.networks.split(",")
@@ -387,6 +458,8 @@ def main():
         cmd_code(nets)
     if a.step in ("origin", "all"):
         cmd_origin(nets)
+    if a.step in ("timing", "all"):
+        cmd_timing(nets)
     if a.step in ("build", "all"):
         cmd_build(nets)
 
