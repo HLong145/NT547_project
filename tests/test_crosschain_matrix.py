@@ -109,3 +109,17 @@ def test_timing_label():
     assert _timing_label(300, 200) == "deployed_after"
     assert _timing_label(None, 200) == "unknown"
     assert _timing_label(100, float("nan")) == "unknown"
+
+
+def test_classify_binplorer_creators(monkeypatch):
+    eoa, fac, a = "0x" + "e0" * 20, "0x" + "fa" * 20, "0x" + "11" * 20
+    monkeypatch.setattr(crosschain_matrix, "rpc_batch",
+                        lambda net, calls: ["0x6080" if c[1][0] == fac else "0x" for c in calls])
+    src = {"source": "binplorer"}
+    rows = [{"net": "bsc", "address": a, "creation": src, "deployer": eoa, "kind": "eoa_create"},
+            {"net": "bsc", "address": a, "creation": src, "deployer": eoa, "kind": "create_nonce_not_found"},
+            {"net": "bsc", "address": a, "creation": src, "deployer": fac, "kind": "eoa_create"},
+            {"net": "eth", "address": a, "creation": {}, "deployer": fac, "kind": "eoa_create"}]
+    crosschain_matrix._classify_binplorer_creators(rows)
+    assert [r["kind"] for r in rows] == ["eoa_create", "factory_unknown", "factory", "eoa_create"]
+    assert rows[2]["factory"] == fac

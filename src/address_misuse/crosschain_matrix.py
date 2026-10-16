@@ -24,6 +24,7 @@ cần giao dịch thô (ETH: Etherscan; BSC: chưa có nguồn — xem PROGRESS)
 import argparse
 import hashlib
 import json
+import os
 import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -40,6 +41,10 @@ XC_DIR = RAW_DIR / "crosschain"
 BATCH = 100
 # Mạng mà Etherscan gói miễn phí hỗ trợ (kiểm tra 2026-10-15) — dùng để lấy contract creation
 ETHERSCAN_FREE = ("eth", "arb", "polygon", "sepolia")
+# Binplorer (Ethplorer cho BNB Chain): getAddressInfo trả contractInfo {creatorAddress, creationTransactionHash,
+# creationTimestamp}. freekey: 100 lệnh/giờ, 1.000/ngày; key cá nhân miễn phí: 10 lệnh/giây (BINPLORER_API_KEY).
+BINPLORER_NETS = ("bsc",)
+BINPLORER_URL = "https://api.binplorer.com/getAddressInfo/{}"
 _session = requests.Session()
 _session.headers.update({"Content-Type": "application/json", "User-Agent": "address-misuse-research/0.1"})
 
@@ -199,13 +204,79 @@ def _code_matrix(networks) -> pd.DataFrame:
     return m
 
 
+def _binplorer_creations(pairs: list[tuple[str, str]], creations: dict, f):
+    """Tra contractInfo qua Binplorer, ghi vào creation.jsonl theo định dạng giống Etherscan (source=binplorer)."""
+    pairs = pairs[:int(os.environ.get("BINPLORER_MAX", len(pairs)))]   # giới hạn mỗi lần chạy (freekey: ~1.000/ngày)
+    if not pairs:
+        return
+    key = os.environ.get("BINPLORER_API_KEY") or "freekey"
+    interval = 1 / float(os.environ.get("BINPLORER_RPS", 5)) if key != "freekey" else 36.0   # freekey: 100/giờ
+    print(f"Binplorer: {len(pairs):,} địa chỉ ({'key riêng' if key != 'freekey' else 'freekey, ~100/giờ'})",
+          flush=True)
+    t0, done, waits = time.time(), 0, 0
+    for net, a in pairs:
+        while True:
+            t = time.monotonic()
+            try:
+                r = _session.get(BINPLORER_URL.format(a), params={"apiKey": key}, timeout=30).json()
+            except Exception as e:
+                r = {"error": {"code": -1, "message": str(e)[:100]}}
+            err = r.get("error")
+            if not err:
+                break
+            if err.get("code") == 429 or err.get("code") == -1:
+                waits += 1
+                time.sleep(min(60 * waits, 900))                 # chờ lùi dần, tối đa 15 phút
+                continue
+            break                                                # lỗi khác (vd. địa chỉ không hợp lệ): bỏ qua
+        waits = 0
+        if err:
+            print(f"  {net} {a} Binplorer lỗi: {err}", flush=True)
+            continue
+        ci = r.get("contractInfo") or {}
+        c = {"contractCreator": (ci.get("creatorAddress") or "").lower(), "txHash": ci.get("creationTransactionHash"),
+             "timestamp": str(ci["creationTimestamp"]) if ci.get("creationTimestamp") else None,
+             "blockNumber": None, "contractFactory": "", "source": "binplorer"} if ci else {}
+        creations[(net, a)] = c
+        f.write(json.dumps({"net": net, "address": a, "creation": c}) + "\n")
+        f.flush()
+        done += 1
+        if done % 100 == 0:
+            print(f"  {net} binplorer {done:,}/{len(pairs):,} ({time.time() - t0:.0f}s)", flush=True)
+        time.sleep(max(0.0, interval - (time.monotonic() - t)))
+
+
+def _classify_binplorer_creators(rows: list[dict]):
+    """Binplorer không có contractFactory → người tạo có code trên mạng đó thì là factory."""
+    cand = [x for x in rows if (x["creation"] or {}).get("source") == "binplorer" and x["deployer"]]
+    by_net: dict[str, set] = {}
+    for x in cand:
+        by_net.setdefault(x["net"], set()).add(x["deployer"])
+    has_code = {}
+    for net, ds in by_net.items():
+        ds = sorted(ds)
+        for i in range(0, len(ds), BATCH):
+            chunk = ds[i:i + BATCH]
+            res = rpc_batch(net, [("eth_getCode", [d, "latest"]) for d in chunk])
+            has_code.update({(net, d): (None if v is None else v not in ("0x", "")
+                                        and not v.startswith(EIP7702_PREFIX)) for d, v in zip(chunk, res)})
+    for x in cand:
+        code = has_code.get((x["net"], x["deployer"]))
+        if code:                                                 # factory CREATE (nonce có thể đã tìm được)
+            x.update(kind="factory", factory=x["deployer"], tx_from=None)
+        elif x["kind"] == "create_nonce_not_found" and code is False:
+            x["kind"] = "factory_unknown"                        # EOA gửi tx tới factory chưa rõ (CREATE2)
+
+
 def cmd_origin(networks: list[str], creation_workers: int = 8):
     m = _code_matrix(networks)
     # mạng có contract, khác chain bị misuse
     m["xc_nets"] = m.apply(lambda r: [n for n in networks if n != r.chain and r.get(f"{n}_state") == "code"], axis=1)
     need = m[m.xc_nets.map(len) > 0]
     path = XC_DIR / "origin.jsonl"
-    have = {(r["chain"], r["address"], r["net"]) for r in _read_jsonl(path)}
+    # dòng trước đây "no_creation_api" trên mạng nay tra được qua Binplorer → làm lại (build giữ dòng ghi sau cùng)
+    have = {(r["chain"], r["address"], r["net"]) for r in _read_jsonl(path)
+            if not (r["net"] in BINPLORER_NETS and r["kind"] == "no_creation_api")}
 
     # (a) getcontractcreation trên các mạng Etherscan miễn phí hỗ trợ — một lần cho mỗi (net, address)
     pairs = sorted({(n, r.address) for r in need.itertuples() for n in r.xc_nets if n in ETHERSCAN_FREE})
@@ -255,6 +326,10 @@ def cmd_origin(networks: list[str], creation_workers: int = 8):
                         if done % 50 == 0:
                             print(f"  {net} creation {done * 5:,}/{len(addrs):,} ({time.time() - t0:.0f}s)", flush=True)
 
+        _binplorer_creations(sorted({(n, r.address) for r in need.itertuples() for n in r.xc_nets
+                                     if n in BINPLORER_NETS and (n, r.address) not in creations
+                                     and (r.chain, r.address, n) not in have}), creations, f)
+
     # (b) các dòng cần phân loại
     rows = []
     for r in need.itertuples():
@@ -278,7 +353,8 @@ def cmd_origin(networks: list[str], creation_workers: int = 8):
         x.update({"deployer": (c.get("contractCreator") or "").lower() or None, "create_block": c.get("blockNumber"),
                   "create_ts": c.get("timestamp"), "kind": "unknown", "create_nonce": None})
         if not c:
-            x["kind"] = "no_creation_api" if x["net"] not in ETHERSCAN_FREE else "no_creation_found"
+            x["kind"] = ("no_creation_found" if x["net"] in ETHERSCAN_FREE + BINPLORER_NETS
+                         and (x["net"], x["address"]) in creations else "no_creation_api")
         elif not str(c.get("txHash", "")).startswith("0x"):
             x["kind"] = "genesis"                            # predeploy/system contract (txHash 'GENESIS_...')
         elif c.get("contractFactory"):
@@ -289,6 +365,7 @@ def cmd_origin(networks: list[str], creation_workers: int = 8):
                 x.update(kind="eoa_create", create_nonce=nonce)
             else:
                 x["kind"] = "create_nonce_not_found"         # nonce > NONCE_SEARCH hoặc CREATE2 không qua factory
+    _classify_binplorer_creators(rows)
     print(f"Phân loại {len(rows):,} dòng ({time.time() - t0:.0f}s)", flush=True)
     for chain in sorted({x["chain"] for x in rows}):
         eoa = sorted({x["deployer"] for x in rows if x["chain"] == chain and x["kind"] == "eoa_create"})
