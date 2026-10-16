@@ -39,7 +39,8 @@ class Etherscan:
         self.api_key = api_key or etherscan_api_key()
         if not self.api_key:
             raise EtherscanError("Thiếu ETHERSCAN_API_KEY trong .env")
-        self.min_interval = 1.0 / (rps or float(os.environ.get("ETHERSCAN_RPS", 4)))
+        # Gói miễn phí: 3 lệnh/giây (vượt → "Max calls per sec rate limit reached"); để dư một chút
+        self.min_interval = 1.0 / (rps or float(os.environ.get("ETHERSCAN_RPS", 2.8)))
         self.session = session or requests.Session()
         self._lock = threading.Lock()
         self._last_call = 0.0
@@ -66,15 +67,21 @@ class Etherscan:
                 last_err = e
             else:
                 if module == "proxy":                        # JSON-RPC style
-                    if "result" in data and "error" not in data:
+                    res = data.get("result")
+                    if "error" not in data and (not isinstance(res, str) or res.startswith("0x")):
                         return data
-                    last_err = data.get("error") or data
+                    last_err = data.get("error") or res or data   # vd. "Free API access is not supported for this chain"
+                    if isinstance(last_err, str) and "not supported" in last_err.lower():
+                        raise EtherscanError(f"{self.chain}: {last_err}")
                 elif data.get("status") == "1" or data.get("message", "").startswith("No "):
                     return data                              # "No transactions found" / "No records found"
                 else:
                     last_err = data.get("result") or data.get("message")
                     if isinstance(last_err, str) and ("Invalid API Key" in last_err or "not supported" in last_err.lower()):
                         raise EtherscanError(f"{self.chain}: {last_err}")
+                    if isinstance(last_err, str) and "rate limit" in last_err.lower():
+                        time.sleep(1.0)                      # chỉ vượt hạn mức/giây: chờ ngắn, không tính là lần thử
+                        continue
             time.sleep(1.5 * (attempt + 1))
         raise EtherscanError(f"{self.chain} {module}.{action} {params.get('address', '')}: {last_err}")
 

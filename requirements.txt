@@ -6,3 +6,4 @@ requests>=2.32
 z3-solver>=4.13
 six>=1.16
 psutil>=7.0
+pycryptodome>=3.20

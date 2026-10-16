@@ -2,6 +2,47 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-16 — Ma trận cross-chain D3 (`python -m address_misuse.crosschain_matrix all`)
+
+Toàn bộ địa chỉ CA misuse (45.633 địa chỉ, 49.344 cặp (chain, địa chỉ), bỏ trùng bằng giá trị lớn nhất) × 8 mạng, `eth_getCode` block mới nhất, 0 lỗi. Nguồn gốc contract ở mạng khác: Etherscan `getcontractcreation` (gói free: eth/arb/polygon/sepolia), nonce CREATE suy cục bộ từ `create_address(creator, n)`. Kết quả: `data/interim/crosschain_matrix.parquet`.
+
+| Chain bị misuse | Nhãn | Địa chỉ | % địa chỉ | % thiệt hại |
+|---|---|---|---|---|
+| BSC (21.775, 8.681 BNB) | NCD-XC | 16.819 | 77,2% | 18,9% |
+| | NCD-Other | 4.380 | 20,1% | 67,6% |
+| | PCD-XC | 496 | 2,3% | 13,0% |
+| | PCD-Other | 80 | 0,4% | 0,4% |
+| ETH (27.569, 22.738 ETH) | NCD-XC | 18.782 | 68,1% | 3,1% |
+| | NCD-Other | 8.201 | 29,7% | 81,5% |
+| | PCD-XC | 491 | 1,8% | 2,2% |
+| | PCD-Other | 95 | 0,3% | 13,2% |
+
+- **Type 4 phổ biến theo số địa chỉ, nhưng không theo thiệt hại**: đa số địa chỉ CA misuse là contract ở chain khác, nhưng thiệt hại tập trung ở NCD-Other. Phù hợp pilot top-100 (ETH 2/100): ca lớn nhất ít khi là XC. Chỉ ~10–13% NCD-XC có value > 0, còn lại chỉ mất gas.
+- Hầu hết chỉ có code ở đúng một mạng khác, chủ yếu ETH ↔ BSC (BSC misuse: eth 13.223; ETH misuse: bsc 13.492). Bytecode rất đa dạng (top 10 chỉ phủ 6–10%).
+- Trạng thái hiện tại trên chính chain bị misuse: BSC none 20.951 / code 667 / 7702 157; ETH none 26.536 / code 722 / 7702 311.
+- **Khả năng deploy lại ở đúng địa chỉ** (NCD/PCD-XC, so nonce deployer trên chain bị misuse với nonce lúc tạo):
+
+| | BSC misuse | ETH misuse |
+|---|---|---|
+| claimable (nonce chưa vượt) | 11.515 (1.000 BNB) | 2.224 (63,9 ETH) |
+| burned (nonce đã vượt) | 2.377 (469 BNB) | 1.224 (129,7 ETH) |
+| already_deployed | 494 (1.049 BNB) | 102 (250 ETH) |
+| factory có / không có trên chain misuse | 607 / 1.507 | 220 / 548 |
+| unknown | 815 | 14.955 |
+
+  → Trên BSC, phần lớn địa chỉ bị dùng nhầm vẫn có thể được deploy lại bởi đúng chủ contract: đây là hướng giảm thiểu cụ thể (chủ dự án chiếm trước địa chỉ). Đồng thời là rủi ro: ai nắm key deployer có thể deploy contract khác ở địa chỉ người dùng đang gửi nhầm.
+- Hạn chế: ETH misuse có 14.955 unknown vì contract tương ứng nằm trên BSC, mà Etherscan free không cấp creation cho BSC/OP/Base. Trạng thái code là hiện tại, chưa đối chiếu với thời điểm misuse. Tìm nonce giới hạn 200.000 (19 ca không tìm thấy).
+- Kỹ thuật: RPC công khai (publicnode) trả `null` cho đa số `eth_getTransactionByHash` tx cũ trên arb/polygon (không đánh chỉ mục tx lịch sử) → không dùng được để lấy nonce; suy cục bộ nhanh hơn (13 s cho 17.287 cặp).
+
+## 2026-10-15 — Pilot tái lập rule trên 500 địa chỉ ETH (`python -m address_misuse.reproduce_rules`)
+
+350 NCD + 100 PCD + 50 KEY (seed 0, n_tx ≤ 5.000), tx lấy lại qua Etherscan V2. Kết quả: `data/interim/rules_repro_eth.parquet`.
+
+- **Chế độ snapshot** (chỉ n_tx tx đầu, như lúc tác giả thu thập): **khớp 500/500 đến từng wei** (tổng 579,759 ETH) → rule port (gồm lỗi B1/B2 qua `paper_compat`) tái lập đúng.
+- **Dữ liệu hiện tại**: tổng thiệt hại +0,02%. 20 NCD có thêm 98 tx misuse; 2 NCD đã thành PCD (`0xd392…83fa`, `0xea92…527d`); 24/50 KEY nhận thêm 238 tx. Tổng số tx: NCD 52.254 → 54.572, PCD 37.274 → 60.607.
+- ⇒ Misuse vẫn đang tiếp diễn sau thời điểm thu thập của paper; nhãn NCD/PCD thay đổi theo thời gian, nên dataset cần ghi rõ thời điểm.
+- Hạn chế: 156/500 lệnh getCode kiểm tra EIP-7702 lỗi do RPC công khai bị dùng chung với D3 (chỉ ảnh hưởng chế độ hiện tại).
+
 ## 2026-10-12 — Tái lập symbolic execution (`python -m address_misuse.reproduce_symexec`)
 
 344 contract: tất cả delegate EIP-7702 và logic proxy, cộng mẫu 150 địa chỉ misuse (seed 0). Timeout mềm 120 s; giới hạn RAM 400 MB, lượt chạy lại 850 MB. Kết quả: `data/interim/symexec_repro.parquet`.

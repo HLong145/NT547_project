@@ -27,9 +27,9 @@ EIP7702_ACTIVATION_BLOCK = {"eth": 22431111, "bsc": 47618307}
 NETWORKS = {
     "eth": (1, "https://ethereum-rpc.publicnode.com"),
     "bsc": (56, "https://bsc-rpc.publicnode.com"),
-    "arb": (42161, "https://arb1.arbitrum.io/rpc"),
-    "op": (10, "https://mainnet.optimism.io"),
-    "base": (8453, "https://mainnet.base.org"),
+    "arb": (42161, "https://arbitrum-one-rpc.publicnode.com"),
+    "op": (10, "https://optimism-rpc.publicnode.com"),       # mainnet.optimism.io: batch tối đa 10
+    "base": (8453, "https://base-rpc.publicnode.com"),       # mainnet.base.org: giới hạn batch/tốc độ
     "polygon": (137, "https://polygon-bor-rpc.publicnode.com"),
     "sepolia": (11155111, "https://ethereum-sepolia-rpc.publicnode.com"),
     "bsc_testnet": (97, "https://bsc-testnet-rpc.publicnode.com"),

@@ -4,19 +4,22 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-10-13
+**Cập nhật lần cuối:** 2026-10-15
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
 
 - ✅ Symexec tái lập xong: khớp tác giả 100% trên 246 contract chạy trọn vẹn (xem nhật ký). Kết quả ở `data/interim/symexec_repro.parquet`.
 - ⏳ Chờ người dùng chốt Module 4: Snap (đề xuất) hay RPC proxy.
-- ⬜ Khi có Etherscan key: pilot 500 địa chỉ và so với CSV tác giả (D0/D2). Kèm theo: lấy block deploy của các địa chỉ cross-chain trong pilot để kiểm tra contract ở chain kia có tồn tại **trước** lúc misuse không.
+- ✅ Pilot 500 địa chỉ ETH: snapshot khớp tác giả 500/500 (FINDINGS_LOG 2026-10-15).
+- ✅ D3 ma trận cross-chain đầy đủ (FINDINGS_LOG 2026-10-16).
+- ⬜ D3 còn: so block deploy ở chain kia với thời điểm misuse; lấp 14.955 unknown của ETH misuse (cần nguồn creation BSC).
 - ⬜ Viết bản nháp codebook gán nhãn (D5).
 
 ## 2. Chờ người dùng
 
-- ⏳ Etherscan API key, điền vào `.env`. Kiểm tra gói miễn phí có hỗ trợ BSC/Arbitrum/Optimism không.
+- ✅ Etherscan API key đã có trong `.env` (gói miễn phí): eth, arb, polygon, sepolia OK; **bsc, op, base không hỗ trợ**.
+- ⏳ Chốt cách lấy dữ liệu BSC (và OP/Base): mua Etherscan Lite 1 tháng, RPC riêng, hoặc chỉ lấy top địa chỉ + mẫu (mốc quyết định cuối tuần 1).
 - ⏳ GCP project có bật BigQuery, kèm service-account JSON (để ngoài thư mục dự án; đường dẫn ghi trong `.env`).
 - ⏳ (Khuyến nghị) RPC riêng: Alchemy, Infura hoặc QuickNode.
 - ⏳ Chọn 2 người gán nhãn.
@@ -30,16 +33,17 @@
   - ✅ `.venv`, `requirements.txt`, `pyproject.toml` (cài bằng `pip install -e .`), `.env.example`, `.gitignore`.
   - ✅ Seed: dữ liệu tác giả chuyển thành 14 bảng Parquet và MANIFEST SHA-256 (`address_misuse.seed`). `tests/test_seed.py` khớp Bảng 1, 3, 4 và §6.1 của paper.
   - ✅ Port rule Algorithm 1–3 vào `rules.py` (có `paper_compat` để tái hiện lỗi B1, B2) và `tests/test_rules.py`.
-  - ✅ Client Etherscan API V2 trong `etherscan.py`. ⚠ Chưa thử với API thật vì chưa có key.
+  - ✅ Client Etherscan API V2 trong `etherscan.py`, đã chạy với key thật (3 lệnh/giây).
   - ✅ Symbolic execution chạy được trên Windows: bỏ SIGALRM, đặt deadline theo basic block.
   - ✅ Symbolic execution tái lập: khớp 100% trên các contract chạy xong.
   - ⬜ Test 6 địa chỉ đã biết qua Etherscan (cần key).
 - ⬜ **D1** Giao dịch thô: ETH qua BigQuery, BSC qua Etherscan.
-- ⬜ **D2** Chạy lại rule trên dữ liệu thô và so với CSV tác giả (lệch < 2%).
+- 🔄 **D2** Chạy lại rule trên dữ liệu thô và so với CSV tác giả (lệch < 2%). ✅ Pilot 500 ETH (`reproduce_rules.py`): khớp 100% ở snapshot.
 - 🔄 **D3** Cross-chain
   - ✅ `crosschain.py`: `eth_getCode` song song trên 8 mạng, kèm verdict.
   - ✅ Pilot top 100 NCD mỗi chain (xem FINDINGS_LOG).
-  - ⬜ Ma trận đầy đủ `address × chain`; thông tin deployer, nonce, CREATE/CREATE2; nhãn NCD-XC.
+  - ✅ Ma trận đầy đủ `address × chain` (`crosschain_matrix.py`): deployer, nonce CREATE, factory, nhãn NCD-XC/PCD-XC, khả năng deploy lại.
+  - ⬜ Đối chiếu block deploy với thời điểm misuse; creation trên BSC/OP/Base.
 - ⬜ **D4** Tập âm N1–N8.
 - ⬜ **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
 - ⬜ **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6.
@@ -53,6 +57,23 @@
 - ⬜ Viết paper, Docker, slide (tuần 9–10).
 
 ## 4. Nhật ký (mới nhất ở trên)
+
+- **2026-10-16 — D3 xong** → `data/interim/crosschain_matrix.parquet` (49.344 dòng):
+  - Bước RPC cũ treo >1 giờ: publicnode trả `null` cho đa số tx cũ trên arb/polygon nên mỗi lô bị thử lại 5 lần. Đã bỏ hẳn `eth_getTransactionByHash`: phân loại factory bằng `contractFactory` của Etherscan, nonce CREATE tìm cục bộ bằng `create_address(creator, n)` (17.287 cặp, 13 s).
+  - Misuse BSC (XC chủ yếu nằm trên ETH, có creation): claimable 11.515 (1.000 BNB), burned 2.377, already_deployed 494, factory 2.114, unknown 815.
+  - Misuse ETH: 14.955 unknown vì XC phần lớn nằm trên BSC, mà Etherscan free không có creation cho BSC. Phần tra được: claimable 2.224, burned 1.224. **Cần chốt nguồn dữ liệu BSC** để lấp chỗ này.
+
+- **2026-10-15 — Pilot 500 ETH + D3 (dở, xong ngày 16)**:
+  - `reproduce_rules.py` (350 NCD + 100 PCD + 50 KEY, n_tx ≤ 5.000): chế độ snapshot (n_tx tx đầu) **khớp tác giả 500/500 đến từng wei**. Dữ liệu hiện tại: thêm 98 tx misuse ở 20 NCD, 2 NCD đã thành PCD, 24/50 KEY nhận thêm 238 tx.
+  - `crosschain_matrix.py code` xong (45.633 địa chỉ × 8 mạng, 0 lỗi). Sơ bộ: NCD-XC = 77% địa chỉ NCD BSC (19% loss), 68% NCD ETH (3% loss); chỉ ~10–13% NCD-XC có value > 0 (còn lại chỉ mất gas).
+  - **Việc tiếp theo:** chạy lại `python -X utf8 -m address_misuse.crosschain_matrix origin` (resume từ `data/raw/crosschain/creation.jsonl`, eth + arb gần xong), rồi `... build`; ghi FINDINGS_LOG; commit.
+  - Etherscan free = **3 lệnh/giây**; `getcontractcreation` trả kèm bytecode → rất chậm qua mạng nhóm, cần chạy song song (đã sửa).
+
+- **2026-10-15 — Kiểm tra Etherscan key** (`python -m address_misuse.etherscan`): eth, arb, polygon, sepolia OK; bsc, op, base trả "Free API access is not supported for this chain". Kết nối tới `api.etherscan.io` từ máy nhóm có lúc timeout hẳn (lần chạy đầu lỗi cả 7 chain), chạy lại thì được → khi kéo dữ liệu dài cần retry/resume.
+
+- **2026-10-15 — Dựng lại môi trường từ bản clone mới** theo README (Python 3.13):
+  - `.venv` + `requirements.txt` + `pip install -e .`; `fetch_author_data`: 61 file nguồn khớp SHA-256 (tải Zenodo ~85 KB/s, ~45 phút; script chưa hỗ trợ tải tiếp khi đứt mạng).
+  - `seed`: 14 bảng, số dòng khớp `data/README.md`; MANIFEST chỉ khác `generated_at` (đã hoàn tác) → seed tái tạo y hệt. `pytest`: 21 passed.
 
 - **2026-10-13 — Đưa dự án lên GitHub** (`https://github.com/HLong145/NT547_project`):
   - Không đưa lên git: dữ liệu tác giả (444 MB; tải lại bằng `python -m address_misuse.fetch_author_data`, kiểm tra SHA-256 theo `data/seed/MANIFEST.json`), `data/seed/*.parquet` (tạo lại bằng `seed`), `data/raw/`, `.env`, file PDF paper.
