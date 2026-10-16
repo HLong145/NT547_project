@@ -57,7 +57,8 @@ class Etherscan:
     def call(self, module: str, action: str, retries: int = 4, **params) -> dict:
         query = {"chainid": self.chain_id, "module": module, "action": action, "apikey": self.api_key, **params}
         last_err = None
-        for attempt in range(retries):
+        attempt = rate_waits = 0
+        while attempt < retries:
             self._throttle()
             try:
                 r = self.session.get(BASE_URL, params=query, timeout=(10, 60))
@@ -79,10 +80,12 @@ class Etherscan:
                     last_err = data.get("result") or data.get("message")
                     if isinstance(last_err, str) and ("Invalid API Key" in last_err or "not supported" in last_err.lower()):
                         raise EtherscanError(f"{self.chain}: {last_err}")
-                    if isinstance(last_err, str) and "rate limit" in last_err.lower():
-                        time.sleep(1.0)                      # chỉ vượt hạn mức/giây: chờ ngắn, không tính là lần thử
+                    if isinstance(last_err, str) and "rate limit" in last_err.lower() and rate_waits < 30:
+                        rate_waits += 1                      # chỉ vượt hạn mức/giây: chờ ngắn, không tính là lần thử
+                        time.sleep(1.0)
                         continue
-            time.sleep(1.5 * (attempt + 1))
+            attempt += 1
+            time.sleep(1.5 * attempt)
         raise EtherscanError(f"{self.chain} {module}.{action} {params.get('address', '')}: {last_err}")
 
     # ------------------------------------------------------------ account

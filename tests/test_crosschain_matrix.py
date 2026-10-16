@@ -1,4 +1,10 @@
-from address_misuse.crosschain_matrix import _code_record, _find_create_nonce, _redeploy, _timing_label, create_address
+import json
+
+import pytest
+
+from address_misuse import crosschain_matrix
+from address_misuse.crosschain_matrix import _code_record, _find_create_nonce, _redeploy, _timing_label, create_address, rpc_batch
+from address_misuse.known_multichain import summarize_candidates
 
 DEPLOYER = "0x6ac7ea33f8831ea9dcc53393aaa88b25a785dbf0"
 
@@ -38,6 +44,63 @@ def test_redeploy_labels():
 def test_find_create_nonce():
     assert _find_create_nonce(DEPLOYER, create_address(DEPLOYER, 300)) == 300
     assert _find_create_nonce(DEPLOYER, "0x" + "00" * 20, limit=50) is None
+
+
+class _Resp:
+    def __init__(self, data):
+        self._d = data
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._d
+
+
+def _fake_rpc(monkeypatch, replies):
+    """Mỗi lần post trả phần tử kế tiếp của `replies` (hàm nhận body → list JSON-RPC response)."""
+    sent = []
+
+    def post(url, data, timeout):
+        body = json.loads(data)
+        sent.append([x["id"] for x in body])
+        return _Resp(replies[len(sent) - 1](body))
+
+    monkeypatch.setattr(crosschain_matrix._session, "post", post)
+    monkeypatch.setattr(crosschain_matrix.time, "sleep", lambda s: None)
+    return sent
+
+
+def test_rpc_batch_retries_only_failed_items(monkeypatch):
+    sent = _fake_rpc(monkeypatch, [
+        lambda b: [{"id": 0, "result": "0x6000"}, {"id": 1, "error": {"code": -32005}}, {"id": 2, "result": "0x"}],
+        lambda b: [{"id": 1, "result": "0x"}],
+    ])
+    assert rpc_batch("eth", [("eth_getCode", [a, "latest"]) for a in "abc"]) == ["0x6000", "0x", "0x"]
+    assert sent == [[0, 1, 2], [1]]
+
+
+def test_rpc_batch_partial_and_total_failure(monkeypatch):
+    _fake_rpc(monkeypatch, [lambda b: [{"id": 0, "result": "0x"}]] + [lambda b: []] * 2)
+    assert rpc_batch("eth", [("eth_getCode", ["a", "latest"]), ("eth_getCode", ["b", "latest"])], retries=3) \
+        == ["0x", None]
+    _fake_rpc(monkeypatch, [lambda b: {"error": "429"}] * 2)
+    with pytest.raises(RuntimeError):
+        rpc_batch("eth", [("eth_getCode", ["a", "latest"])], retries=2)
+
+
+def test_n7_summarize_candidates():
+    a, b = "0x" + "aa" * 20, "0x" + "bb" * 20
+    same, other = _code_record(a, "0x6080"), _code_record(a, "0x6081")
+    recs = {"eth": {a: same, b: _code_record(b, "0x")},
+            "bsc": {a: same, b: _code_record(b, "0x6080")},
+            "arb": {a: other, b: _code_record(b, None)},
+            "op": {a: _code_record(a, "0xef0100" + "cd" * 20)}}
+    df = summarize_candidates(recs, {a: "A", b: "B"}).set_index("name")
+    assert df.loc["A", "n_networks_with_code"] == 3 and df.loc["A", "kept"]
+    assert df.loc["A", "n_distinct_bytecode"] == 2 and not df.loc["A", "identical_bytecode"]
+    assert df.loc["B", "networks_with_code"] == "bsc" and not df.loc["B", "kept"]
+    assert df.loc["B", "errors"] == "arb,op"
 
 
 def test_timing_label():

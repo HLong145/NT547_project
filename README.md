@@ -26,7 +26,8 @@ python -m venv .venv
 # 3. Tạo bảng seed Parquet từ dữ liệu tác giả (~15 giây)
 .venv\Scripts\python.exe -X utf8 -m address_misuse.seed
 
-# 4. Kiểm tra: phải thấy "21 passed" (seed khớp số liệu trong paper)
+# 4. Kiểm tra: phải thấy "29 passed" (seed khớp số liệu trong paper)
+#    Sau mỗi lần pull mà requirements.txt đổi: chạy lại lệnh pip install -r ở bước 1
 .venv\Scripts\python.exe -m pytest
 
 # 5. Cấu hình key (tuỳ chọn, cần cho bước kéo dữ liệu on-chain)
@@ -43,7 +44,7 @@ Paper gốc không có trong repo vì lý do bản quyền. Tải `usenixsecurit
 |---|---|
 | Code `src/`, test `tests/`, tài liệu `docs/` | `data/Address-Misuse/`: chạy `fetch_author_data` |
 | `data/seed/MANIFEST.json` (mã băm để kiểm tra) | `data/seed/*.parquet`: chạy `seed` |
-| Kết quả nhỏ: `data/interim/crosschain_pilot.parquet`, `symexec_repro.parquet` | `data/raw/`, phần còn lại của `data/interim/` |
+| Kết quả nhỏ trong `data/interim/`: `crosschain_pilot`, `crosschain_matrix`, `rules_repro_eth`, `symexec_repro`, `n7_multichain_contracts` (`.parquet`) | `data/raw/` (cache giao dịch, getCode, creation), phần còn lại của `data/interim/` |
 | `.env.example` | `.env`: **chứa key, không bao giờ commit** |
 
 ## Cấu trúc
@@ -58,8 +59,11 @@ project/
 │   ├── rules.py              # Rule CA/EOA Misuse (port Algorithm 1–3, trả về từng tx)
 │   ├── symexec/              # Symbolic execution của tác giả, đã chạy được trên Windows
 │   ├── reproduce_symexec.py  # So kết quả symexec với tác giả
+│   ├── reproduce_rules.py    # Kéo tx thô qua Etherscan, chạy rules.py, so với CSV tác giả (pilot 500 ETH)
 │   ├── crosschain.py         # Kiểm tra cross-chain (getCode song song nhiều chain)
-│   └── crosschain_pilot.py   # Pilot cross-chain trên NCD thiệt hại lớn nhất
+│   ├── crosschain_pilot.py   # Pilot cross-chain trên NCD thiệt hại lớn nhất
+│   ├── crosschain_matrix.py  # D3: ma trận CA Misuse × 8 mạng, nguồn gốc contract, khả năng deploy lại
+│   └── known_multichain.py   # Tập âm N7: contract hợp lệ cùng địa chỉ trên nhiều chain
 ├── tests/                    # pytest
 ├── data/                     # Xem data/README.md
 └── docs/                     # Mục tiêu, tiến độ, kế hoạch, phát hiện, lý thuyết, slide
@@ -71,6 +75,15 @@ project/
 # Kiểm tra cross-chain một giao dịch (không cần API key)
 .venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain 0x7a250d5630b4cf539739df2c5dacb4c659f2488d --chain bsc --data 0x7ff36ab5
 .venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain_pilot --top 100
+.venv\Scripts\python.exe -X utf8 -m address_misuse.known_multichain                 # tập âm N7 (~1 phút)
+
+# Ma trận cross-chain D3: code (RPC, không cần key) → origin (cần Etherscan key) → build. Có cache, chạy lại sẽ tiếp tục
+.venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain_matrix all
+.venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain_matrix build          # chỉ ghép lại từ cache data/raw/crosschain/
+
+# Tái lập rule trên giao dịch thô (cần Etherscan key)
+.venv\Scripts\python.exe -X utf8 -m address_misuse.reproduce_rules --chain eth --n-ncd 350 --n-pcd 100 --n-key 50
+.venv\Scripts\python.exe -X utf8 -m address_misuse.reproduce_rules --chain eth --summary-only
 
 # Kiểm tra Etherscan key hỗ trợ chain nào (cần .env)
 .venv\Scripts\python.exe -X utf8 -m address_misuse.etherscan
