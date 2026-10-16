@@ -4,7 +4,7 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-10-15
+**Cập nhật lần cuối:** 2026-10-16
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
@@ -14,6 +14,7 @@
 - ✅ Pilot 500 địa chỉ ETH: snapshot khớp tác giả 500/500 (FINDINGS_LOG 2026-10-15).
 - ✅ D3 ma trận cross-chain đầy đủ (FINDINGS_LOG 2026-10-16).
 - ⬜ D3 còn: so block deploy ở chain kia với thời điểm misuse; lấp 14.955 unknown của ETH misuse (cần nguồn creation BSC).
+- ⬜ Pilot rule còn thiếu: EOA ADDR và các địa chỉ có n_tx > 5.000 (nhóm thiệt hại lớn nhất). Cần Etherscan key.
 - ⬜ Viết bản nháp codebook gán nhãn (D5).
 
 ## 2. Chờ người dùng
@@ -22,6 +23,7 @@
 - ⏳ Chốt cách lấy dữ liệu BSC (và OP/Base): mua Etherscan Lite 1 tháng, RPC riêng, hoặc chỉ lấy top địa chỉ + mẫu (mốc quyết định cuối tuần 1).
 - ⏳ GCP project có bật BigQuery, kèm service-account JSON (để ngoài thư mục dự án; đường dẫn ghi trong `.env`).
 - ⏳ (Khuyến nghị) RPC riêng: Alchemy, Infura hoặc QuickNode.
+- ⏳ Nhờ bạn đã chạy D3/pilot commit `data/interim/crosschain_matrix.parquet` và `rules_repro_eth.parquet`. Hai file này đã được bỏ chặn trong `.gitignore`; máy kia chưa có vì không có `data/raw/crosschain/` và `.env`.
 - ⏳ Chọn 2 người gán nhãn.
 - ⏳ Chốt Module 4: MetaMask Snap hay RPC proxy (mình đề xuất Snap; proxy chỉ để đo độ trễ).
 
@@ -44,7 +46,9 @@
   - ✅ Pilot top 100 NCD mỗi chain (xem FINDINGS_LOG).
   - ✅ Ma trận đầy đủ `address × chain` (`crosschain_matrix.py`): deployer, nonce CREATE, factory, nhãn NCD-XC/PCD-XC, khả năng deploy lại.
   - ⬜ Đối chiếu block deploy với thời điểm misuse; creation trên BSC/OP/Base.
-- ⬜ **D4** Tập âm N1–N8.
+- 🔄 **D4** Tập âm N1–N8.
+  - ✅ N7: 18 contract hạ tầng đa chain đã kiểm chứng (`known_multichain.py`).
+  - ⬜ Mở rộng N7 từ dữ liệu; làm N1–N6 và N8.
 - ⬜ **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
 - ⬜ **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6.
 - ⬜ **D7** OSINT GitHub cho top ~3.000 địa chỉ (giúp truy nguồn NCD trên ETH từ testnet cũ).
@@ -58,6 +62,13 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-16 — Review và gộp commit ce2e398** (pilot rule + D3 origin) với nhánh local `local/d3-matrix-claude`:
+  - Review: logic CREATE/RLP và nhãn redeploy đúng. Hai lần quét D3 độc lập cho cùng số NCD-XC.
+  - Giữ `crosschain_matrix.py` của bạn. Bỏ bản ma trận của mình vì trùng kết quả.
+  - `rpc_batch` giờ chỉ thử lại các phần tử lỗi và chờ lùi dần 2/4/8/16 s.
+  - `etherscan.py`: lỗi rate-limit thật sự không còn bị tính là một lần thử (tối đa 30 lần chờ).
+  - Đưa sang từ nhánh local: N7 (`known_multichain.py`, viết lại trên `rpc_batch`/`_code_record`, chạy lại 18/18 giống cũ), 3 test mới (tổng 29 pass), whitelist `.gitignore` cho kết quả nhỏ.
+  - README: thêm lệnh mới và bảng file. CONTRIBUTING: nhắc cài lại requirements sau khi pull.
 - **2026-10-16 — D3 xong** → `data/interim/crosschain_matrix.parquet` (49.344 dòng):
   - Bước RPC cũ treo >1 giờ: publicnode trả `null` cho đa số tx cũ trên arb/polygon nên mỗi lô bị thử lại 5 lần. Đã bỏ hẳn `eth_getTransactionByHash`: phân loại factory bằng `contractFactory` của Etherscan, nonce CREATE tìm cục bộ bằng `create_address(creator, n)` (17.287 cặp, 13 s).
   - Misuse BSC (XC chủ yếu nằm trên ETH, có creation): claimable 11.515 (1.000 BNB), burned 2.377, already_deployed 494, factory 2.114, unknown 815.

@@ -4,7 +4,7 @@
 
 ## Trước khi bắt đầu một buổi làm việc
 
-1. `git pull` để lấy bản mới nhất.
+1. `git pull` để lấy bản mới nhất. Nếu `requirements.txt` thay đổi, chạy lại `.venv\Scripts\python.exe -m pip install -r requirements.txt`. Nếu không, test sẽ báo lỗi import, ví dụ thiếu `Crypto` (pycryptodome).
 2. Đọc [docs/PROGRESS.md](docs/PROGRESS.md) để biết đang làm tới đâu, ai đang làm gì và việc nào đang chờ.
 3. Đọc [docs/GOALS.md](docs/GOALS.md). Đây là mục tiêu cố định của đề tài; **không tự ý đổi hướng paper** khi chưa thống nhất cả nhóm.
 4. Cần chi tiết thì đọc [docs/PLAN_V2.md](docs/PLAN_V2.md) (kế hoạch) và [docs/FINDINGS_LOG.md](docs/FINDINGS_LOG.md) (phát hiện).

@@ -2,6 +2,15 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-16 — Tập âm N7 (`python -m address_misuse.known_multichain`)
+
+Có 18 contract hạ tầng hợp lệ deploy cùng địa chỉ trên nhiều chain: các factory CREATE2, Multicall3, Permit2, Safe, EntryPoint 4337, 1inch, 0x, Seaport.
+- Cả 18 đều có code trên ≥ 6/8 mạng, và không cái nào nằm trong dữ liệu misuse của tác giả.
+- Permit2, 1inch, 0x, Seaport có bytecode **khác nhau** giữa các chain (lưu chainId/immutable trong bytecode). Vì vậy detector không được đòi bytecode giống hệt nhau.
+- Đã chạy lại sau khi gộp code (dùng `rpc_batch` + `_code_record`): kết quả giống hệt.
+- File kết quả: `data/interim/n7_multichain_contracts.parquet`.
+- Danh sách còn nhỏ; cần mở rộng từ dữ liệu, ví dụ lấy các contract được gọi nhiều trên ETH mà cũng có mặt ở chain khác (BigQuery).
+
 ## 2026-10-16 — Ma trận cross-chain D3 (`python -m address_misuse.crosschain_matrix all`)
 
 Toàn bộ địa chỉ CA misuse (45.633 địa chỉ, 49.344 cặp (chain, địa chỉ), bỏ trùng bằng giá trị lớn nhất) × 8 mạng, `eth_getCode` block mới nhất, 0 lỗi. Nguồn gốc contract ở mạng khác: Etherscan `getcontractcreation` (gói free: eth/arb/polygon/sepolia), nonce CREATE suy cục bộ từ `create_address(creator, n)`. Kết quả: `data/interim/crosschain_matrix.parquet`.
@@ -32,6 +41,9 @@ Toàn bộ địa chỉ CA misuse (45.633 địa chỉ, 49.344 cặp (chain, đ�
 
   → Trên BSC, phần lớn địa chỉ bị dùng nhầm vẫn có thể được deploy lại bởi đúng chủ contract: đây là hướng giảm thiểu cụ thể (chủ dự án chiếm trước địa chỉ). Đồng thời là rủi ro: ai nắm key deployer có thể deploy contract khác ở địa chỉ người dùng đang gửi nhầm.
 - Hạn chế: ETH misuse có 14.955 unknown vì contract tương ứng nằm trên BSC, mà Etherscan free không cấp creation cho BSC/OP/Base. Trạng thái code là hiện tại, chưa đối chiếu với thời điểm misuse. Tìm nonce giới hạn 200.000 (19 ca không tìm thấy).
+- **Kiểm tra độc lập:** một lần quét `eth_getCode` thứ hai, do người khác viết code riêng và chạy trên máy khác, cho đúng cùng số NCD-XC: 16.819 (BSC) và 18.782 (ETH). Kiểm tra chéo thêm:
+  - 600 địa chỉ ngẫu nhiên trên eth/bsc/polygon: 0 có code, tức RPC không báo nhầm;
+  - 50 ca ETH-NCD có code trên BSC, kiểm lại bằng RPC của Binance: khớp 49/50.
 - Kỹ thuật: RPC công khai (publicnode) trả `null` cho đa số `eth_getTransactionByHash` tx cũ trên arb/polygon (không đánh chỉ mục tx lịch sử) → không dùng được để lấy nonce; suy cục bộ nhanh hơn (13 s cho 17.287 cặp).
 
 ## 2026-10-15 — Pilot tái lập rule trên 500 địa chỉ ETH (`python -m address_misuse.reproduce_rules`)

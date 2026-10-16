@@ -85,29 +85,35 @@ def _find_create_nonce_pair(pair: tuple[str, str]) -> int | None:
 
 
 def rpc_batch(network: str, calls: list[tuple[str, list]], timeout: float = 30, retries: int = 5) -> list:
-    """JSON-RPC batch; trả về danh sách result theo đúng thứ tự (None nếu phần tử lỗi). Thử lại khi lỗi mạng."""
-    body = [{"jsonrpc": "2.0", "id": i, "method": m, "params": p} for i, (m, p) in enumerate(calls)]
+    """JSON-RPC batch; trả về danh sách result theo đúng thứ tự (None nếu phần tử vẫn lỗi sau `retries` lần).
+
+    Mỗi lần thử lại chỉ gửi các phần tử còn lỗi, chờ lùi dần 2/4/8/16 s (publicnode giới hạn theo IP cho mọi
+    chain: HTTP 429 hoặc lỗi -32005 cho từng phần tử). Chỉ raise khi không lấy được phần tử nào.
+    """
+    out = [None] * len(calls)
+    todo = list(range(len(calls)))
     last = None
     for attempt in range(retries):
+        body = [{"jsonrpc": "2.0", "id": i, "method": calls[i][0], "params": calls[i][1]} for i in todo]
         try:
             r = _session.post(rpc_url(network), data=json.dumps(body), timeout=timeout)
             r.raise_for_status()
             data = r.json()
             if not isinstance(data, list):
                 raise RuntimeError(str(data)[:200])
-            out = [None] * len(calls)
             for x in data:
-                if "result" in x:
+                if "result" in x and isinstance(x.get("id"), int) and 0 <= x["id"] < len(calls):
                     out[x["id"]] = x["result"]
-            if all(o is not None for o in out):
+            todo = [i for i in todo if out[i] is None]
+            if not todo:
                 return out
-            missing = sum(o is None for o in out)
-            last = RuntimeError(f"{network}: {missing}/{len(calls)} phần tử lỗi")
-            if attempt == retries - 1:
-                return out
+            last = RuntimeError(f"{network}: {len(todo)}/{len(calls)} phần tử lỗi")
         except Exception as e:
             last = e
-        time.sleep(2 * (attempt + 1))
+        if attempt < retries - 1:
+            time.sleep(2 * 2 ** attempt)
+    if len(todo) < len(calls):
+        return out
     raise RuntimeError(f"{network} batch thất bại: {last!r}"[:300])
 
 

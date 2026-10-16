@@ -23,6 +23,9 @@ data/seed/*.parquet
 data/interim/*
 !data/interim/crosschain_pilot.parquet
 !data/interim/symexec_repro.parquet
+!data/interim/rules_repro_eth.parquet
+!data/interim/crosschain_matrix.parquet
+!data/interim/n7_multichain_contracts.parquet
 
 # Paper gốc (bản quyền USENIX/tác giả) — tải tại link trong README
 docs/*.pdf
