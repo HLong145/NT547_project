@@ -13,18 +13,17 @@
 - ⏳ Chờ người dùng chốt Module 4: Snap (đề xuất) hay RPC proxy.
 - ✅ Pilot 500 địa chỉ ETH: snapshot khớp tác giả 500/500 (FINDINGS_LOG 2026-10-15).
 - ✅ D3 ma trận cross-chain đầy đủ (FINDINGS_LOG 2026-10-16).
-- ✅ D3 thời gian (ETH misuse, 5.132 địa chỉ): 90,9% contract có trước tx đầu tiên (FINDINGS_LOG).
-- ⬜ D3 còn: phía BSC (cần nguồn BSC) — đề xuất BSCTrace/NodeReal Free cho creation, Etherscan Lite cho txlist.
+- ✅ D3 thời gian (ETH misuse, 19.273 địa chỉ XC sau khi có creation BSC qua Binplorer): 98,4% ca đã biết có contract trước tx đầu tiên (FINDINGS_LOG 2026-10-17).
+- ⬜ D3 còn: tx đầu tiên trên BSC (timing cho BSC misuse); cần nguồn txlist BSC.
 - ⬜ Pilot rule còn thiếu: EOA ADDR và các địa chỉ có n_tx > 5.000 (nhóm thiệt hại lớn nhất). Cần Etherscan key.
 - 🔄 D5: codebook v0.1 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Chờ chọn 2 người gán để chạy pilot.
 
 ## 2. Chờ người dùng
 
 - ✅ Etherscan API key đã có trong `.env` (gói miễn phí): eth, arb, polygon, sepolia OK; **bsc, op, base không hỗ trợ**.
-- ⏳ Chốt cách lấy dữ liệu BSC (và OP/Base). Đã khảo sát 2026-10-16: BscScan API đã gộp vào Etherscan V2 (free không có BSC); Etherscan Lite $49/tháng (mọi chain, 5 lệnh/s); NodeReal/BSCTrace Free 10M CU (có `nr_getContractCreationTransaction`, nhưng lịch sử tx giới hạn 100k block/lệnh, BSC đã ~128M block); top 1.000 địa chỉ BSC = ~99% thiệt hại.
+- ⏳ Chốt cách lấy dữ liệu BSC (và OP/Base). 2026-10-17: đã thử, không có nguồn miễn phí không cần đăng ký nào lấy đủ txlist BSC (Etherscan free, Ankr công khai, Binplorer, RPC công khai đều không được). Còn: Moralis Free (40k CU/ngày, đủ cho mẫu ~2.000 địa chỉ, ~1 tuần) hoặc Etherscan Lite; đang xin Etherscan quyền truy cập học thuật. Khảo sát 2026-10-16: BscScan API đã gộp vào Etherscan V2 (free không có BSC); Etherscan Lite $49/tháng (mọi chain, 5 lệnh/s); NodeReal/BSCTrace Free 10M CU (có `nr_getContractCreationTransaction`, nhưng lịch sử tx giới hạn 100k block/lệnh, BSC đã ~128M block); top 1.000 địa chỉ BSC = ~99% thiệt hại.
 - ⏳ GCP project có bật BigQuery, kèm service-account JSON (để ngoài thư mục dự án; đường dẫn ghi trong `.env`).
 - ⏳ (Khuyến nghị) RPC riêng: Alchemy, Infura hoặc QuickNode.
-- ⏳ Nhờ bạn đã chạy D3/pilot commit `data/interim/crosschain_matrix.parquet` và `rules_repro_eth.parquet`. Hai file này đã được bỏ chặn trong `.gitignore`; máy kia chưa có vì không có `data/raw/crosschain/` và `.env`.
 - ⏳ Chọn 2 người gán nhãn.
 - ⏳ Chốt Module 4: MetaMask Snap hay RPC proxy (mình đề xuất Snap; proxy chỉ để đo độ trễ).
 
@@ -47,7 +46,8 @@
   - ✅ Pilot top 100 NCD mỗi chain (xem FINDINGS_LOG).
   - ✅ Ma trận đầy đủ `address × chain` (`crosschain_matrix.py`): deployer, nonce CREATE, factory, nhãn NCD-XC/PCD-XC, khả năng deploy lại.
   - ✅ Đối chiếu thời điểm deploy với tx đầu tiên (`crosschain_matrix timing`) cho ETH misuse.
-  - ⬜ Phía BSC: creation trên BSC (BSCTrace `nr_getContractCreationTransaction`) và tx đầu tiên trên BSC.
+  - ✅ Creation trên BSC qua Binplorer (13.472 contract).
+  - ⬜ Tx đầu tiên trên BSC (timing cho BSC misuse).
 - 🔄 **D4** Tập âm N1–N8.
   - ✅ N7: 18 contract hạ tầng đa chain đã kiểm chứng (`known_multichain.py`).
   - ⬜ Mở rộng N7 từ dữ liệu; làm N1–N6 và N8.
@@ -66,6 +66,7 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-17 — D3 creation BSC (Binplorer) + timing lại + pilot D5 sinh lại**: origin 13.472 dòng, timing 12.780 địa chỉ, build 49.344 dòng. ETH misuse: deployed_before 17.635 / after 283 / unknown 1.355; redeploy unknown giảm 14.955 → 1.572. Commit `crosschain_matrix.parquet`, `pilot50_items.csv`, `annotator_template.csv` (không commit `pilot50_key.csv`).
 - **2026-10-16 — D3 thời gian (ETH misuse)**: bước `timing` mới, 5.132 địa chỉ, ~31 phút qua Etherscan free. 90,9% deployed_before. Phía BSC chờ nguồn dữ liệu.
 
 - **2026-10-16 — Review và gộp commit ce2e398** (pilot rule + D3 origin) với nhánh local `local/d3-matrix-claude`:

@@ -38,3 +38,6 @@ Thumbs.db
 .claude/
 CLAUDE.md
 CLAUDE.local.md
+
+# Đáp án pilot (tầng lấy mẫu + nhãn tác giả) — người gán không được xem
+data/gold/*_key.csv

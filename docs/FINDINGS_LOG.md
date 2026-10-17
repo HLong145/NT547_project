@@ -2,6 +2,30 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-17 — D3 bổ sung creation trên BSC qua Binplorer (`crosschain_matrix origin/timing/build`)
+
+Lấy creation cho 13.472 contract trên BSC qua Binplorer `getAddressInfo` (key riêng), sau đó chạy lại timing và build. Phần lớn ETH-NCD-XC có contract nằm trên BSC, nên chỗ "unknown" phía ETH giờ đã được lấp.
+
+**Timing trên ETH misuse** (19.273 địa chỉ XC; trước đây chỉ tra được 5.132):
+
+| Nhãn | deployed_before | deployed_after | unknown |
+|---|---|---|---|
+| NCD-XC | 17.221 (538,9 ETH, 385.818 tx) | 232 (25,9 ETH) | 1.329 |
+| PCD-XC | 414 (482,9 ETH) | 51 (10,3 ETH) | 26 |
+
+- **98,4% (17.635/17.918) ca đã biết thời điểm có contract ở chain khác trước tx đầu tiên trên ETH**, tương đương 91,5% tổng số XC. Riêng contract gốc trên BSC: 13.395/13.486 (99,3%). Kết quả trước (90,9%) đúng là cận dưới.
+- deployed_after chủ yếu đến từ sepolia (82/320) và arb (62); khi đó địa chỉ trên ETH bị dùng trước, nên theo codebook các ca này là T1 chứ không phải T4.
+- Khoảng cách tx đầu − deploy: trung vị 39 ngày (p10 1, p90 414); 6,9% trong 1 ngày, 23,1% trong 7 ngày, 44,8% trong 30 ngày.
+- Còn 1.355 unknown, phần lớn vì contract gốc nằm trên OP/Base/BSC testnet (`no_creation_api`, 1.438 dòng).
+
+**Khả năng deploy lại** phía ETH misuse (trước: unknown 14.955): claimable 11.293 (308,0 ETH), burned 3.112 (205,8 ETH), already_deployed 527 (492,5 ETH), factory có / không có trên ETH 1.172 / 1.597, unknown 1.572.
+
+- **Hạn chế:** timing phía BSC misuse vẫn là unknown, vì chưa có nguồn miễn phí lấy tx đầu tiên trên BSC. Đã thử ngày 2026-10-17:
+  - Etherscan free không hỗ trợ BSC.
+  - Ankr công khai bắt buộc key.
+  - Binplorer `getAddressTransactions` bỏ tx giá trị 0 và không có `input`/`gasUsed`.
+  - RPC công khai chặn receipt cũ (cần token archive).
+
 ## 2026-10-16 — D3 thời gian: contract ở chain khác có trước lúc misuse không (`crosschain_matrix timing`)
 
 So `first_create_ts` (thời điểm deploy sớm nhất **đã biết** ở mạng khác, từ Etherscan creation) với tx đầu tiên tới địa chỉ trên chain bị misuse (Etherscan `txlist` asc). Chỉ làm được cho **misuse trên ETH** có creation ở arb/polygon/sepolia/eth: 5.132 địa chỉ, 0 lỗi. Misuse trên BSC: chưa có nguồn lịch sử tx BSC miễn phí.
