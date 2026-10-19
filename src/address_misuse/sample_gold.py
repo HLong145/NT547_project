@@ -166,11 +166,8 @@ def add_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame]) -> pd.DataFra
     m = s["matrix"].copy()
     ev = sample[keys].copy()
 
-    seed_stats = pd.concat([
-        _dedup_max(s["ca_misuse"])[keys + ["n_tx", "n_misuse_tx", "cost_native"]],
-        _dedup_max(s["eoa_misuse"])[keys + ["n_tx", "n_misuse_tx", "cost_native"]],
-    ]).sort_values("cost_native", ascending=False).drop_duplicates(keys)
-    ev = ev.merge(seed_stats, on=keys, how="left")
+    # Không đưa n_tx / n_misuse_tx / cost_native của tác giả vào file mẫu: chúng chỉ có cho địa chỉ trong seed,
+    # nên ô trống ở mẫu âm và số "misuse tx" > 0 ở mẫu dương đều làm lộ nhãn.
 
     code_cols = {f"{n}_state": f"code_{n}" for n in NETWORKS}
     mcols = keys + list(code_cols) + ["xc_nets", "same_code_elsewhere", "deployer", "kind", "origin_net",
@@ -215,6 +212,7 @@ def cmd_pilot(seed: int = 0) -> pd.DataFrame:
     sample = sample.iloc[order].reset_index(drop=True)
     sample.insert(0, "item_id", [f"P{i + 1:03d}" for i in range(len(sample))])
     items = sample[["item_id", "chain", "address"]].merge(ev, on=["chain", "address"], how="left")
+    items = items.astype(object).where(items.notna() & (items != ""), "-")      # "-" = không tra được, không suy ra gì từ ô này
     GOLD_DIR.mkdir(parents=True, exist_ok=True)
     items.to_csv(GOLD_DIR / "pilot50_items.csv", index=False, encoding="utf-8")
     sample[["item_id", "chain", "address", "stratum", "author_label"]].to_csv(
