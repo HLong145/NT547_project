@@ -2,6 +2,44 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-19 — `flag` delegate 7702 của tác giả là kết quả symexec, không phải nhãn độc; tập âm N1, N6
+
+**`eip7702_delegate_stats.flag` trùng khớp hoàn toàn với symexec** (`symexec_results`, kind = eip7702_delegate):
+
+| flag | Ý nghĩa | Số delegate |
+|---|---|---|
+| 1 | có ít nhất một đường `transfer_*` | 89/89 |
+| 0 | không có đường chuyển tiền | 2 |
+| -1 | chưa phân tích | 10 |
+
+- `symexec_results` (kind = eip7702_delegate) là **mọi delegate đã phân tích**, không phải tập delegate độc. Delegate hợp lệ của MetaMask `EIP7702StatelessDeleGator` (`0x63c0…dae32b`) có mặt với flag 1 (BSC, 1 EOA ADDR).
+- Mọi 17.326 lần ủy quyền trong dữ liệu tác giả đều đến từ EOA KEY/ADDR, nên dữ liệu tác giả không có EOA 7702 lành tính để làm mẫu âm.
+- Hệ quả cho paper: "có đường chuyển tiền" không đủ để kết luận delegate độc (smart wallet nào cũng chuyển được tiền). Phải kết hợp danh sách ví hợp lệ đã kiểm chứng và luồng tiền thực tế. Đây cũng là một nguồn FP cần đo khi đánh giá.
+
+**N6, delegate 7702 hợp lệ** (`python -m address_misuse.negatives n6` → `data/interim/n6_benign_7702_delegates.parquet`): giữ 5/5 ứng viên. Tên contract đã verify được kiểm tra qua Blockscout API (không cần key), và cả 5 đều có code trên ETH.
+- MetaMask `EIP7702StatelessDeleGator`
+- Coinbase `EIP7702Proxy`
+- Uniswap `CaliburEntry`
+- `Simple7702Account` (eth-infinitism)
+- Ambire `AmbireAccount7702`
+
+**N1, địa chỉ ngẫu nhiên không bị gắn cờ** (`python -m address_misuse.negatives n1 --per-chain 200 --seed 0` → `data/interim/n1_random_unflagged.parquet`): 400 địa chỉ lấy từ `candidate_addresses`, loại mọi địa chỉ có trong `ca_misuse`/`eoa_misuse`.
+
+| Chain | none | code | 7702 |
+|---|---|---|---|
+| ETH | 174 | 21 | 5 |
+| BSC | 140 | 51 | 9 |
+
+14/400 (3,5%) địa chỉ ngẫu nhiên lấy từ code công khai **hiện đang ủy quyền EIP-7702**. Cảnh báo phía ví không thể coi mọi EOA 7702 là đáng ngờ.
+
+**Pilot D5 làm mù lại:** trước đây một số cột bằng chứng chỉ được điền ở vài tầng, nên người gán đoán được tầng:
+- `xc_timing` có ở mọi địa chỉ thuộc ma trận misuse;
+- `delegate_7702` chỉ có ở EOA của tác giả;
+- `symexec_*` chỉ có ở PCD;
+- N7 thiếu `xc_nets`.
+
+Bản mới tra `getCode` cho mọi mẫu. Symexec chạy bổ sung cho 12 contract chưa có kết quả của tác giả: 1 bị kill vì OOM, 3 hết timeout 120 s. Cột nguồn gốc/thời điểm chỉ được điền ở tình huống T4. Một mẫu `t4_xc_after` trên ETH nay đã có code ngay trên ETH: trạng thái hiện tại khác với lúc bị misuse.
+
 ## 2026-10-17 — D3 bổ sung creation trên BSC qua Binplorer (`crosschain_matrix origin/timing/build`)
 
 Lấy creation cho 13.472 contract trên BSC qua Binplorer `getAddressInfo` (key riêng), sau đó chạy lại timing và build. Phần lớn ETH-NCD-XC có contract nằm trên BSC, nên chỗ "unknown" phía ETH giờ đã được lấp.

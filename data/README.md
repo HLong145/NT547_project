@@ -34,6 +34,9 @@
 
 - **Bỏ trùng**: một địa chỉ có thể xuất hiện ở cả `github` lẫn `stackexchange` với giá trị loss hơi khác nhau (do tải dữ liệu ở thời điểm khác nhau). Paper lấy **giá trị lớn nhất** cho mỗi `(chain, address)`.
 - `eoa_misuse` loại KEY: lọc `cost_native > 0` để ra số "instances" như Bảng 3.
-- `eip7702_delegate_stats.flag` (1/0/-1) **không** tương ứng với số contract độc trong paper (ETH 48 vs 49, BSC 41 vs 50) → không dùng làm nhãn độc hại. Nhãn độc hại lấy từ `symexec_results` (kind = eip7702_delegate) hoặc tự gán nhãn.
+- `eip7702_delegate_stats.flag` (1/0/-1) **không** tương ứng với số contract độc trong paper (ETH 48 vs 49, BSC 41 vs 50) → không dùng làm nhãn độc hại.
+  - `flag` chính là kết quả symexec: 1 = có đường chuyển tiền, 0 = không có, -1 = chưa phân tích.
+  - `symexec_results` (kind = eip7702_delegate) là **mọi delegate đã phân tích**, không phải tập delegate độc. Ví dụ delegate hợp lệ của MetaMask (`EIP7702StatelessDeleGator`) cũng có mặt, với flag 1.
+  - Nhãn độc hại phải tự gán. Ví hợp lệ đã kiểm chứng nằm trong `data/interim/n6_benign_7702_delegates.parquet`.
 - `symexec_results.self_destruct` gần như luôn rỗng (1.320/1.325): bản code tác giả dùng khi chạy chưa ghi trường này.
 - Giá trị wei lưu dạng chuỗi vì vượt giới hạn int64.

@@ -214,6 +214,7 @@ def _binplorer_creations(pairs: list[tuple[str, str]], creations: dict, f):
     print(f"Binplorer: {len(pairs):,} địa chỉ ({'key riêng' if key != 'freekey' else 'freekey, ~100/giờ'})",
           flush=True)
     t0, done, waits = time.time(), 0, 0
+    max_waits = int(os.environ.get("BINPLORER_MAX_WAITS", 8))           # 60+120+…+480 s ≈ 36 phút
     for net, a in pairs:
         while True:
             t = time.monotonic()
@@ -226,6 +227,10 @@ def _binplorer_creations(pairs: list[tuple[str, str]], creations: dict, f):
                 break
             if err.get("code") == 429 or err.get("code") == -1:
                 waits += 1
+                if waits > max_waits:                            # mất mạng / hết hạn mức lâu: dừng, lần sau chạy tiếp
+                    print(f"  Binplorer dừng sau {max_waits} lần chờ liên tiếp ({err}); đã xong {done:,}. "
+                          "Chạy lại `origin` để tiếp tục từ cache.", flush=True)
+                    return
                 time.sleep(min(60 * waits, 900))                 # chờ lùi dần, tối đa 15 phút
                 continue
             break                                                # lỗi khác (vd. địa chỉ không hợp lệ): bỏ qua

@@ -26,6 +26,8 @@ data/interim/*
 !data/interim/rules_repro_eth.parquet
 !data/interim/crosschain_matrix.parquet
 !data/interim/n7_multichain_contracts.parquet
+!data/interim/n6_benign_7702_delegates.parquet
+!data/interim/n1_random_unflagged.parquet
 
 # Paper gốc (bản quyền USENIX/tác giả) — tải tại link trong README
 docs/*.pdf

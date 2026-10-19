@@ -1,6 +1,6 @@
 # Codebook gán nhãn vàng (D5)
 
-Bản nháp v0.2 (2026-10-19), sẽ chỉnh sau pilot 50 mẫu. Dùng cho 2 người gán nhãn độc lập. Mục tiêu: Cohen's κ ≥ 0,8.
+Bản nháp v0.3 (2026-10-19), sẽ chỉnh sau pilot 50 mẫu. Dùng cho 2 người gán nhãn độc lập. Mục tiêu: Cohen's κ ≥ 0,8.
 
 Taxonomy theo [requirements.md](requirements.md) §3.1 và [PLAN_V2.md](PLAN_V2.md) §1. Kế hoạch mẫu theo PLAN_V2 D5.
 
@@ -96,6 +96,8 @@ Thứ tự ưu tiên khi thỏa nhiều type: **T4 > T1**; **T5 > T6**; **T2** �
 4. **Địa chỉ hệ thống / precompile** (`0x000…000X`, predeploy của OP-stack `0x4200…`, system contract của BSC `0x…1000`): thường là âm. Tx gửi nhầm tới predeploy của chain *khác* (ví dụ WETH OP `0x4200…0006` trên ETH) thì gán T4.
 5. **Người gửi tx đầu tiên là chính deployer** (đội dự án gửi nhầm chain): vẫn là T4. Ghi note `self-misuse`.
 6. **EOA ủy quyền 7702 cho smart wallet hợp lệ** (MetaMask Delegator, Safe, Coinbase…) và chủ ví vẫn rút tiền bình thường: **âm** (N6).
+   - `delegate_symexec_transfer = True` **không** có nghĩa delegate độc: smart wallet hợp lệ cũng chuyển được tiền. Phải xem tiền thực tế đi đâu.
+   - Nếu EOA đã lộ key (KEY) thì vẫn là T5/KEY, dù delegate là ví hợp lệ. Lúc đó sweeper rút bằng chính key.
 7. **Ví sàn hay địa chỉ nạp có auto-sweep**: tiền bị chuyển đi nhanh nhưng **về ví tổng của sàn**, nên là âm (N4). Sweeper độc thì chuyển về ví lạ và thường trả gas cao.
 8. **Tx chỉ mất gas** (value = 0) tới NCD: vẫn là misuse (T1/T4). Thiệt hại nhỏ không làm đổi nhãn.
 9. **Một địa chỉ vừa là PCD vừa có contract khác ở chain khác** (PCD-XC): gán T2 nếu code hiện tại giữ tiền, kèm `xc_chain` trong note. Gán T4 nếu tx misuse xảy ra **trước** khi code xuất hiện trên chain này.
@@ -107,12 +109,11 @@ Mỗi mẫu có sẵn các cột sau (không cần tự tra, trừ khi muốn ki
 
 | Cột | Nguồn |
 |---|---|
-| `code_<chain>` | `eth_getCode` hiện tại trên 8 mạng (`crosschain_matrix`): `none` / `code` / `7702` |
-| `same_code_elsewhere`, `xc_nets` | Ma trận cross-chain |
-| `deployer`, `create_kind`, `origin_net`, `first_create_date` | Etherscan / Binplorer `getcontractcreation` |
+| `code_<chain>`, `xc_nets`, `same_code_elsewhere` | `eth_getCode` hiện tại trên 8 mạng, tra cùng một cách cho **mọi** mẫu: `none` / `code` / `7702`; `xc_nets` = các mạng khác có code; `same_code_elsewhere` = bytecode ở chain này trùng với một mạng khác |
+| `deployer`, `create_kind`, `origin_net`, `first_create_date` | Etherscan / Binplorer `getcontractcreation`. Chỉ điền khi chain này **không** có code mà mạng khác có (tình huống T4) |
 | `first_tx_date`, `xc_timing` | tx đầu tiên tới địa chỉ trên chain này (Etherscan) |
-| `symexec_*` | Kết quả symbolic execution (`transfer_all_eth`, `delegatecall`, …) |
-| `delegate_7702`, `delegate_flag` | `eip7702_delegations` và `eip7702_delegate_stats` của tác giả |
+| `symexec_*` | Symbolic execution trên code ở chain này (`transfer_all_eth`, `delegatecall`, …): kết quả của tác giả, thiếu thì nhóm tự chạy cùng engine (timeout 120 s, nên `False` có thể là chưa tìm hết đường). Chỉ có khi `code_<chain> = code` |
+| `delegate_7702`, `delegate_symexec_transfer`, `delegate_known_wallet` | Delegate đọc từ code `0xef0100…` hiện tại trên chain này. Symexec cho biết delegate có đường chuyển tiền hay không (`True` / `False` / `-` = không phân tích được). Tên ví lấy từ danh sách ví hợp lệ đã kiểm chứng (N6) |
 | `explorer_url`, `explorer_url_xc` | Link Etherscan/BscScan… để tự kiểm tra tx và code |
 
 Ô ghi `-` nghĩa là **không tra được hoặc không áp dụng**; không suy ra gì từ việc ô đó trống (ví dụ `xc_timing = -` không có nghĩa là mẫu âm). Số giao dịch và thiệt hại của tác giả cố ý **không** đưa vào file: tự mở `explorer_url` để xem giao dịch.
@@ -137,3 +138,8 @@ Trạng thái code là **hiện tại**, không phải lúc tx. Khi kết luận
 
 - **v0.1 (2026-10-16):** bản nháp đầu, trước pilot.
 - **v0.2 (2026-10-19):** bỏ các cột `n_tx`, `n_misuse_tx`, `cost_native` khỏi file mẫu (làm lộ nhãn: chỉ có ở mẫu thuộc dữ liệu tác giả); ô không tra được ghi `-` thay vì để trống.
+- **v0.3 (2026-10-19):**
+  - bỏ cột `delegate_flag` (thực chất là kết quả symexec, gây thiên lệch), thay bằng `delegate_symexec_transfer` và `delegate_known_wallet`;
+  - tầng `neg_n6_7702_benign` đổi thành `eoa_7702_other`;
+  - bổ sung ca khó 6;
+  - mọi cột code/delegate tra trực tiếp cho mọi mẫu, symexec chạy bổ sung cho contract chưa có kết quả, cột nguồn gốc/thời điểm chỉ điền ở tình huống T4 (trước đó các cột này chỉ có ở một số tầng nên làm lộ tầng).

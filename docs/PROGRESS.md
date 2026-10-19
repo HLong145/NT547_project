@@ -4,7 +4,7 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-10-16
+**Cập nhật lần cuối:** 2026-10-19
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
@@ -16,7 +16,8 @@
 - ✅ D3 thời gian (ETH misuse, 19.273 địa chỉ XC sau khi có creation BSC qua Binplorer): 98,4% ca đã biết có contract trước tx đầu tiên (FINDINGS_LOG 2026-10-17).
 - ⬜ D3 còn: tx đầu tiên trên BSC (timing cho BSC misuse); cần nguồn txlist BSC.
 - ⬜ Pilot rule còn thiếu: EOA ADDR và các địa chỉ có n_tx > 5.000 (nhóm thiệt hại lớn nhất). Cần Etherscan key.
-- 🔄 D5: codebook v0.1 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Chờ chọn 2 người gán để chạy pilot.
+- ✅ D4: N1 (400 địa chỉ ngẫu nhiên không bị gắn cờ), N6 (5 delegate 7702 hợp lệ, kiểm qua Blockscout) — `negatives.py`. Còn N5 (cần danh sách địa chỉ tin cậy), N2–N4, N8 (cần tx thô, D1).
+- 🔄 D5: codebook v0.3 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Chờ chọn 2 người gán để chạy pilot.
 
 ## 2. Chờ người dùng
 
@@ -50,9 +51,11 @@
   - ⬜ Tx đầu tiên trên BSC (timing cho BSC misuse).
 - 🔄 **D4** Tập âm N1–N8.
   - ✅ N7: 18 contract hạ tầng đa chain đã kiểm chứng (`known_multichain.py`).
-  - ⬜ Mở rộng N7 từ dữ liệu; làm N1–N6 và N8.
+  - ✅ N1: 400 địa chỉ ngẫu nhiên không bị gắn cờ (200/chain) — `negatives.py n1`.
+  - ✅ N6: 5 delegate EIP-7702 hợp lệ (MetaMask, Coinbase, Uniswap Calibur, Simple7702Account, Ambire) — `negatives.py n6`.
+  - ⬜ Mở rộng N7 từ dữ liệu; N5 (danh sách địa chỉ tin cậy); N2–N4, N8 (cần tx thô).
 - 🔄 **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
-  - ✅ Codebook v0.1, script lấy mẫu pilot 50 + tính κ.
+  - ✅ Codebook v0.3, script lấy mẫu pilot 50 + tính κ; file mẫu đã làm mù (bằng chứng tra cùng một cách cho mọi tầng).
   - ⬜ Pilot 50 mẫu với 2 người gán → chỉnh codebook → gán ~2.000 mẫu (cần D4 xong).
 - ⬜ **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6.
 - ⬜ **D7** OSINT GitHub cho top ~3.000 địa chỉ (giúp truy nguồn NCD trên ETH từ testnet cũ).
@@ -66,6 +69,11 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-19 — Gộp lại sau khi bạn force-push (`11b88df`)**: lấy toàn bộ bản của bạn (backup: nhánh `backup/main-before-2026-10-19` và stash GitHub Desktop), rồi áp lại phần của mình:
+  - `rpc_batch` chờ lùi dần; `BINPLORER_MAX_WAITS` (mặc định 8) để bước Binplorer tự dừng khi mạng lỗi, chạy lại sẽ tiếp tục từ cache.
+  - `negatives.py`: N1, N6. Phát hiện `flag` của tác giả = kết quả symexec (FINDINGS_LOG 2026-10-19).
+  - `sample_gold.py`: tầng `eoa_7702` / `eoa_7702_other` theo symexec + N6; mọi mẫu được tra `getCode` trực tiếp; symexec bổ sung cho 12 contract (cache `data/raw/gold/symexec_pilot.jsonl`); cột nguồn gốc/thời điểm chỉ điền ở tình huống T4. Pilot sinh lại, 50 mẫu, 15 tầng.
+  - CODEBOOK v0.3. Test: 39 passed.
 - **2026-10-17 — D3 creation BSC (Binplorer) + timing lại + pilot D5 sinh lại**: origin 13.472 dòng, timing 12.780 địa chỉ, build 49.344 dòng. ETH misuse: deployed_before 17.635 / after 283 / unknown 1.355; redeploy unknown giảm 14.955 → 1.572. Commit `crosschain_matrix.parquet`, `pilot50_items.csv`, `annotator_template.csv` (không commit `pilot50_key.csv`).
 - **2026-10-16 — D3 thời gian (ETH misuse)**: bước `timing` mới, 5.132 địa chỉ, ~31 phút qua Etherscan free. 90,9% deployed_before. Phía BSC chờ nguồn dữ liệu.
 

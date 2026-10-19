@@ -26,7 +26,7 @@ python -m venv .venv
 # 3. Tạo bảng seed Parquet từ dữ liệu tác giả (~15 giây)
 .venv\Scripts\python.exe -X utf8 -m address_misuse.seed
 
-# 4. Kiểm tra: phải thấy "29 passed" (seed khớp số liệu trong paper)
+# 4. Kiểm tra: phải thấy "39 passed" (seed khớp số liệu trong paper)
 #    Sau mỗi lần pull mà requirements.txt đổi: chạy lại lệnh pip install -r ở bước 1
 .venv\Scripts\python.exe -m pytest
 
@@ -44,7 +44,7 @@ Paper gốc không có trong repo vì lý do bản quyền. Tải `usenixsecurit
 |---|---|
 | Code `src/`, test `tests/`, tài liệu `docs/` | `data/Address-Misuse/`: chạy `fetch_author_data` |
 | `data/seed/MANIFEST.json` (mã băm để kiểm tra) | `data/seed/*.parquet`: chạy `seed` |
-| Kết quả nhỏ trong `data/interim/`: `crosschain_pilot`, `crosschain_matrix`, `rules_repro_eth`, `symexec_repro`, `n7_multichain_contracts` (`.parquet`) | `data/raw/` (cache giao dịch, getCode, creation), phần còn lại của `data/interim/` |
+| Kết quả nhỏ trong `data/interim/`: `crosschain_pilot`, `crosschain_matrix`, `rules_repro_eth`, `symexec_repro`, `n1_random_unflagged`, `n6_benign_7702_delegates`, `n7_multichain_contracts` (`.parquet`) | `data/raw/` (cache giao dịch, getCode, creation), `data/gold/*_key.csv` (đáp án pilot, không commit), phần còn lại của `data/interim/` |
 | `.env.example` | `.env`: **chứa key, không bao giờ commit** |
 
 ## Cấu trúc
@@ -63,7 +63,9 @@ project/
 │   ├── crosschain.py         # Kiểm tra cross-chain (getCode song song nhiều chain)
 │   ├── crosschain_pilot.py   # Pilot cross-chain trên NCD thiệt hại lớn nhất
 │   ├── crosschain_matrix.py  # D3: ma trận CA Misuse × 8 mạng, nguồn gốc contract, khả năng deploy lại
-│   └── known_multichain.py   # Tập âm N7: contract hợp lệ cùng địa chỉ trên nhiều chain
+│   ├── known_multichain.py   # Tập âm N7: contract hợp lệ cùng địa chỉ trên nhiều chain
+│   ├── negatives.py          # Tập âm N1 (ngẫu nhiên không bị gắn cờ), N6 (ví EIP-7702 hợp lệ)
+│   └── sample_gold.py        # D5: lấy mẫu pilot gán nhãn (làm mù, có bằng chứng) và tính Cohen's κ
 ├── tests/                    # pytest
 ├── data/                     # Xem data/README.md
 └── docs/                     # Mục tiêu, tiến độ, kế hoạch, phát hiện, lý thuyết, slide
@@ -76,8 +78,14 @@ project/
 .venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain 0x7a250d5630b4cf539739df2c5dacb4c659f2488d --chain bsc --data 0x7ff36ab5
 .venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain_pilot --top 100
 .venv\Scripts\python.exe -X utf8 -m address_misuse.known_multichain                 # tập âm N7 (~1 phút)
+.venv\Scripts\python.exe -X utf8 -m address_misuse.negatives n1                     # tập âm N1 (400 địa chỉ)
+.venv\Scripts\python.exe -X utf8 -m address_misuse.negatives n6                     # tập âm N6 (kiểm chứng qua Blockscout)
 
-# Ma trận cross-chain D3: code (RPC, không cần key) → origin (cần Etherscan key) → build. Có cache, chạy lại sẽ tiếp tục
+# Gán nhãn vàng D5 (cần crosschain_matrix.parquet); file mẫu đã làm mù ra data/gold/; file *_key.csv không commit
+.venv\Scripts\python.exe -X utf8 -m address_misuse.sample_gold pilot
+.venv\Scripts\python.exe -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_A.csv data/gold/annotator_B.csv
+
+# Ma trận cross-chain D3: code (RPC, không cần key) → origin (Etherscan key; BSC qua Binplorer) → timing → build. Có cache, chạy lại sẽ tiếp tục
 .venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain_matrix all
 .venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain_matrix build          # chỉ ghép lại từ cache data/raw/crosschain/
 

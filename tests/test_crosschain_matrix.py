@@ -123,3 +123,17 @@ def test_classify_binplorer_creators(monkeypatch):
     crosschain_matrix._classify_binplorer_creators(rows)
     assert [r["kind"] for r in rows] == ["eoa_create", "factory_unknown", "factory", "eoa_create"]
     assert rows[2]["factory"] == fac
+
+
+def test_binplorer_stops_after_max_waits(monkeypatch):
+    import io
+
+    def down(*a, **k):
+        raise ConnectionError("mất mạng")
+
+    monkeypatch.setattr(crosschain_matrix._session, "get", down)
+    monkeypatch.setattr(crosschain_matrix.time, "sleep", lambda s: None)
+    monkeypatch.setenv("BINPLORER_MAX_WAITS", "2")
+    creations, f = {}, io.StringIO()
+    crosschain_matrix._binplorer_creations([("bsc", "0x" + "11" * 20)], creations, f)   # phải dừng, không treo
+    assert creations == {} and f.getvalue() == ""

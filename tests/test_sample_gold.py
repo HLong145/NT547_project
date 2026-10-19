@@ -31,3 +31,34 @@ def test_state_from_code_record():
     assert _state({"a": "x", "s": 0}) == "none"
     assert _state({"a": "x", "d": "0xcd"}) == "7702"
     assert _state({"a": "x", "s": 5, "h": "ab"}) == "code"
+
+
+def test_delegations_uses_symexec_and_known_wallets():
+    from address_misuse.sample_gold import delegations
+    s = {"eip7702_delegations": pd.DataFrame({"chain": ["bsc"] * 4, "eoa_list": ["KEY"] * 4,
+                                              "eoa": ["e1", "e2", "e3", "e1"], "delegate": ["dA", "dB", "dC", "dA"]}),
+         "symexec_results": pd.DataFrame({"chain": ["bsc", "bsc"], "kind": ["eip7702_delegate"] * 2,
+                                          "address": ["dA", "dB"], "transfer_all_eth": [True, False],
+                                          "transfer_msg_value": [False, False], "transfer_input_amount": [False, False]}),
+         "n6": pd.DataFrame({"address": ["dA"], "wallet": ["Ví X"], "kept": [True]})}
+    d = delegations(s).set_index("address")
+    assert len(d) == 3                                          # bỏ trùng (chain, EOA)
+    assert d.loc["e1", "delegate_symexec_transfer"] is True and d.loc["e1", "delegate_known_wallet"] == "Ví X"
+    assert d.loc["e2", "delegate_symexec_transfer"] is False and pd.isna(d.loc["e2", "delegate_known_wallet"])
+    assert pd.isna(d.loc["e3", "delegate_symexec_transfer"])  # delegate chưa được phân tích
+
+
+def test_live_evidence_is_uniform():
+    from address_misuse.config import NETWORKS
+    from address_misuse.crosschain_matrix import _code_record
+    from address_misuse.sample_gold import live_evidence
+    a = "0x" + "aa" * 20
+    none = {n: _code_record(a, "0x") for n in NETWORKS}
+    ev = live_evidence("eth", none)
+    assert ev["xc_nets"] == "" and ev["same_code_elsewhere"] is False and ev["delegate_7702"] is None
+    recs = {**none, "eth": _code_record(a, "0x6080"), "bsc": _code_record(a, "0x6080"), "arb": _code_record(a, "0x60")}
+    ev = live_evidence("eth", recs)
+    assert ev["xc_nets"] == "bsc,arb" and ev["same_code_elsewhere"] is True
+    ev = live_evidence("bsc", {**none, "bsc": _code_record(a, "0xef0100" + "cd" * 20), "eth": _code_record(a, None)})
+    assert ev["code_bsc"] == "7702" and ev["delegate_7702"] == "0x" + "cd" * 20 and ev["code_eth"] is None
+    assert ev["same_code_elsewhere"] is False
