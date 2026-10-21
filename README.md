@@ -4,7 +4,7 @@
 
 - **Tiến độ (đọc đầu tiên):** [docs/PROGRESS.md](docs/PROGRESS.md) · Mục tiêu cố định: [docs/GOALS.md](docs/GOALS.md)
 - Yêu cầu gốc: [docs/requirements.md](docs/requirements.md) · Kế hoạch: [docs/PLAN_V2.md](docs/PLAN_V2.md)
-- Phát hiện cho paper: [docs/FINDINGS_LOG.md](docs/FINDINGS_LOG.md) · Dữ liệu: [data/README.md](data/README.md)
+- Phát hiện cho paper: [docs/FINDINGS_LOG.md](docs/FINDINGS_LOG.md) · Risk score: [docs/RISK_SCORE.md](docs/RISK_SCORE.md) · Dữ liệu: [data/README.md](data/README.md)
 - Lấy API key / BigQuery / RPC: [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md)
 
 ## Bắt đầu sau khi clone (Windows PowerShell)
@@ -90,7 +90,7 @@ project/
 .venv\Scripts\python.exe -X utf8 -m address_misuse.crosschain_matrix build          # chỉ ghép lại từ cache data/raw/crosschain/
 
 # Tái lập rule trên giao dịch thô (cần Etherscan key)
-.venv\Scripts\python.exe -X utf8 -m address_misuse.reproduce_rules --chain eth --n-ncd 350 --n-pcd 100 --n-key 50
+.venv\Scripts\python.exe -X utf8 -m address_misuse.reproduce_rules --chain eth --n-ncd 350 --n-pcd 100 --n-key 50 --n-addr 50 --n-big 30   # + EOA ADDR, CA n_tx > 5.000
 .venv\Scripts\python.exe -X utf8 -m address_misuse.reproduce_rules --chain eth --summary-only
 
 # Kiểm tra Etherscan key hỗ trợ chain nào (cần .env)
