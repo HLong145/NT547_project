@@ -2,6 +2,17 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-20 — D3 timing BSC qua NodeReal (`crosschain_matrix timing`, `build`)
+
+Nguồn: NodeReal MegaNode free, `nr_getTransactionByAddress` (`category=[external]`, `order=asc`, `maxCount=1`), 16.562 địa chỉ BSC trong ~5 phút, 0 lỗi. (Moralis đòi gói $149+, BigQuery không có dataset BSC, Blockscout/Ankr không dùng được.)
+
+| Chain bị misuse | NCD/PCD-XC có timing | deployed_before | deployed_after | unknown |
+|---|---|---|---|---|
+| BSC | 16.562 | 16.366 (98,8%) | 196 | 753 |
+| ETH | 17.918 | 17.635 (98,4%) | 283 | 1.355 |
+
+Khoảng cách (tx đầu − deploy ở chain khác), BSC: trung vị 32 ngày, p10 0, p90 443. Kết luận như ETH: gần như mọi ca NCD/PCD-XC đã có contract ở chain khác trước khi địa chỉ nhận tx đầu tiên, tức cảnh báo cross-chain có thể đã bắn được từ đầu. Lưu ý: tx đầu tiên chỉ tính tx `external` (không tính tx nội bộ); ngày deploy dùng trạng thái hiện tại.
+
 ## 2026-10-19 — `flag` delegate 7702 của tác giả là kết quả symexec, không phải nhãn độc; tập âm N1, N6
 
 **`eip7702_delegate_stats.flag` trùng khớp hoàn toàn với symexec** (`symexec_results`, kind = eip7702_delegate):

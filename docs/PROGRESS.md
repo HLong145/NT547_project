@@ -4,17 +4,18 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-10-19
+**Cập nhật lần cuối:** 2026-10-20
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
 
 - ✅ Symexec tái lập xong: khớp tác giả 100% trên 246 contract chạy trọn vẹn (xem nhật ký). Kết quả ở `data/interim/symexec_repro.parquet`.
-- ⏳ Chờ người dùng chốt Module 4: Snap (đề xuất) hay RPC proxy.
+- ✅ Đã chốt (2026-10-20): Module 4 = MetaMask Snap (RPC proxy chỉ để đo độ trễ); nguồn BSC = NodeReal free (Moralis đổi sang bắt gói trả phí $149+).
+- ⏳ `NODEREAL_API_KEY` đã có trong `.env`; chạy `python -X utf8 -m address_misuse.crosschain_matrix timing` (tự resume, dừng khi hết CU/ngày) và `build`.
 - ✅ Pilot 500 địa chỉ ETH: snapshot khớp tác giả 500/500 (FINDINGS_LOG 2026-10-15).
 - ✅ D3 ma trận cross-chain đầy đủ (FINDINGS_LOG 2026-10-16).
 - ✅ D3 thời gian (ETH misuse, 19.273 địa chỉ XC sau khi có creation BSC qua Binplorer): 98,4% ca đã biết có contract trước tx đầu tiên (FINDINGS_LOG 2026-10-17).
-- ⬜ D3 còn: tx đầu tiên trên BSC (timing cho BSC misuse); cần nguồn txlist BSC.
+- ✅ D3 timing BSC xong (2026-10-20) qua NodeReal: 16.562 địa chỉ trong ~5 phút, 98,8% ca đã biết có contract trước tx đầu tiên (FINDINGS_LOG 2026-10-20).
 - ⬜ Pilot rule còn thiếu: EOA ADDR và các địa chỉ có n_tx > 5.000 (nhóm thiệt hại lớn nhất). Cần Etherscan key.
 - ✅ D4: N1 (400 địa chỉ ngẫu nhiên không bị gắn cờ), N6 (5 delegate 7702 hợp lệ, kiểm qua Blockscout) — `negatives.py`. Còn N5 (cần danh sách địa chỉ tin cậy), N2–N4, N8 (cần tx thô, D1).
 - 🔄 D5: codebook v0.3 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Chờ chọn 2 người gán để chạy pilot.
@@ -22,11 +23,10 @@
 ## 2. Chờ người dùng
 
 - ✅ Etherscan API key đã có trong `.env` (gói miễn phí): eth, arb, polygon, sepolia OK; **bsc, op, base không hỗ trợ**.
-- ⏳ Chốt cách lấy dữ liệu BSC (và OP/Base). 2026-10-17: đã thử, không có nguồn miễn phí không cần đăng ký nào lấy đủ txlist BSC (Etherscan free, Ankr công khai, Binplorer, RPC công khai đều không được). Còn: Moralis Free (40k CU/ngày, đủ cho mẫu ~2.000 địa chỉ, ~1 tuần) hoặc Etherscan Lite; đang xin Etherscan quyền truy cập học thuật. Khảo sát 2026-10-16: BscScan API đã gộp vào Etherscan V2 (free không có BSC); Etherscan Lite $49/tháng (mọi chain, 5 lệnh/s); NodeReal/BSCTrace Free 10M CU (có `nr_getContractCreationTransaction`, nhưng lịch sử tx giới hạn 100k block/lệnh, BSC đã ~128M block); top 1.000 địa chỉ BSC = ~99% thiệt hại.
+- ✅ Chốt NodeReal free cho BSC (2026-10-20); OP/Base vẫn chưa có nguồn. Lịch sử cân nhắc: 2026-10-17: đã thử, không có nguồn miễn phí không cần đăng ký nào lấy đủ txlist BSC (Etherscan free, Ankr công khai, Binplorer, RPC công khai đều không được). Còn: Moralis Free (40k CU/ngày, đủ cho mẫu ~2.000 địa chỉ, ~1 tuần) hoặc Etherscan Lite; đang xin Etherscan quyền truy cập học thuật. Khảo sát 2026-10-16: BscScan API đã gộp vào Etherscan V2 (free không có BSC); Etherscan Lite $49/tháng (mọi chain, 5 lệnh/s); NodeReal/BSCTrace Free 10M CU (có `nr_getContractCreationTransaction`, nhưng lịch sử tx giới hạn 100k block/lệnh, BSC đã ~128M block); top 1.000 địa chỉ BSC = ~99% thiệt hại.
 - ⏳ GCP project có bật BigQuery, kèm service-account JSON (để ngoài thư mục dự án; đường dẫn ghi trong `.env`).
 - ⏳ (Khuyến nghị) RPC riêng: Alchemy, Infura hoặc QuickNode.
 - ⏳ Chọn 2 người gán nhãn.
-- ⏳ Chốt Module 4: MetaMask Snap hay RPC proxy (mình đề xuất Snap; proxy chỉ để đo độ trễ).
 
 ## 3. Checklist theo PLAN_V2
 
@@ -48,7 +48,7 @@
   - ✅ Ma trận đầy đủ `address × chain` (`crosschain_matrix.py`): deployer, nonce CREATE, factory, nhãn NCD-XC/PCD-XC, khả năng deploy lại.
   - ✅ Đối chiếu thời điểm deploy với tx đầu tiên (`crosschain_matrix timing`) cho ETH misuse.
   - ✅ Creation trên BSC qua Binplorer (13.472 contract).
-  - ⬜ Tx đầu tiên trên BSC (timing cho BSC misuse).
+  - ✅ Tx đầu tiên trên BSC (NodeReal `nr_getTransactionByAddress`).
 - 🔄 **D4** Tập âm N1–N8.
   - ✅ N7: 18 contract hạ tầng đa chain đã kiểm chứng (`known_multichain.py`).
   - ✅ N1: 400 địa chỉ ngẫu nhiên không bị gắn cờ (200/chain) — `negatives.py n1`.
@@ -69,6 +69,7 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-20 — Chốt NodeReal + Snap**: Moralis không còn gói Free trong luồng đăng ký (bắt $149+); BigQuery không có dataset BSC; Blockscout/Ankr không dùng được. `cmd_timing` dùng NodeReal `nr_getTransactionByAddress` (order asc, maxCount 1) cho BSC; đã thử thật 1 địa chỉ, OK.
 - **2026-10-19 — Gộp lại sau khi bạn force-push (`11b88df`)**: lấy toàn bộ bản của bạn (backup: nhánh `backup/main-before-2026-10-19` và stash GitHub Desktop), rồi áp lại phần của mình:
   - `rpc_batch` chờ lùi dần; `BINPLORER_MAX_WAITS` (mặc định 8) để bước Binplorer tự dừng khi mạng lỗi, chạy lại sẽ tiếp tục từ cache.
   - `negatives.py`: N1, N6. Phát hiện `flag` của tác giả = kết quả symexec (FINDINGS_LOG 2026-10-19).

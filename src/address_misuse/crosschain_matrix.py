@@ -44,6 +44,8 @@ ETHERSCAN_FREE = ("eth", "arb", "polygon", "sepolia")
 # Binplorer (Ethplorer cho BNB Chain): getAddressInfo trả contractInfo {creatorAddress, creationTransactionHash,
 # creationTimestamp}. freekey: 100 lệnh/giờ, 1.000/ngày; key cá nhân miễn phí: 10 lệnh/giây (BINPLORER_API_KEY).
 BINPLORER_NETS = ("bsc",)
+# NodeReal (MegaNode) free: nr_getTransactionByAddress order=asc maxCount=1 trả tx đầu tiên tới địa chỉ (BSC).
+NODEREAL_NETS = {"bsc": "https://bsc-mainnet.nodereal.io/v1/{}"}
 BINPLORER_URL = "https://api.binplorer.com/getAddressInfo/{}"
 _session = requests.Session()
 _session.headers.update({"Content-Type": "application/json", "User-Agent": "address-misuse-research/0.1"})
@@ -409,22 +411,50 @@ def _first_create_ts(origin: pd.DataFrame) -> pd.Series:
     return o.groupby(["chain", "address"]).create_ts.min()
 
 
+class NodeRealQuota(RuntimeError):
+    """Hết hạn mức CU: dừng, chạy lại sau sẽ tiếp tục từ first_tx.jsonl."""
+
+
+def _nodereal_first_tx(chain: str, address: str, key: str, retries: int = 5) -> dict:
+    body = {"jsonrpc": "2.0", "id": 1, "method": "nr_getTransactionByAddress",
+            "params": [{"category": ["external"], "address": address, "order": "asc", "maxCount": "0x1"}]}
+    for attempt in range(retries):
+        r = _session.post(NODEREAL_NETS[chain].format(key), json=body, timeout=30)
+        if r.status_code == 429:
+            time.sleep(2 ** (attempt + 1))
+            continue
+        r.raise_for_status()
+        j = r.json()
+        if "error" in j:
+            msg = str(j["error"]).lower()
+            if any(w in msg for w in ("quota", "exceed", "limit", "compute unit")):
+                raise NodeRealQuota(msg[:200])
+            raise RuntimeError(msg[:200])
+        t = (j["result"].get("transfers") or [None])[0]
+        return {"ts": int(t["blockTimeStamp"]), "block": int(t["blockNum"], 16), "hash": t["hash"]} if t else {}
+    raise RuntimeError("NodeReal: hết số lần thử (429)")
+
+
 def cmd_timing(networks: list[str], workers: int = 8):
-    """tx đầu tiên tới địa chỉ trên chain bị misuse (Etherscan txlist asc, 1 bản ghi) — chỉ cho dòng XC đã biết
-    thời điểm deploy ở mạng khác. BSC không có trong gói Etherscan free nên bị bỏ qua."""
+    """tx đầu tiên tới địa chỉ trên chain bị misuse — chỉ cho dòng XC đã biết thời điểm deploy ở mạng khác.
+    ETH/ARB/Polygon: Etherscan txlist asc (1 bản ghi). BSC: NodeReal free (cần NODEREAL_API_KEY)."""
     first = _first_create_ts(pd.DataFrame(_read_jsonl(XC_DIR / "origin.jsonl")))
     path = XC_DIR / "first_tx.jsonl"
     have = {(r["chain"], r["address"]) for r in _read_jsonl(path)}
     todo = [k for k in first.index if k not in have]
-    skipped = sum(c not in ETHERSCAN_FREE for c, _ in todo)
-    todo = [k for k in todo if k[0] in ETHERSCAN_FREE]
-    print(f"tx đầu tiên: {len(todo):,} địa chỉ cần tra, bỏ qua {skipped:,} (chain không có trong Etherscan free)",
-          flush=True)
-    clients = {c: Etherscan(c) for c in {c for c, _ in todo}}
+    nr_key = os.environ.get("NODEREAL_API_KEY") or None
+    usable = set(ETHERSCAN_FREE) | (set(NODEREAL_NETS) if nr_key else set())
+    skipped = sum(c not in usable for c, _ in todo)
+    todo = [k for k in todo if k[0] in usable]
+    print(f"tx đầu tiên: {len(todo):,} địa chỉ cần tra, bỏ qua {skipped:,} "
+          f"(chain không có nguồn{'' if nr_key else '; đặt NODEREAL_API_KEY để tra BSC'})", flush=True)
+    clients = {c: Etherscan(c) for c in {c for c, _ in todo} if c in ETHERSCAN_FREE}
 
     def job(k):
         chain, a = k
         try:
+            if chain in NODEREAL_NETS:
+                return k, _nodereal_first_tx(chain, a, nr_key)
             data = clients[chain].call("account", "txlist", address=a, startblock=0, endblock=99_999_999,
                                        page=1, offset=1, sort="asc")
             r = (data.get("result") or [None])[0]
@@ -433,9 +463,15 @@ def cmd_timing(networks: list[str], workers: int = 8):
             return k, e
 
     t0, done = time.time(), 0
+    # BSC xếp trước vì là phần còn thiếu
+    todo.sort(key=lambda k: k[0] not in NODEREAL_NETS)
     with path.open("a", encoding="utf-8") as f, ThreadPoolExecutor(workers) as ex:
         for (chain, a), got in ex.map(job, todo):
             done += 1
+            if isinstance(got, NodeRealQuota):
+                print(f"  NodeReal hết hạn mức ({got}); dừng, chạy lại sau để tiếp tục", flush=True)
+                ex.shutdown(wait=False, cancel_futures=True)
+                break
             if isinstance(got, Exception):
                 print(f"  {chain} {a} lỗi: {str(got)[:100]}", flush=True)
                 continue
