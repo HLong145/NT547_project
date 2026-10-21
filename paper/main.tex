@@ -1,0 +1,189 @@
+% Springer LNCS template. Needs llncs.cls and splncs04.bst (see paper/README.md).
+% The \todo{...} macros mark text to fill in; take numbers from docs/FINDINGS_LOG.md.
+\documentclass[runningheads]{llncs}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{siunitx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+
+% Reminder macro: red in drafts. Redefine as {} before submission.
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\addr}[1]{\texttt{#1}}
+
+\begin{document}
+
+\title{Characterizing and Mitigating Address Misuse Risks\\in Cross-Chain EVM Ecosystems}
+% Optional running title: \titlerunning{Address Misuse in Cross-Chain EVM}
+
+\author{First Author\inst{1} \and
+Second Author\inst{1} \and
+Third Author\inst{1}}
+\authorrunning{F. Author et al.}
+\institute{University / Faculty, City, Country\\
+\email{\{author1,author2,author3\}@example.edu}}
+
+\maketitle
+
+\begin{abstract}
+% 150--250 words. Structure: context -> gap -> approach -> main result -> contributions.
+Users who send a transaction to an address that is not the contract they
+intended lose funds or leave them stranded. Shao et al.\ recently characterized
+such \emph{address misuse} on Ethereum and BNB Smart Chain. We partially
+replicate their study and extend it with a \emph{cross-chain consistency}
+analysis: an address that holds a contract on one chain but is empty on the
+chain the user transacts on. \todo{Key quantitative result, e.g.\ share of
+misuse addresses explained by cross-chain misalignment and loss covered.}
+We further propose a risk score $R(A,C)$ and a wallet-side warning that runs
+before signing, with \todo{latency} median overhead.
+\todo{One sentence on gold-label quality, e.g.\ Cohen's $\kappa$.}
+\keywords{Address misuse \and Cross-chain \and EVM \and Smart contracts \and Wallet security \and EIP-7702.}
+\end{abstract}
+
+%------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+% Paragraph 1: the problem (sending to an address without code / the wrong contract).
+% Paragraph 2: prior work (Shao et al.) and its limits: per-chain only, no cross-chain root cause, no wallet-side warning.
+% Paragraph 3: our approach.
+\todo{Motivation paragraph with a concrete incident.}
+
+\medskip\noindent\textbf{Research questions.}
+\begin{itemize}
+\item \textbf{RQ1} How well can the address-misuse rules of Shao et al.\ be replicated on raw transaction data? \todo{replication gap}
+\item \textbf{RQ2} What fraction of misuse is explained by cross-chain address misalignment, and what are the root causes (same deployer and nonce, factory with CREATE2)?
+\item \textbf{RQ3} Can a risk score computed before signing separate misuse from benign transactions at a low false-positive rate and low latency?
+\end{itemize}
+
+\medskip\noindent\textbf{Contributions.}
+\begin{itemize}
+\item A partial replication of address-misuse detection on Ethereum and BSC \todo{numbers}.
+\item A cross-chain consistency analysis over \todo{N} addresses on eight networks, with a taxonomy (Types~1--6) and a root-cause breakdown.
+\item A manually audited gold set of \todo{N} labels (Cohen's $\kappa=\todo{x}$) and negative sets N1--N8.
+\item A risk score $R(A,C)$ and a MetaMask Snap that warns before signing, evaluated on \todo{setting}.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Background and Threat Model}
+\label{sec:background}
+\subsection{Address misuse}
+% Define CA misuse (NCD, PCD) and EOA misuse (KEY, ADDR, EIP-7702) following docs/CODEBOOK.md section 3.
+\todo{Define NCD, PCD, KEY, ADDR and EIP-7702 delegation~\cite{eip7702}; use the notation of the original paper.}
+
+\subsection{Taxonomy}
+% Table of Types 1--6.
+\begin{table}[t]
+\caption{Taxonomy of address misuse used in this work.}
+\label{tab:taxonomy}
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Type & Name & Defining condition\\
+\midrule
+T1 & Call to empty address & NCD, no contract elsewhere before the tx\\
+T2 & Black-hole contract & Code present, no withdrawal path\\
+T3 & Token sent to its own contract & \todo{condition}\\
+T4 & Cross-chain misalignment & NCD here, contract elsewhere deployed earlier\\
+T5 & Exposed key / sweeper / malicious 7702 & KEY, swept ADDR, or malicious delegate\\
+T6 & Address poisoning & Look-alike address, zero-value lure\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Threat model and ethics}
+% Passive analysis only; never use leaked keys; truncate personal addresses.
+We analyze public chain data passively. We never use leaked private keys, and
+we truncate personal addresses in the text. \todo{Responsible disclosure statement.}
+
+%------------------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+% Shao et al. (base work); address poisoning; sweeper bots and key leakage; EIP-7702 security; pre-sign transaction simulation and wallet warnings; bridge security.
+Shao et al.~\cite{shao2026lost} \todo{summarize contribution and limits}.
+\todo{Related work on address poisoning, leaked-key sweepers, EIP-7702 delegation attacks and pre-sign transaction simulation.}
+
+%------------------------------------------------------------------
+\section{Data and Methodology}
+\label{sec:method}
+\subsection{Data sources}
+% Author dataset (Zenodo), BigQuery crypto_ethereum (ETH), Etherscan V2 / NodeReal (BSC first tx), RPC eth_getCode on 8 networks, Binplorer (BSC creation).
+\begin{itemize}
+\item Author dataset (Zenodo) as seed: \todo{counts per chain and subtype}.
+\item Raw transactions: BigQuery \texttt{crypto\_ethereum} for Ethereum; \todo{BSC source}.
+\item Cross-chain state: \texttt{eth\_getCode} on eight networks (Ethereum, BSC, Arbitrum, Optimism, Base, Polygon, Sepolia, BSC testnet).
+\item Contract creation: Etherscan \texttt{getcontractcreation}, and Binplorer for BSC.
+\end{itemize}
+
+\subsection{Rule replication}
+% Port of Algorithms 1--3; paper_compat flags for bugs B1/B2; pilot of 500 ETH addresses matched 500/500 in snapshot mode.
+We port Algorithms~1--3 of \cite{shao2026lost} and report two modes: a
+\emph{snapshot} that reproduces the original data cut and a \emph{current} mode.
+\todo{Describe known deviations (selector 0xffffffff, sweep pairing) and results.}
+
+\subsection{Cross-chain consistency matrix}
+% Address x chain matrix: deployer, CREATE nonce, factory, NCD-XC/PCD-XC labels, redeployability, timing.
+For each misuse address we build an $\text{address}\times\text{chain}$ matrix of
+code state, deployer, CREATE nonce, creation kind and creation time. We label an
+address \emph{NCD-XC} (resp.\ \emph{PCD-XC}) when it is empty (resp.\ holds
+different code) on the victim chain but holds a contract on another chain, and
+classify whether it can be \emph{redeployed} (claimable, burned, factory-bound,
+unknown). \todo{Formalize with notation.}
+
+\subsection{Gold labels and negative sets}
+% Codebook, two annotators, kappa; N1--N8.
+Two annotators label a stratified sample independently following a codebook
+(Types T1--T6); we report Cohen's $\kappa$ on misuse and on type.
+Negative sets N1--N8 are: \todo{list: random unflagged addresses, benign 7702 delegates, multi-chain infrastructure contracts, \ldots}.
+
+%------------------------------------------------------------------
+\section{Risk Score and Wallet-Side Warning}
+\label{sec:design}
+\subsection{Risk score $R(A,C)$}
+% R(A,C) in [0,100]; features: code here, code elsewhere and timing, calldata, symbolic execution, delegate, history.
+Given a destination address $A$ and the transaction context $C$ (chain,
+calldata, value), the score is $R(A,C)\in[0,100]$ computed from
+\todo{features and weights, e.g.\ code state, cross-chain consistency, delegate, intent}.
+
+\subsection{Wallet-side warning}
+% MetaMask Snap + risk engine; latency budget 150 ms.
+The warning runs as a MetaMask Snap \todo{transaction-insight API} that queries a
+risk engine before the user signs, with a latency target of
+\SI{150}{\milli\second}. \todo{Architecture figure.}
+
+%------------------------------------------------------------------
+\section{Evaluation}
+\label{sec:eval}
+\subsection{Replication (RQ1)}
+\todo{Table: ours vs.\ author numbers (addresses, misuse tx, loss), agreement.}
+
+\subsection{Cross-chain analysis (RQ2)}
+% Existing numbers are in docs/FINDINGS_LOG.md: NCD-XC share, deployed_before share, redeployability breakdown.
+\todo{Table: per chain, NCD-XC and PCD-XC share of addresses and of loss; timing (deployed before / after); redeployability breakdown.}
+
+\subsection{Detection quality (RQ3)}
+\todo{Precision, recall, F1, FPR on the gold set; ROC for $R(A,C)$; ablation of the cross-chain feature.}
+
+\subsection{Latency}
+\todo{Median and p95 latency of the Snap and the engine.}
+
+%------------------------------------------------------------------
+\section{Discussion}
+\label{sec:discussion}
+\todo{Implications for wallets and explorers. Limitations: current-state code versus state at transaction time, snapshots, BSC data coverage, API truncation, label subjectivity. Generalization to other EVM chains.}
+
+\section{Conclusion}
+\label{sec:conclusion}
+\todo{Summary of findings and future work.}
+
+\subsubsection*{Acknowledgments.} \todo{Funding, if any.}
+
+%------------------------------------------------------------------
+\bibliographystyle{splncs04}
+\bibliography{references}
+
+\end{document}
