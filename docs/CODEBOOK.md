@@ -143,3 +143,13 @@ Trạng thái code là **hiện tại**, không phải lúc tx. Khi kết luận
   - tầng `neg_n6_7702_benign` đổi thành `eoa_7702_other`;
   - bổ sung ca khó 6;
   - mọi cột code/delegate tra trực tiếp cho mọi mẫu, symexec chạy bổ sung cho contract chưa có kết quả, cột nguồn gốc/thời điểm chỉ điền ở tình huống T4 (trước đó các cột này chỉ có ở một số tầng nên làm lộ tầng).
+
+## 10. Agenda sửa codebook v0.4 (từ pilot 50 mẫu, người gán A, 2026-10-21)
+
+Danh sách điểm mơ hồ gặp khi gán pilot. Chưa sửa quy tắc; cần thống nhất trong buổi phân xử với người gán còn lại rồi mới đổi bản. Mẫu dẫn chứng chỉ để tra lại khi họp.
+
+1. **T2: §3 mâu thuẫn §4.** Bảng §3 định nghĩa T2 là contract "không có đường rút", nhưng §4 bước 4 xếp PCD cài sẵn để chiếm tiền vào T2 với `malicious = 1` (contract có đường rút, rút về ví kẻ cài). Cần chọn một định nghĩa, hoặc tách thành hai nhãn. Dẫn chứng: P024.
+2. **Testnet có tính là chain gốc cho T4 không?** Khi contract chỉ có ở testnet (ví dụ `bsc_testnet`) và không tra được ngày tạo. Nếu không tính thì mẫu thành T1. Dẫn chứng: P036.
+3. **Calldata là event payload có tính là "gọi hàm" không?** Ví dụ `0xddf252ad…` là topic của event `Transfer`, không phải selector hàm. Gợi ý: không tính, nên một tx như vậy không đủ để gán misuse theo §1 ("≥ 1 tx misuse rõ ràng"). Dẫn chứng: P009.
+4. **Thứ tự ưu tiên KEY và 7702** khi EOA vừa lộ key vừa bị gắn delegate sweeper (các tx rút ký bằng key, delegation gắn sau). Gợi ý: `subtype = 7702` nếu địa chỉ hiện đang delegate (code `0xef0100…`), kèm note "KEY?" nếu tx rút ký bằng key chủ. Cả hai đều là T5 nên không ảnh hưởng κ của `type`, chỉ ảnh hưởng κ của `subtype`.
+5. **Tiêu chí `malicious = 1` khi chưa thấy tx rút.** (a) Delegate độc nhưng chưa có sweep thực tế; (b) ví delegate vẫn hoạt động bình thường (DEX, bridge) và không có dấu hiệu rút về ví lạ. Cần quy tắc rõ khi nào vẫn gán T5 và `confidence` mặc định là gì. Dẫn chứng: P030, P034, P045, P050 (và P020, P043 ở mức nhẹ hơn).
