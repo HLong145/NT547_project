@@ -134,10 +134,10 @@ def score(address: str, chain: str, at: int | None = None, ctx: TxContext | None
 - [x] `engine/features.py`: FeatureStore offline (ma trận, symexec, proxy, N6, lộ key, ứng viên, delegations, `bq_txs` cho ETH). Địa chỉ ngoài ma trận: `probe()` getCode 8 mạng → `data/interim/engine_code.parquet`.
 - [x] `engine/score.py`: 4 hàm S, kết hợp, luật cứng, lý do; `tests/test_engine.py` (11 test). CLI: `python -m address_misuse.engine 0x... --chain bsc --data 0x...`.
 - [x] Chấm thử 1.181 mẫu (at = hôm nay, trọng số 0,25): 1,7 ms/mẫu offline. Vấn đề phát hiện (FINDINGS_LOG 2026-10-22):
-  - [ ] Delegate 7702 của EOA ADDR/KEY đã đổi sau snapshot tác giả: chạy symexec cho delegate mới, dùng delegate tại thời điểm `at` khi đánh giá.
-  - [ ] Mẫu âm chưa có tx thô (BigQuery chỉ phủ địa chỉ misuse): lấy tx cho N1/N6/N7 trước khi đánh giá, nếu không S_history và S_bytecode (không ctx) lệch theo nhóm.
-  - [ ] So bytecode bằng hash quá chặt: contract đa chain có immutable khác nhau (vd. Uniswap V2 Router trên BSC) bị tính PCD-XC. Đổi sang so tập selector.
-  - [ ] Nhiều PCD chưa có symexec (S_bytecode = 0,3): chạy symexec bổ sung.
+  - [x] Delegate 7702 đổi sau snapshot tác giả: `engine.prepare delegates` chạy symexec cho 30 delegate mới (30/30 ok, `engine_symexec.jsonl`); khi có `at` dùng delegate tác giả ghi lại, không dùng delegate hôm nay.
+  - [x] Mẫu âm ETH có tx thô: `engine.prepare history` lấy txlist Etherscan cho N1 (≤ 10k tx) và N6/N7 (1.000 tx đầu, vì Etherscan ~45 s/trang với contract hạ tầng). BSC: cả dương lẫn âm đều chưa có lịch sử.
+  - [x] So contract giữa các chain: trùng hash **hoặc** Jaccard selector dispatcher ≥ 0,8 (`same_contract`). S_cross trung bình của N7 từ 0,17–0,20 về 0.
+  - [x] Hoá ra 100% PCD có symexec; 258 contract thiếu là địa chỉ **NCD về sau mới được deploy**. `engine.prepare creation` lấy thời điểm tạo (Etherscan cho ETH, NodeReal cho BSC, 258/258) → `engine_creation.parquet`; khi `at` trước thời điểm tạo, địa chỉ được coi là chưa có code.
 - [ ] Sau D1: S_history. Sau D5 + D8: học `w`, chọn ngưỡng, ablation.
 - [ ] Sau D7: S_osint có số repo và ngữ cảnh.
 

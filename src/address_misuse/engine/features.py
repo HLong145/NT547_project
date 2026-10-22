@@ -2,15 +2,20 @@
 
 Tra sẵn mọi đặc trưng từ dữ liệu đã có, để các hàm S_* là hàm thuần, không gọi mạng:
 - code 8 mạng: `crosschain_matrix.parquet` (CA Misuse) + `engine_code.parquet` (địa chỉ khác, tạo bằng `probe()`);
+  selector dispatcher từ `xc_code/<net>.parquet` (nếu có) và `engine_code.parquet`;
 - thời điểm contract xuất hiện ở mạng khác, khả năng deploy lại: ma trận cross-chain;
-- symexec: kết quả tác giả + chạy lại (`symexec_repro`), proxy → logic qua `proxy_map`;
+- thời điểm contract được tạo trên chính chain: BigQuery (ETH, tạo từ EOA) + `engine_creation.parquet`;
+- symexec: kết quả tác giả + chạy lại (`symexec_repro`, `engine_symexec.jsonl`), proxy → logic qua `proxy_map`;
 - delegate EIP-7702: N6 (hợp lệ), danh sách đen (mặc định lấy từ dữ liệu tác giả, xem `default_malicious_delegates`);
 - OSINT: tập lộ private key, tập địa chỉ ứng viên trong code công khai;
-- lịch sử giao dịch trước thời điểm `at`: BigQuery `bq_txs.parquet` (chỉ ETH).
+- lịch sử giao dịch trước thời điểm `at` (chỉ ETH): BigQuery `bq_txs.parquet`, địa chỉ ngoài BigQuery dùng
+  txlist Etherscan đã cache (`python -m address_misuse.engine.prepare history`).
 
 Dùng: `fs = FeatureStore(); fs.prepare(pairs); f = fs.features(address, chain, at)`.
 """
 
+import gzip
+import json
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -21,9 +26,15 @@ from address_misuse.rules import find_sweep_pairs
 
 NETS = tuple(NETWORKS)
 MATRIX = INTERIM_DIR / "crosschain_matrix.parquet"
-ENGINE_CODE = INTERIM_DIR / "engine_code.parquet"      # getCode bổ sung cho địa chỉ ngoài ma trận
+XC_CODE_DIR = INTERIM_DIR / "xc_code"
+ENGINE_CODE = INTERIM_DIR / "engine_code.parquet"           # getCode bổ sung cho địa chỉ ngoài ma trận
+ENGINE_CREATION = INTERIM_DIR / "engine_creation.parquet"   # thời điểm tạo contract trên chính chain
+ENGINE_SYMEXEC = INTERIM_DIR / "engine_symexec.jsonl"       # symexec bổ sung (delegate 7702 mới, ...)
 BQ_TXS = RAW_DIR / "eth" / "bq_txs.parquet"
-HISTORY_CHAINS = ("eth",)                               # chain có tx thô (D1); BSC sau khi có NodeReal txlist
+TXLIST_DIR = RAW_DIR / "eth" / "txlist"
+HISTORY_CHAINS = ("eth",)                                   # chain có tx thô (D1); BSC sau khi có NodeReal txlist
+TX_COLS = ["block_number", "transaction_index", "block_ts", "from_address", "to_address", "value", "gas_price",
+           "receipt_gas_used", "receipt_status", "receipt_contract_address"]
 
 
 @dataclass
@@ -33,6 +44,7 @@ class Features:
     at: int | None = None                               # unix ts; None = hôm nay
     code: dict = field(default_factory=dict)            # net -> "none" / "code" / "7702"; thiếu = chưa tra
     code_hash: dict = field(default_factory=dict)
+    selectors: dict = field(default_factory=dict)       # net -> frozenset selector dispatcher
     delegate: str | None = None                         # delegate EIP-7702 trên `chain`
     own_create_ts: int | None = None                    # contract được tạo trên `chain` lúc nào (nếu biết)
     first_create_ts: int | None = None                  # contract xuất hiện sớm nhất ở mạng khác
@@ -59,24 +71,33 @@ def _str(x) -> str | None:
     return x if isinstance(x, str) else None
 
 
+def _sels(x) -> frozenset | None:
+    return frozenset(x.split(",")) if isinstance(x, str) and x else None
+
+
 def _symexec_dict(transfer, delegatecall, selfdestruct) -> dict:
     return {"transfer": bool(transfer), "delegatecall": bool(delegatecall),
             "selfdestruct": None if pd.isna(selfdestruct) else bool(selfdestruct)}
 
 
 def load_symexec() -> dict[tuple[str, str], dict]:
-    """(chain, address) -> symexec. Kết quả chạy lại (status ok) ghi đè chỗ tác giả không có."""
+    """(chain, address) -> symexec. Kết quả chạy lại (status ok) bổ sung chỗ tác giả không có."""
     out = {}
     a = pd.read_parquet(SEED_DIR / "symexec_results.parquet")
     for r in a.itertuples():
         out[(r.chain, r.address)] = _symexec_dict(r.transfer_all_eth or r.transfer_msg_value or r.transfer_input_amount,
                                                   r.delegatecall, r.self_destruct)
+    rows = []
     p = INTERIM_DIR / "symexec_repro.parquet"
     if p.exists():
-        for r in pd.read_parquet(p).query("status == 'ok'").itertuples():
-            out.setdefault((r.chain, r.address), _symexec_dict(
-                r.ours_transfer_all_eth or r.ours_transfer_msg_value or r.ours_transfer_input_amount,
-                r.ours_delegatecall, None))
+        rows += pd.read_parquet(p).to_dict("records")
+    if ENGINE_SYMEXEC.exists():
+        rows += [json.loads(line) for line in ENGINE_SYMEXEC.read_text(encoding="utf-8").splitlines() if line.strip()]
+    for r in rows:
+        if r.get("status") == "ok":
+            out.setdefault((r["chain"], r["address"]), _symexec_dict(
+                r["ours_transfer_all_eth"] or r["ours_transfer_msg_value"] or r["ours_transfer_input_amount"],
+                r["ours_delegatecall"], None))
     return out
 
 
@@ -92,6 +113,26 @@ def default_malicious_delegates(benign: set[str]) -> set[str]:
     khi đánh giá phải dựng lại chỉ từ tập train (FINDINGS_LOG 2026-10-19: `flag` = symexec, không phải nhãn độc)."""
     st = pd.read_parquet(SEED_DIR / "eip7702_delegate_stats.parquet")
     return set(st[st.flag == 1].delegate.str.lower()) - benign
+
+
+def txlist_frame(txs: list[dict]) -> pd.DataFrame:
+    """txlist Etherscan → khung cột giống `bq_txs` (để dùng chung `history_features`)."""
+    rows = [{"block_number": int(t["blockNumber"]), "transaction_index": int(t["transactionIndex"]),
+             "block_ts": int(t["timeStamp"]), "from_address": (t["from"] or "").lower(),
+             "to_address": (t["to"] or "").lower() or None, "value": int(t["value"]), "gas_price": int(t["gasPrice"]),
+             "receipt_gas_used": int(t["gasUsed"]),
+             "receipt_status": int(t["isError"] == "0" and t.get("txreceipt_status", "1") != "0"),
+             "receipt_contract_address": (t.get("contractAddress") or "").lower() or None}
+            for t in txs if t["from"] != "GENESIS"]
+    return pd.DataFrame(rows, columns=TX_COLS)
+
+
+def load_txlist(address: str) -> pd.DataFrame | None:
+    p = TXLIST_DIR / f"{address}.json.gz"
+    if not p.exists():
+        return None
+    with gzip.open(p, "rt", encoding="utf-8") as f:
+        return txlist_frame(json.load(f)["result"])
 
 
 def history_features(address: str, txs: pd.DataFrame, at: int | None = None) -> dict:
@@ -120,14 +161,24 @@ class FeatureStore:
     def __init__(self, malicious_delegates: set[str] | None = None, load_history: bool = True):
         m = pd.read_parquet(MATRIX)
         self.matrix = m.set_index(["chain", "address"])
-        self.code = {}                                   # address -> {net: (state, hash, delegate)}
+        self.code = {}                                   # address -> {net: (state, hash, delegate, selectors)}
         for net in NETS:
+            sels = {}
+            p = XC_CODE_DIR / f"{net}.parquet"
+            if p.exists():
+                x = pd.read_parquet(p, columns=["address", "selectors"]).dropna()
+                sels = dict(zip(x.address, x.selectors))
             for a, s, h in zip(m.address, m[f"{net}_state"], m[f"{net}_hash"]):
                 if isinstance(s, str):
-                    self.code.setdefault(a, {})[net] = (s, _str(h), None)
+                    self.code.setdefault(a, {})[net] = (s, _str(h), None, _sels(sels.get(a)))
         if ENGINE_CODE.exists():
             for r in pd.read_parquet(ENGINE_CODE).itertuples():
-                self.code.setdefault(r.address, {})[r.net] = (r.state, _str(r.code_hash), _str(r.delegate))
+                self.code.setdefault(r.address, {})[r.net] = (r.state, _str(r.code_hash), _str(r.delegate),
+                                                              _sels(getattr(r, "selectors", None)))
+        self.own_create: dict[tuple[str, str], int] = {}
+        if ENGINE_CREATION.exists():
+            c = pd.read_parquet(ENGINE_CREATION).dropna(subset=["create_ts"])
+            self.own_create = {(ch, a): int(t) for ch, a, t in zip(c.chain, c.address, c.create_ts)}
         self.symexec = load_symexec()
         self.proxy = {(r.chain, r.proxy): r.logic for r in pd.read_parquet(SEED_DIR / "proxy_map.parquet").itertuples()}
         self.benign = benign_delegates()
@@ -138,7 +189,7 @@ class FeatureStore:
         self.leaked = set(zip(pk.chain, pk.address))
         self.osint: dict[tuple[str, str], bool] = {}
         self.txs: dict[str, pd.DataFrame] = {}
-        self.own_create: dict[str, int] = {}
+        self.history_source: dict[str, str] = {}         # address -> "bq" / "txlist"
         self._load_history = load_history
 
     # ------------------------------------------------------------ nạp theo lô
@@ -154,28 +205,36 @@ class FeatureStore:
             for c, a in pairs:
                 self.osint[(c, a)] = (c, a) in hit
         need = sorted({a for c, a in pairs if c in HISTORY_CHAINS and a not in self.txs})
-        if need and self._load_history and BQ_TXS.exists():
+        if not need or not self._load_history:
+            return
+        t = pd.DataFrame(columns=TX_COLS)
+        if BQ_TXS.exists():
             f = ds.field
-            t = ds.dataset(BQ_TXS).to_table(
-                columns=["block_number", "transaction_index", "block_ts", "from_address", "to_address", "value",
-                         "gas_price", "receipt_gas_used", "receipt_status", "receipt_contract_address"],
-                filter=f("to_address").isin(need) | f("from_address").isin(need)
-                | f("receipt_contract_address").isin(need)).to_pandas()
+            t = ds.dataset(BQ_TXS).to_table(columns=TX_COLS, filter=f("to_address").isin(need)
+                                            | f("from_address").isin(need)
+                                            | f("receipt_contract_address").isin(need)).to_pandas()
             t = t.sort_values(["block_number", "transaction_index"])
             cr = t.dropna(subset=["receipt_contract_address"]).groupby("receipt_contract_address").block_ts.min()
-            self.own_create.update({a: int(ts) for a, ts in cr.items() if a in set(need)})
-            for a in need:
-                self.txs[a] = t[(t.to_address == a) | (t.from_address == a) | (t.receipt_contract_address == a)]
+            for a, ts in cr.items():
+                if a in set(need):
+                    self.own_create.setdefault(("eth", a), int(ts))
+        for a in need:
+            rows = t[(t.to_address == a) | (t.from_address == a) | (t.receipt_contract_address == a)]
+            if len(rows):
+                self.txs[a], self.history_source[a] = rows, "bq"
+            elif (tl := load_txlist(a)) is not None:
+                self.txs[a], self.history_source[a] = tl, "txlist"
 
     def missing_code(self, addresses) -> list[str]:
         return sorted({a.lower() for a in addresses if len(self.code.get(a.lower(), {})) < len(NETS)})
 
-    def probe(self, addresses, workers: int = 4):
-        """getCode hiện tại trên 8 mạng cho địa chỉ chưa có trong ma trận; lưu `engine_code.parquet`."""
+    def probe(self, addresses, workers: int = 4, force: bool = False):
+        """getCode hiện tại trên 8 mạng (kèm selector dispatcher); lưu `engine_code.parquet`."""
         from concurrent.futures import ThreadPoolExecutor
 
+        from address_misuse.crosschain import dispatcher_selectors
         from address_misuse.crosschain_matrix import _code_record, rpc_batch
-        todo = self.missing_code(addresses)
+        todo = sorted({a.lower() for a in addresses}) if force else self.missing_code(addresses)
         if not todo:
             return
 
@@ -190,7 +249,9 @@ class FeatureStore:
                 if r.get("err"):
                     continue
                 state = "7702" if r.get("d") else "code" if r.get("h") else "none"
-                rows.append({"net": net, "address": a, "state": state, "code_hash": r.get("h"), "delegate": r.get("d")})
+                sels = ",".join(sorted(dispatcher_selectors(c))) if state == "code" else None
+                rows.append({"net": net, "address": a, "state": state, "code_hash": r.get("h"), "delegate": r.get("d"),
+                             "selectors": sels})
             return rows
 
         with ThreadPoolExecutor(workers) as ex:
@@ -199,7 +260,8 @@ class FeatureStore:
         df = pd.concat([old, new]).drop_duplicates(["net", "address"], keep="last") if old is not None else new
         df.to_parquet(ENGINE_CODE, index=False)
         for r in new.itertuples():
-            self.code.setdefault(r.address, {})[r.net] = (r.state, _str(r.code_hash), _str(r.delegate))
+            self.code.setdefault(r.address, {})[r.net] = (r.state, _str(r.code_hash), _str(r.delegate),
+                                                          _sels(r.selectors))
 
     # ------------------------------------------------------------ đặc trưng một địa chỉ
 
@@ -210,16 +272,19 @@ class FeatureStore:
     def features(self, address: str, chain: str, at: int | None = None) -> Features:
         a = address.lower()
         recs = self.code.get(a, {})
-        f = Features(a, chain, at, code={n: s for n, (s, _, _) in recs.items()},
-                     code_hash={n: h for n, (_, h, _) in recs.items()})
-        own = recs.get(chain)
-        f.delegate = (own[2] if own and own[2] else None) or (
-            self.author_delegate.get((chain, a)) if f.code.get(chain) == "7702" else None)
+        f = Features(a, chain, at, code={n: r[0] for n, r in recs.items()}, code_hash={n: r[1] for n, r in recs.items()},
+                     selectors={n: r[3] for n, r in recs.items() if r[3]})
+        if f.code.get(chain) == "7702":
+            current = recs[chain][2]
+            recorded = self.author_delegate.get((chain, a))
+            # Xét theo thời gian: delegate lúc tác giả thu thập gần thời điểm `at` hơn delegate hôm nay
+            # (sweeper đổi delegate liên tục — FINDINGS_LOG 2026-10-22).
+            f.delegate = (recorded or current) if at is not None else (current or recorded)
         if (chain, a) in self.matrix.index:
             row = self.matrix.loc[(chain, a)]
             f.first_create_ts = None if pd.isna(row.first_create_ts) else int(row.first_create_ts)
             f.redeploy = row.redeploy if isinstance(row.redeploy, str) else None
-        f.own_create_ts = self.own_create.get(a) if chain in HISTORY_CHAINS else None
+        f.own_create_ts = self.own_create.get((chain, a))
         f.symexec = self._symexec_of(chain, a)
         if f.delegate:
             f.delegate_symexec = self.symexec.get((chain, f.delegate))

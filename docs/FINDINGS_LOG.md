@@ -29,6 +29,8 @@ Chưa phải kết quả đánh giá (trọng số chưa hiệu chỉnh, chưa t
 - Các EOA vẫn bị ủy quyền nhưng đã chuyển sang delegate khác (13 delegate hiện tại; nhiều nhất `0x0727ca41…` 51 EOA, `0xa19160b1…` 39).
 - Hệ quả: danh sách đen delegate tĩnh lỗi thời rất nhanh. Phía ví cần phân tích delegate lạ (symexec / hành vi), không chỉ tra danh sách. Khi đánh giá theo thời gian phải dùng delegate tại thời điểm `at`, không phải delegate hôm nay.
 
+**Sau khi sửa 4 vấn đề (2026-10-23)**, chấm lại cùng 1.181 mẫu (at = hôm nay, 4,0 ms/mẫu): trung vị R của N1 ETH giảm từ 19,6 xuống **7,1** (đã có lịch sử, S_bytecode 0,46 → 0,12); S_cross của N7 về 0; ADDR tăng lên 19,6–21,9 (delegate mới có symexec, S_bytecode 0,3 → 0,5). ADDR BSC (19,6) vẫn trùng N1 BSC (19,6): BSC chưa có lịch sử tx nên S_history = 0 cho mọi mẫu BSC. Chế độ theo thời gian (at = tx đầu tiên tới địa chỉ): NCD ETH giảm từ 57,1 xuống 44,6 vì không còn dùng lịch sử sau thời điểm xét.
+
 **Hash bytecode quá chặt cho N7:** Uniswap V2 Router `0x7a25…488d` có code trên BSC nhưng hash khác ETH (immutable như địa chỉ WETH khác nhau), nên bị tính PCD-XC (R = 22). Cần so tập selector thay vì hash.
 
 ## 2026-10-22 — D1 ETH: `bq_txs.parquet` từ BigQuery đầy đủ, khớp Etherscan

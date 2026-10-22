@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pandas as pd
 
-from address_misuse.engine.features import Features, history_features
+from address_misuse.engine.features import Features, history_features, txlist_frame
 from address_misuse.engine.score import TxContext, s_bytecode, s_cross, s_history, s_osint, score_features
 
 A = "0x" + "a" * 40
@@ -53,6 +53,26 @@ def test_cross_same_code_is_multichain_infra():
     assert s_cross(f)[0] == 0.0
     f.code_hash["eth"] = "h2"
     assert s_cross(f)[1] == ["PCD-XC"]
+
+
+def test_cross_same_selectors_despite_different_hash():
+    sels = frozenset(f"0x{i:08x}" for i in range(10))
+    f = feat(code={"bsc": "code", "eth": "code"}, code_hash={"bsc": "h1", "eth": "h2"},
+             selectors={"bsc": sels, "eth": sels | {"0xdeadbeef"}})            # vd. immutable WETH khác nhau
+    assert s_cross(f)[0] == 0.0
+    f.selectors["eth"] = frozenset({"0x11111111", "0x22222222"})
+    assert s_cross(f)[1] == ["PCD-XC"]
+
+
+def test_txlist_frame_matches_bq_columns():
+    t = [{"blockNumber": "5", "transactionIndex": "1", "timeStamp": "100", "from": "0xAb", "to": "", "value": "7",
+          "gasPrice": "2", "gasUsed": "50000", "isError": "0", "txreceipt_status": "1", "contractAddress": "0xC"},
+         {"blockNumber": "0", "transactionIndex": "0", "timeStamp": "1", "from": "GENESIS", "to": "0xab", "value": "1",
+          "gasPrice": "0", "gasUsed": "0", "isError": "0", "contractAddress": ""}]
+    df = txlist_frame(t)
+    assert len(df) == 1                                                       # bỏ bản ghi GENESIS
+    r = df.iloc[0]
+    assert (r.from_address, r.to_address, r.receipt_contract_address, r.receipt_status) == ("0xab", None, "0xc", 1)
 
 
 def test_own_contract_created_after_at_counts_as_none():

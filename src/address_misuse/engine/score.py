@@ -22,6 +22,7 @@ DELEGATE_NO_TRANSFER = 0.2
 DELEGATE_UNKNOWN = 0.3
 XC_UNKNOWN_TIME = 0.7        # có code ở mạng khác nhưng không biết deploy trước hay sau `at`
 XC_DIFFERENT_CODE = 0.6      # PCD-XC: có code ở cả hai nơi nhưng bytecode khác
+SAME_CONTRACT_JACCARD = 0.8  # tỉ lệ selector trùng để coi là cùng contract trên hai chain
 REDEPLOY_BONUS = 0.1
 OSINT_K = 3.0
 REVERT_MIN_TX = 5
@@ -85,14 +86,23 @@ def s_bytecode(f: Features, ctx: TxContext | None = None) -> tuple[float, list, 
     return DELEGATE_NO_TRANSFER, [], []
 
 
+def same_contract(f: Features, net: str) -> bool:
+    """Cùng một contract (hạ tầng đa chain) trên `f.chain` và `net`: trùng hash, hoặc trùng phần lớn selector.
+    So hash thôi là quá chặt: immutable khác nhau giữa các chain (vd. địa chỉ WETH) làm hash khác."""
+    own_h, h = f.code_hash.get(f.chain), f.code_hash.get(net)
+    if own_h and own_h == h:
+        return True
+    a, b = f.selectors.get(f.chain), f.selectors.get(net)
+    return bool(a and b and len(a & b) / len(a | b) >= SAME_CONTRACT_JACCARD)
+
+
 def s_cross(f: Features, ctx: TxContext | None = None) -> tuple[float, list, list]:
     others = [n for n in NETS if n != f.chain and f.code.get(n) == "code"]
     st = f.state()
     if not others or st in (None, "7702"):
         return 0.0, [], []
     if st == "code":
-        own = f.code_hash.get(f.chain)
-        if own and any(f.code_hash.get(n) == own for n in others):
+        if any(same_contract(f, n) for n in others):
             return 0.0, [], []
         return XC_DIFFERENT_CODE, ["PCD-XC"], [f"bytecode trên {f.chain} khác bản ở {', '.join(others)}"]
     nets = ", ".join(others)

@@ -4,7 +4,7 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-10-22
+**Cập nhật lần cuối:** 2026-10-23
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
@@ -65,13 +65,14 @@
 - ⬜ **D8** Đóng băng Dataset v1 (chia theo thời gian, không trùng địa chỉ giữa các tập, QA).
 
 ### Sau dữ liệu
-- 🔄 Module 2: engine và risk score R(A, C) (tuần 5–6). ✅ Nháp đặc tả [RISK_SCORE.md](RISK_SCORE.md). ✅ `src/address_misuse/engine/` (FeatureStore, 4 hàm S, luật cứng, CLI, 11 test), chấm thử 1.181 mẫu. ⬜ Sửa 4 vấn đề trong RISK_SCORE §6, rồi tập âm có tx thô (bước 2).
+- 🔄 Module 2: engine và risk score R(A, C) (tuần 5–6). ✅ Nháp đặc tả [RISK_SCORE.md](RISK_SCORE.md). ✅ `src/address_misuse/engine/` (FeatureStore, 4 hàm S, luật cứng, CLI, 11 test), chấm thử 1.181 mẫu. ✅ Sửa 4 vấn đề trong RISK_SCORE §6 (2026-10-23, `engine/prepare.py`). ⬜ Bước 2: tập âm N2–N4, N8; lịch sử tx BSC qua NodeReal.
 - ⬜ Module 3: đánh giá P/R/F1/FPR và ROC (tuần 6–7).
 - ⬜ Module 4: wallet-side warning, độ trễ < 150 ms (tuần 7–8).
 - ⬜ Viết paper, Docker, slide (tuần 9–10).
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-23 — Sửa 4 vấn đề của engine**: `engine/prepare.py` (`creation` 258/258, `delegates` symexec 30/30, `history` txlist cho 223 địa chỉ ETH âm); so contract bằng selector; delegate theo thời điểm `at`. 52 test pass. Chấm lại: N1 ETH trung vị 19,6 → 7,1 (FINDINGS_LOG 2026-10-22).
 - **2026-10-22 — Engine risk score**: `engine/features.py`, `engine/score.py`, `engine/__main__.py`, `tests/test_engine.py` (50 passed). Chấm thử 1.181 mẫu; phát hiện delegate 7702 của sweeper đã đổi sau snapshot tác giả (0% EOA ADDR còn delegate cũ) — FINDINGS_LOG 2026-10-22.
 - **2026-10-22 — Nhận `bq_txs.parquet`**: kiểm tra không trùng khoá, phủ đủ địa chỉ, đối chiếu Etherscan trên 579 địa chỉ pilot (FINDINGS_LOG 2026-10-22).
 - **2026-10-21 — `.env` + GCP trên máy này, pilot rule 580**: kiểm tra key (không in giá trị): Etherscan, NodeReal, BigQuery đều OK. Cài `google-cloud-bigquery`, `db-dtypes` vào `.venv`. `bq_fetch dry-run`: 35.718 địa chỉ ETH, 680 GB. `reproduce_rules` với `--n-addr 50 --n-big 30`: snapshot khớp 580/580 (FINDINGS_LOG 2026-10-21).
