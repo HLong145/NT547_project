@@ -131,12 +131,17 @@ def score(address: str, chain: str, at: int | None = None, ctx: TxContext | None
 
 ## 6. Việc cần làm
 
-- [ ] `engine/features.py`: FeatureStore offline từ dữ liệu đã có (matrix, symexec, N6, KEY list, delegations).
-- [ ] `engine/score.py`: 4 hàm S, kết hợp, luật cứng, lý do, kèm unit test.
-- [ ] Chấm thử trên pilot 50: xem phân bố R theo tầng (chỉ để kiểm tra code; không chọn ngưỡng trên pilot).
+- [x] `engine/features.py`: FeatureStore offline (ma trận, symexec, proxy, N6, lộ key, ứng viên, delegations, `bq_txs` cho ETH). Địa chỉ ngoài ma trận: `probe()` getCode 8 mạng → `data/interim/engine_code.parquet`.
+- [x] `engine/score.py`: 4 hàm S, kết hợp, luật cứng, lý do; `tests/test_engine.py` (11 test). CLI: `python -m address_misuse.engine 0x... --chain bsc --data 0x...`.
+- [x] Chấm thử 1.181 mẫu (at = hôm nay, trọng số 0,25): 1,7 ms/mẫu offline. Vấn đề phát hiện (FINDINGS_LOG 2026-10-22):
+  - [ ] Delegate 7702 của EOA ADDR/KEY đã đổi sau snapshot tác giả: chạy symexec cho delegate mới, dùng delegate tại thời điểm `at` khi đánh giá.
+  - [ ] Mẫu âm chưa có tx thô (BigQuery chỉ phủ địa chỉ misuse): lấy tx cho N1/N6/N7 trước khi đánh giá, nếu không S_history và S_bytecode (không ctx) lệch theo nhóm.
+  - [ ] So bytecode bằng hash quá chặt: contract đa chain có immutable khác nhau (vd. Uniswap V2 Router trên BSC) bị tính PCD-XC. Đổi sang so tập selector.
+  - [ ] Nhiều PCD chưa có symexec (S_bytecode = 0,3): chạy symexec bổ sung.
 - [ ] Sau D1: S_history. Sau D5 + D8: học `w`, chọn ngưỡng, ablation.
 - [ ] Sau D7: S_osint có số repo và ngữ cảnh.
 
 ## Lịch sử
 
 - **v0.1 (2026-10-19):** bản nháp đầu.
+- **2026-10-22:** cài đặt `engine/` theo v0.1.

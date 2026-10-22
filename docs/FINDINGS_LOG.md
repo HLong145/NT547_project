@@ -2,6 +2,64 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-22 — Engine risk score chạy thử; delegate EIP-7702 của sweeper đã đổi sau snapshot tác giả
+
+**Chấm thử** `address_misuse.engine` (at = hôm nay, w = 0,25 mỗi thành phần) trên 1.181 mẫu: NCD/PCD/KEY/ADDR mỗi chain + N1, N6, N7. Offline 1,7 ms/mẫu; getCode 8 mạng cho 662 địa chỉ ngoài ma trận mất 3 s. Trung vị R:
+
+| Nhóm | ETH | BSC |
+|---|---|---|
+| +NCD | 57,1 | 44,6 |
+| +PCD | 28,5 | 32,1 |
+| +KEY (luật cứng lộ key 100%) | 32,5 | 32,5 |
+| +ADDR | 16,9 | 14,6 |
+| −N1 | 19,6 | 19,6 |
+| −N6 / −N7 | 7,5 / 15,0 | – / 14,6 |
+
+Chưa phải kết quả đánh giá (trọng số chưa hiệu chỉnh, chưa theo thời gian), chỉ để kiểm tra code. Lộ ra các vấn đề cần sửa trước khi đánh giá (RISK_SCORE.md §6).
+
+**Delegate 7702 đã đổi:** getCode hôm nay cho 260 EOA trong `eip7702_delegations` của tác giả (mẫu ở trên):
+
+| Chain | Nhóm | n | Vẫn đang 7702 | Delegate trùng bản tác giả ghi | Delegate hiện tại có trong tập delegate tác giả |
+|---|---|---|---|---|---|
+| BSC | ADDR | 74 | 100% | 0% | 0% |
+| BSC | KEY | 56 | 100% | 26,8% | 42,9% |
+| ETH | ADDR | 69 | 98,6% | 0% | 0% |
+| ETH | KEY | 61 | 100% | 0% | 8,2% |
+
+- Các EOA vẫn bị ủy quyền nhưng đã chuyển sang delegate khác (13 delegate hiện tại; nhiều nhất `0x0727ca41…` 51 EOA, `0xa19160b1…` 39).
+- Hệ quả: danh sách đen delegate tĩnh lỗi thời rất nhanh. Phía ví cần phân tích delegate lạ (symexec / hành vi), không chỉ tra danh sách. Khi đánh giá theo thời gian phải dùng delegate tại thời điểm `at`, không phải delegate hôm nay.
+
+**Hash bytecode quá chặt cho N7:** Uniswap V2 Router `0x7a25…488d` có code trên BSC nhưng hash khác ETH (immutable như địa chỉ WETH khác nhau), nên bị tính PCD-XC (R = 22). Cần so tập selector thay vì hash.
+
+## 2026-10-22 — D1 ETH: `bq_txs.parquet` từ BigQuery đầy đủ, khớp Etherscan
+
+File `data/raw/eth/bq_txs.parquet` (bạn chạy `bq_fetch fetch`, 1,49 GB, không có `input`/`hash`). Kiểm tra trên máy này:
+
+- 22.397.803 tx, không trùng khoá `(block_number, transaction_index)`; từ 2015-08-07 đến **2026-10-20** (block 26.234.257).
+- Phủ **35.664/35.664** địa chỉ ETH mục tiêu (CA + EOA của tác giả), mọi địa chỉ đều có tx.
+- Số tx ≥ `n_tx` của tác giả ở 100% địa chỉ trừ 4, mỗi địa chỉ thiếu đúng 1: đó là bản ghi **GENESIS** (phân bổ ở block 0) mà Etherscan liệt kê như một tx, BigQuery thì không.
+- Đối chiếu tập tx với txlist Etherscan của 579 địa chỉ pilot (bỏ 1 bị cắt ở 100k, chỉ xét block ≤ 26.234.257): **578/579 khớp từng tx**; địa chỉ còn lại chỉ khác ở bản ghi GENESIS. Không có tx nào BigQuery có mà Etherscan không có.
+- Kết luận: có thể dùng `bq_txs` thay Etherscan cho mọi đặc trưng không cần `input` (S_history, N2–N4, chia thời gian D8) trên toàn bộ ETH.
+
+## 2026-10-21 — Pilot rule mở rộng: EOA ADDR và CA lớn (n_tx > 5.000) cũng khớp tác giả 100%
+
+`python -m address_misuse.reproduce_rules --chain eth --n-ncd 350 --n-pcd 100 --n-key 50 --n-addr 50 --n-big 30` (seed 0, 458 s, kết quả `data/interim/rules_repro_eth.parquet`, log `data/interim/reproduce_rules_2026-10-21.log`). 580 địa chỉ; 500 mẫu pilot cũ được chọn lại y hệt.
+
+| Tầng | Subtype | n | Snapshot khớp chính xác | Loss (ETH) tác giả = mình | Hiện tại khớp chính xác | Lệch loss hiện tại |
+|---|---|---|---|---|---|---|
+| pilot | NCD | 350 | 100% | 309,460 | 94,3% | +0,00% |
+| pilot | PCD | 100 | 100% | 230,343 | 100% | +0,00% |
+| pilot | KEY | 50 | 100% | 39,955 | 50,0% | +0,23% |
+| addr | ADDR | 50 | 100% | 1,680 | 100% | +0,00% |
+| big | NCD | 27 | 100% | 21,384 | 92,6% | +0,05% |
+| big | PCD | 3 | 100% | 0,027 | 100% | +0,00% |
+| **Tổng** | | **580** | **100%** | **602,850** | | **+0,02%** |
+
+- **Snapshot** = chỉ dùng n_tx đầu tiên như lúc tác giả kéo dữ liệu; **hiện tại** = toàn bộ tx đến hôm nay (KEY lệch nhiều nhất vì sweeper vẫn tiếp tục hoạt động).
+- 1 địa chỉ bị cắt ở 100k tx; 1 địa chỉ có n_tx lúc kéo < n_tx của tác giả.
+- **Giới hạn của ADDR:** rule ADDR cần "delegate độc", mình coi là thoả vì mọi EOA ADDR đều có trong `eip7702_delegations` của tác giả; số dư snapshot lấy từ dữ liệu tác giả. Nên 100% ở đây xác nhận phần đếm tx/tính loss, **không** xác nhận độc lập việc nhận diện delegate độc (FINDINGS_LOG 2026-10-19: `flag` = symexec).
+- Kết luận: rule của Shao et al. tái lập đầy đủ trên ETH cho cả 4 subtype và cả nhóm n_tx lớn.
+
 ## 2026-10-20 — D3 timing BSC qua NodeReal (`crosschain_matrix timing`, `build`)
 
 Nguồn: NodeReal MegaNode free, `nr_getTransactionByAddress` (`category=[external]`, `order=asc`, `maxCount=1`), 16.562 địa chỉ BSC trong ~5 phút, 0 lỗi. (Moralis đòi gói $149+, BigQuery không có dataset BSC, Blockscout/Ankr không dùng được.)

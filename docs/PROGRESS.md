@@ -4,7 +4,7 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-10-21
+**Cập nhật lần cuối:** 2026-10-22
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
@@ -16,8 +16,10 @@
 - ✅ D3 ma trận cross-chain đầy đủ (FINDINGS_LOG 2026-10-16).
 - ✅ D3 thời gian (ETH misuse, 19.273 địa chỉ XC sau khi có creation BSC qua Binplorer): 98,4% ca đã biết có contract trước tx đầu tiên (FINDINGS_LOG 2026-10-17).
 - ✅ D3 timing BSC xong (2026-10-20) qua NodeReal: 16.562 địa chỉ trong ~5 phút, 98,8% ca đã biết có contract trước tx đầu tiên (FINDINGS_LOG 2026-10-20).
-- ⏳ Pilot rule còn thiếu: EOA ADDR và CA có n_tx > 5.000 (chỉ chiếm 3,0% loss ETH, không phải nhóm lớn nhất). Code đã sẵn: `reproduce_rules --n-addr 50 --n-big 30` (giữ nguyên mẫu 500 cũ). Máy này chưa có `.env`, cần `ETHERSCAN_API_KEY` mới chạy được.
+- ✅ Pilot rule mở rộng (2026-10-21): 580 địa chỉ ETH (thêm 50 EOA ADDR, 30 CA có 5.000 < n_tx ≤ 50.000), snapshot khớp tác giả 580/580, loss lệch +0,00% (FINDINGS_LOG 2026-10-21).
+- ✅ D1 ETH (2026-10-22): `data/raw/eth/bq_txs.parquet` (bạn chạy BigQuery), 22,4M tx đến 2026-10-20, phủ 35.664/35.664 địa chỉ, khớp Etherscan 578/579 (khác duy nhất bản ghi GENESIS). FINDINGS_LOG 2026-10-22.
 - ✅ Nháp đặc tả risk score R(A,C): [RISK_SCORE.md](RISK_SCORE.md) (4 thành phần, học trọng số, ngưỡng, độ trễ, giao diện `engine/`).
+- ✅ Engine risk score (2026-10-22): `python -m address_misuse.engine 0x... --chain bsc --data 0x...`; 1,7 ms/mẫu offline. Chấm thử lộ 4 vấn đề (RISK_SCORE §6, FINDINGS_LOG 2026-10-22). Kế tiếp: sửa các vấn đề đó + lấy tx thô cho mẫu âm.
 - ✅ D4: N1 (400 địa chỉ ngẫu nhiên không bị gắn cờ), N6 (5 delegate 7702 hợp lệ, kiểm qua Blockscout) — `negatives.py`. Còn N5 (cần danh sách địa chỉ tin cậy), N2–N4, N8 (cần tx thô, D1).
 - 🔄 D5: codebook v0.3 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Chờ chọn 2 người gán để chạy pilot.
 
@@ -25,7 +27,7 @@
 
 - ✅ Etherscan API key đã có trong `.env` (gói miễn phí): eth, arb, polygon, sepolia OK; **bsc, op, base không hỗ trợ**.
 - ✅ Chốt NodeReal free cho BSC (2026-10-20); OP/Base vẫn chưa có nguồn. Lịch sử cân nhắc: 2026-10-17: đã thử, không có nguồn miễn phí không cần đăng ký nào lấy đủ txlist BSC (Etherscan free, Ankr công khai, Binplorer, RPC công khai đều không được). Còn: Moralis Free (40k CU/ngày, đủ cho mẫu ~2.000 địa chỉ, ~1 tuần) hoặc Etherscan Lite; đang xin Etherscan quyền truy cập học thuật. Khảo sát 2026-10-16: BscScan API đã gộp vào Etherscan V2 (free không có BSC); Etherscan Lite $49/tháng (mọi chain, 5 lệnh/s); NodeReal/BSCTrace Free 10M CU (có `nr_getContractCreationTransaction`, nhưng lịch sử tx giới hạn 100k block/lệnh, BSC đã ~128M block); top 1.000 địa chỉ BSC = ~99% thiệt hại.
-- ⏳ GCP project có bật BigQuery, kèm service-account JSON (để ngoài thư mục dự án; đường dẫn ghi trong `.env`).
+- ✅ GCP project `nt547-project` (BigQuery Sandbox), đăng nhập bằng `gcloud auth application-default login` (2026-10-21). `.env` máy này đủ Etherscan, NodeReal, GCP.
 - ⏳ (Khuyến nghị) RPC riêng: Alchemy, Infura hoặc QuickNode.
 - ⏳ Chọn 2 người gán nhãn.
 
@@ -63,13 +65,16 @@
 - ⬜ **D8** Đóng băng Dataset v1 (chia theo thời gian, không trùng địa chỉ giữa các tập, QA).
 
 ### Sau dữ liệu
-- 🔄 Module 2: engine và risk score R(A, C) (tuần 5–6). ✅ Nháp đặc tả [RISK_SCORE.md](RISK_SCORE.md).
+- 🔄 Module 2: engine và risk score R(A, C) (tuần 5–6). ✅ Nháp đặc tả [RISK_SCORE.md](RISK_SCORE.md). ✅ `src/address_misuse/engine/` (FeatureStore, 4 hàm S, luật cứng, CLI, 11 test), chấm thử 1.181 mẫu. ⬜ Sửa 4 vấn đề trong RISK_SCORE §6, rồi tập âm có tx thô (bước 2).
 - ⬜ Module 3: đánh giá P/R/F1/FPR và ROC (tuần 6–7).
 - ⬜ Module 4: wallet-side warning, độ trễ < 150 ms (tuần 7–8).
 - ⬜ Viết paper, Docker, slide (tuần 9–10).
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-22 — Engine risk score**: `engine/features.py`, `engine/score.py`, `engine/__main__.py`, `tests/test_engine.py` (50 passed). Chấm thử 1.181 mẫu; phát hiện delegate 7702 của sweeper đã đổi sau snapshot tác giả (0% EOA ADDR còn delegate cũ) — FINDINGS_LOG 2026-10-22.
+- **2026-10-22 — Nhận `bq_txs.parquet`**: kiểm tra không trùng khoá, phủ đủ địa chỉ, đối chiếu Etherscan trên 579 địa chỉ pilot (FINDINGS_LOG 2026-10-22).
+- **2026-10-21 — `.env` + GCP trên máy này, pilot rule 580**: kiểm tra key (không in giá trị): Etherscan, NodeReal, BigQuery đều OK. Cài `google-cloud-bigquery`, `db-dtypes` vào `.venv`. `bq_fetch dry-run`: 35.718 địa chỉ ETH, 680 GB. `reproduce_rules` với `--n-addr 50 --n-big 30`: snapshot khớp 580/580 (FINDINGS_LOG 2026-10-21).
 - **2026-10-21 — Risk score + rule pilot mở rộng**: viết `docs/RISK_SCORE.md` v0.1 (4 thành phần, học trọng số, ngưỡng, độ trễ, giao diện `engine/`). `reproduce_rules` thêm tầng `addr` (EOA ADDR; số dư snapshot từ dữ liệu tác giả, số dư hiện tại qua balancemulti) và `big` (5.000 < n_tx ≤ 50.000), kéo tối đa 100k tx/địa chỉ; mẫu 500 cũ vẫn được chọn y hệt. Chưa chạy vì máy này thiếu `.env`. Nhóm n_tx > 5.000 chỉ chiếm 3,0% loss ETH (trước ghi nhầm là nhóm thiệt hại lớn nhất).
 - **2026-10-20 — Chốt NodeReal + Snap**: Moralis không còn gói Free trong luồng đăng ký (bắt $149+); BigQuery không có dataset BSC; Blockscout/Ankr không dùng được. `cmd_timing` dùng NodeReal `nr_getTransactionByAddress` (order asc, maxCount 1) cho BSC; đã thử thật 1 địa chỉ, OK.
 - **2026-10-19 — Gộp lại sau khi bạn force-push (`11b88df`)**: lấy toàn bộ bản của bạn (backup: nhánh `backup/main-before-2026-10-19` và stash GitHub Desktop), rồi áp lại phần của mình:
