@@ -18,6 +18,7 @@ def test_bytecode_none_depends_on_calldata():
     f = feat()
     assert s_bytecode(f, TxContext(calldata="0x7ff36ab5"))[:2] == (1.0, ["T1"])
     assert s_bytecode(f, TxContext(value_wei=10))[0] == 0.0
+    assert s_bytecode(f, TxContext(calldata="0x" + "gm, hello there".encode().hex()))[0] == 0.0   # IDM
 
 
 def test_bytecode_code_black_hole_vs_withdrawable():
@@ -37,6 +38,8 @@ def test_bytecode_7702_benign_vs_malicious():
     f = feat(code={"bsc": "7702"}, delegate="0xd", delegate_malicious=True)
     assert s_bytecode(f)[:2] == (1.0, ["T5"])
     assert score_features(f).hard_rule == "malicious_delegate"
+    f.at = 1_700_000_000                                            # trước khi EIP-7702 kích hoạt: EOA thường
+    assert f.state() == "none" and score_features(f).hard_rule is None
 
 
 def test_cross_is_time_aware():
@@ -118,3 +121,32 @@ def test_score_range_and_weights():
     r = score_features(f, TxContext(calldata="0x12345678"), weights={"bytecode": 0, "cross": 1, "osint": 0,
                                                                      "history": 0})
     assert r.score == 100.0
+
+
+def test_nodereal_record_converts_to_txlist_format():
+    from address_misuse.engine.prepare import _nodereal_record
+    zero = "0x" + "0" * 40
+    base = {"blockNum": hex(20_000_000), "blockTimeStamp": 100, "hash": "0x1", "from": "0xAB", "value": "0x0a", "gas": 30000,
+            "gasPrice": 5, "gasUsed": 21000, "receiptsStatus": 1, "input": "0x"}
+    t = [_nodereal_record({**base, "to": A, "contractAddress": zero}, 0),
+         _nodereal_record({**base, "to": zero, "contractAddress": "0xCC", "receiptsStatus": 0}, 1)]
+    df = txlist_frame(t)
+    assert (df.block_number.tolist(), df.value.tolist(), df.to_address[0]) == ([20_000_000] * 2, [10, 10], A)
+    assert pd.isna(df.to_address[1])
+    assert pd.isna(df.receipt_contract_address[0]) and df.receipt_contract_address[1] == "0xcc"
+    assert df.receipt_status.tolist() == [1, 0]
+    old = {**base, "blockNum": hex(1_000_000), "to": A, "contractAddress": zero, "receiptsStatus": 0}
+    assert _nodereal_record(old, 0)["isError"] == "0"                          # trước Byzantium: theo gas
+    assert _nodereal_record({**old, "gasUsed": 30000}, 0)["isError"] == "1"
+    assert _nodereal_record(old, 0, chain="bsc")["isError"] == "1"
+
+
+def test_pick_event_uses_misuse_txs_only():
+    from address_misuse.engine.evaluate import CALL_PLACEHOLDER, pick_event
+    txs = pd.DataFrame([_tx(1, "0x" + "1" * 40, A, 5), _tx(2, "0x" + "2" * 40, A, 0, gas_used=40_000),
+                        _tx(3, A, "0x" + "3" * 40, 1)])
+    at, ctx = pick_event(txs, A, "+NCD", None, seed=0)
+    assert (at, ctx.calldata) == (2, CALL_PLACEHOLDER)                 # NCD: chỉ tx gọi hàm
+    assert pick_event(txs, A, "+PCD", 5, seed=0) is None                # PCD: chỉ tx sau khi contract được tạo
+    assert pick_event(txs, A, "-N1", None, seed=0)[0] in (1, 2)
+    assert pick_event(None, A, "-N1", None, seed=0) is None

@@ -2,6 +2,61 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-23 — Bước 2: tập âm N2/N3/N4/N8, lịch sử BSC, rà soát toàn bộ quy trình engine
+
+**Dữ liệu mới** (tái tạo: `python -m address_misuse.engine.prepare sample` → `negatives scan --blocks 400` →
+`negatives from-scan` → `negatives n4` → `engine.prepare history` → `negatives n4-verify` → `engine.evaluate`):
+- Mẫu đánh giá cố định `engine_eval_sample.parquet` (seed 0): mỗi chain NCD 300, PCD 200, KEY 150, ADDR 150.
+- Lịch sử BSC qua NodeReal `nr_getTransactionByAddress` cho 800 dương + N1 + N7 BSC (0 lỗi, không địa chỉ rỗng),
+  và cho đích của N2/N3/N4/N8 trên cả hai chain (1.000 tx đầu). Đổi sang định dạng txlist Etherscan.
+- Quét 400 block ngẫu nhiên mỗi chain (2023-01 → 2026-10; ETH 80.022 tx, BSC 44.088 tx):
+  N8 = 1 tx ngẫu nhiên/block (400/chain); N2 = gọi contract bằng 30 selector hay gặp nhất trong tx tới địa chỉ NCD
+  (approve, transfer, setApprovalForAll, transferFrom, mint, withdraw…; 400/chain); N3 = input là văn bản gửi tới
+  EOA (ETH 400, BSC 240; 88% là inscription tự gửi `data:,{"p":"erc-20",…}`).
+- N4: người gửi coin tới 6 ví nóng sàn (Binance 14/15/16, Coinbase 10, Binance BSC 6/7). Etherscan chặn đọc nhãn
+  (HTTP 403), Blockscout không có nhãn → kiểm chứng bằng **hành vi**: ≥ 90% tx gửi đi là về hub và mang ≥ 90% coin
+  đã nhận. Chỉ **83/400** người gửi đạt (ETH 37, BSC 46); phần lớn người gửi tới ví sàn là người dùng thường. Hub
+  Binance 15/16 và Binance BSC 7 gần như không có địa chỉ nạp đạt → nhãn hub có thể sai hoặc không phải đích sweep.
+
+**Kiểm tra nguồn dữ liệu tương đương:**
+- BigQuery vs Etherscan, 579 địa chỉ pilot, cùng mốc block: các đặc trưng lịch sử trùng 98,8–100%, `n_sweep` 246 = 246.
+- NodeReal vs Etherscan, 29 địa chỉ N1 ETH: `n_tx`, `n_in`, `n_in_call`, `call_senders`, `n_out` trùng 100%.
+  Trước Byzantium (block < 4.370.000) NodeReal trả status 0 cho mọi tx; đã đổi sang quy ước của BigQuery
+  (lỗi ⇔ dùng hết gas). Còn lệch 3 tx lỗi (Etherscan dùng trace).
+
+**Lỗi tìm thấy khi rà soát (đã sửa):**
+1. *BigQuery chỉ chứa tx của 35.664 địa chỉ đã truy vấn.* Địa chỉ khác (router, contract hạ tầng) có trong BigQuery
+   một phần (chỉ tx với địa chỉ misuse) và bị lấy làm lịch sử: 30/200 N1 ETH, 14/18 N7. Nay chỉ dùng BigQuery cho
+   đúng danh sách `bq_fetch.targets()`, còn lại dùng txlist.
+2. *Thiếu bộ lọc IDM* (tin nhắn văn bản) trong S_bytecode: mọi tx gửi chữ tới EOA bị tính T1 = 1. Đã thêm.
+3. *EIP-7702 không theo thời gian:* EOA đang ủy quyền hôm nay vẫn bị coi là 7702 (kể cả luật cứng delegate độc)
+   khi xét thời điểm trước khi 7702 kích hoạt (ETH 2025-05-07, BSC 2025-03-20). Đã sửa (`EIP7702_ACTIVATION_TS`).
+4. *Chọn `at` = tx đầu tiên sai cho PCD:* 87% PCD ETH chưa có code ở tx đầu tiên (contract được tạo sau), nên
+   chấm như NCD-XC (S_cross 0,33 → 0,81) — đây là lý do R_at > R của PCD ở lần chấm trước. `engine/evaluate.py`
+   chọn ngẫu nhiên **một tx misuse**: NCD = tx gọi hàm, PCD = tx sau khi contract được tạo; dương và âm cùng quy trình.
+5. `history_source` khoá theo địa chỉ (lẫn ETH/BSC): nay khoá theo (chain, address).
+
+**Hạn chế còn lại (cần nêu trong paper hoặc quyết định):**
+- *KEY ≡ luật cứng:* 100% EOA KEY nằm trong tập lộ key (`candidate_pk_addresses`), ADDR chỉ 0,5–0,8%. Nhóm KEY chỉ
+  đo luật cứng, không chứng minh R. Thời điểm lộ key không biết, nên luật này không theo thời gian.
+- *Danh sách đen delegate dựng từ tập dương* → 17–22% ADDR dính luật cứng `malicious_delegate`. Phải dựng lại
+  chỉ từ train.
+- *OSINT:* mọi dương và N1 đều thuộc `candidate_addresses` (S_osint = 0,28), còn đích N2/N8 chỉ 0,10–0,26 (địa chỉ
+  phổ biến như USDT cũng có trong code công khai). S_osint vì thế phân biệt một phần do **cách lấy mẫu**: AUC giảm
+  0,01–0,17 khi bỏ S_osint. Cần tính OSINT cùng một quy trình cho mọi mẫu (D7).
+- *BigQuery không có input:* ở mức địa chỉ chỉ biết "có calldata" (gas > 21.000), không chạy được IDM/T3 trong
+  lịch sử; N3 ETH vẫn có S_history 0,22 do đếm tx văn bản là "gọi hàm".
+- *Lịch sử hạ tầng bị cắt 1.000 tx đầu* (N6/N7, đích N2/N3/N8); NodeReal trả rỗng với vài contract rất lớn trên BSC.
+- *Mốc chia D8 không dùng được:* tx đầu tiên muộn nhất của dương CA là 2025-07-22. Với mốc trong PLAN_V2
+  (val từ lúc 7702 kích hoạt, test từ 2025-09-01): train 34.414, val 66, **test 0** địa chỉ có thời gian.
+  Cần chọn lại mốc (chờ người dùng).
+
+**Kết quả mô tả** (trọng số 0,25, chưa học, chưa chọn ngưỡng; 4.364 mẫu, `data/interim/engine_eval.log`):
+trung vị R — NCD 57,1 (cả hai chain), PCD 31–32, KEY 25–37,5, ADDR 7,1; N1 7,1; N2 14,7–15,0; N3 0; N4 0;
+N7 15,2–15,4; N8 1,0 (BSC) / 14,7 (ETH). AUC dương vs từng nhóm âm cùng chain: 0,75–1,00 (ETH: N1 0,89, N2 0,80,
+N3 0,90, N4 1,00, N6 0,83, N7 0,75, N8 0,85; BSC: N1 0,89, N2 0,87, N3 1,00, N4 1,00, N7 0,79, N8 0,93).
+ADDR gần như không tách được khỏi N1 bằng R (trung vị bằng nhau): thông tin chỉ nằm ở luật cứng và lịch sử.
+
 ## 2026-10-22 — Engine risk score chạy thử; delegate EIP-7702 của sweeper đã đổi sau snapshot tác giả
 
 **Chấm thử** `address_misuse.engine` (at = hôm nay, w = 0,25 mỗi thành phần) trên 1.181 mẫu: NCD/PCD/KEY/ADDR mỗi chain + N1, N6, N7. Offline 1,7 ms/mẫu; getCode 8 mạng cho 662 địa chỉ ngoài ma trận mất 3 s. Trung vị R:

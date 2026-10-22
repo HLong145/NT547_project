@@ -8,8 +8,9 @@ Tra sẵn mọi đặc trưng từ dữ liệu đã có, để các hàm S_* là
 - symexec: kết quả tác giả + chạy lại (`symexec_repro`, `engine_symexec.jsonl`), proxy → logic qua `proxy_map`;
 - delegate EIP-7702: N6 (hợp lệ), danh sách đen (mặc định lấy từ dữ liệu tác giả, xem `default_malicious_delegates`);
 - OSINT: tập lộ private key, tập địa chỉ ứng viên trong code công khai;
-- lịch sử giao dịch trước thời điểm `at` (chỉ ETH): BigQuery `bq_txs.parquet`, địa chỉ ngoài BigQuery dùng
-  txlist Etherscan đã cache (`python -m address_misuse.engine.prepare history`).
+- lịch sử giao dịch trước thời điểm `at`: ETH từ BigQuery `bq_txs.parquet`; địa chỉ ngoài BigQuery và mọi địa chỉ
+  BSC dùng txlist đã cache ở `data/raw/<chain>/txlist/` (Etherscan hoặc NodeReal,
+  `python -m address_misuse.engine.prepare history`).
 
 Dùng: `fs = FeatureStore(); fs.prepare(pairs); f = fs.features(address, chain, at)`.
 """
@@ -21,7 +22,8 @@ from dataclasses import dataclass, field
 import pandas as pd
 import pyarrow.dataset as ds
 
-from address_misuse.config import INTERIM_DIR, NETWORKS, RAW_DIR, SEED_DIR
+from address_misuse.bq_fetch import targets as bq_targets
+from address_misuse.config import EIP7702_ACTIVATION_TS, INTERIM_DIR, NETWORKS, RAW_DIR, SEED_DIR
 from address_misuse.rules import find_sweep_pairs
 
 NETS = tuple(NETWORKS)
@@ -31,8 +33,7 @@ ENGINE_CODE = INTERIM_DIR / "engine_code.parquet"           # getCode bổ sung 
 ENGINE_CREATION = INTERIM_DIR / "engine_creation.parquet"   # thời điểm tạo contract trên chính chain
 ENGINE_SYMEXEC = INTERIM_DIR / "engine_symexec.jsonl"       # symexec bổ sung (delegate 7702 mới, ...)
 BQ_TXS = RAW_DIR / "eth" / "bq_txs.parquet"
-TXLIST_DIR = RAW_DIR / "eth" / "txlist"
-HISTORY_CHAINS = ("eth",)                                   # chain có tx thô (D1); BSC sau khi có NodeReal txlist
+HISTORY_CHAINS = ("eth", "bsc")                            # BigQuery chỉ có ETH; BSC chỉ từ txlist NodeReal
 TX_COLS = ["block_number", "transaction_index", "block_ts", "from_address", "to_address", "value", "gas_price",
            "receipt_gas_used", "receipt_status", "receipt_contract_address"]
 
@@ -58,9 +59,12 @@ class Features:
     history: dict | None = None                         # None = không có tx thô cho chain này
 
     def state(self, net: str | None = None) -> str | None:
-        """Trạng thái code tại `at`. Trên chính `chain`: contract tạo sau `at` coi như chưa có."""
+        """Trạng thái code tại `at`. Trên chính `chain`: contract tạo sau `at` coi như chưa có; trên mọi mạng:
+        trước khi EIP-7702 kích hoạt, EOA đang ủy quyền hôm nay khi đó vẫn là EOA thường."""
         net = net or self.chain
         s = self.code.get(net)
+        if s == "7702" and self.at is not None and self.at < EIP7702_ACTIVATION_TS.get(net, 0):
+            return "none"
         if (net == self.chain and s == "code" and self.at is not None and self.own_create_ts is not None
                 and self.own_create_ts > self.at):
             return "none"
@@ -127,8 +131,12 @@ def txlist_frame(txs: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=TX_COLS)
 
 
-def load_txlist(address: str) -> pd.DataFrame | None:
-    p = TXLIST_DIR / f"{address}.json.gz"
+def txlist_path(chain: str, address: str):
+    return RAW_DIR / chain / "txlist" / f"{address}.json.gz"          # cùng chỗ với reproduce_rules
+
+
+def load_txlist(address: str, chain: str = "eth") -> pd.DataFrame | None:
+    p = txlist_path(chain, address)
     if not p.exists():
         return None
     with gzip.open(p, "rt", encoding="utf-8") as f:
@@ -188,9 +196,12 @@ class FeatureStore:
         pk = pd.read_parquet(SEED_DIR / "candidate_pk_addresses.parquet", columns=["chain", "address"])
         self.leaked = set(zip(pk.chain, pk.address))
         self.osint: dict[tuple[str, str], bool] = {}
-        self.txs: dict[str, pd.DataFrame] = {}
-        self.history_source: dict[str, str] = {}         # address -> "bq" / "txlist"
+        self.txs: dict[tuple[str, str], pd.DataFrame] = {}
+        self.history_source: dict[tuple[str, str], str] = {}     # (chain, address) -> "bq" / "txlist"
         self._load_history = load_history
+        # BigQuery chỉ chứa tx của các địa chỉ đã truy vấn (bq_fetch.targets): địa chỉ khác (router, sàn…) chỉ có
+        # phần tx với địa chỉ misuse, nên không được lấy lịch sử từ đó.
+        self.bq_covered = set(bq_targets().address) if BQ_TXS.exists() else set()
 
     # ------------------------------------------------------------ nạp theo lô
 
@@ -204,8 +215,17 @@ class FeatureStore:
             hit = set(zip(t["chain"].to_pylist(), t["address"].to_pylist()))
             for c, a in pairs:
                 self.osint[(c, a)] = (c, a) in hit
-        need = sorted({a for c, a in pairs if c in HISTORY_CHAINS and a not in self.txs})
-        if not need or not self._load_history:
+        if not self._load_history:
+            return
+        for c, a in sorted({k for k in pairs if k[0] in HISTORY_CHAINS and k not in self.txs and k[0] != "eth"}):
+            if (tl := load_txlist(a, c)) is not None:
+                self.txs[(c, a)], self.history_source[(c, a)] = tl, "txlist"
+        todo = sorted({a for c, a in pairs if c == "eth" and ("eth", a) not in self.txs})
+        need = [a for a in todo if a in self.bq_covered]
+        for a in set(todo) - set(need):
+            if (tl := load_txlist(a)) is not None:
+                self.txs[("eth", a)], self.history_source[("eth", a)] = tl, "txlist"
+        if not need:
             return
         t = pd.DataFrame(columns=TX_COLS)
         if BQ_TXS.exists():
@@ -220,10 +240,7 @@ class FeatureStore:
                     self.own_create.setdefault(("eth", a), int(ts))
         for a in need:
             rows = t[(t.to_address == a) | (t.from_address == a) | (t.receipt_contract_address == a)]
-            if len(rows):
-                self.txs[a], self.history_source[a] = rows, "bq"
-            elif (tl := load_txlist(a)) is not None:
-                self.txs[a], self.history_source[a] = tl, "txlist"
+            self.txs[("eth", a)], self.history_source[("eth", a)] = rows, "bq"     # 0 dòng = thật sự không có tx
 
     def missing_code(self, addresses) -> list[str]:
         return sorted({a.lower() for a in addresses if len(self.code.get(a.lower(), {})) < len(NETS)})
@@ -292,6 +309,6 @@ class FeatureStore:
             f.delegate_malicious = f.delegate in self.malicious
         f.leaked_key = (chain, a) in self.leaked
         f.osint = self.osint.get((chain, a))
-        if chain in HISTORY_CHAINS and a in self.txs:
-            f.history = history_features(a, self.txs[a], at)
+        if (chain, a) in self.txs:
+            f.history = history_features(a, self.txs[(chain, a)], at)
         return f

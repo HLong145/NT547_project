@@ -11,6 +11,7 @@ import math
 from dataclasses import dataclass, field
 
 from address_misuse.engine.features import NETS, Features, FeatureStore
+from address_misuse.rules import is_hex_readable
 
 DEFAULT_WEIGHTS = {"bytecode": 0.25, "cross": 0.25, "osint": 0.25, "history": 0.25}
 
@@ -55,6 +56,8 @@ def s_bytecode(f: Features, ctx: TxContext | None = None) -> tuple[float, list, 
         return 0.0, [], [f"không tra được code trên {f.chain}"]
     if st == "none":
         if ctx is not None:
+            if ctx.has_call and is_hex_readable(ctx.calldata):            # bộ lọc IDM của Shao et al.
+                return 0.0, [], ["input là tin nhắn văn bản, không phải gọi hàm"]
             if ctx.has_call:
                 return 1.0, ["T1"], [f"gọi hàm tới địa chỉ không có code trên {f.chain}"]
             return 0.0, [], []

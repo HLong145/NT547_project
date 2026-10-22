@@ -19,3 +19,25 @@ def test_classify_n6_requires_verified_name_and_code():
     df = classify_n6(rows, author_set={"0x3"})
     assert df.kept.tolist() == [True, False, True, False]           # có trong tập tác giả vẫn giữ (tập đó không phải tập độc)
     assert df.in_author_delegate_set.tolist() == [False, False, True, False]
+
+
+def test_scan_rows_selector_and_readable_text():
+    from address_misuse.negatives import scan_rows
+    text = "0x" + "hello world".encode().hex()
+    block = {"timestamp": "0x64", "number": "0x10", "transactions": [
+        {"transactionIndex": "0x0", "hash": "0x1", "from": "0xAA", "to": "0xBB", "value": "0x5", "gasPrice": "0x2",
+         "type": "0x2", "input": "0x7ff36ab5" + "00" * 32},
+        {"transactionIndex": "0x1", "hash": "0x2", "from": "0xaa", "to": None, "value": "0x0", "gasPrice": "0x2",
+         "input": text}]}
+    a, b = scan_rows("eth", block)
+    assert (a["selector"], a["readable"], a["input_len"], a["target"], a["from"]) == ("0x7ff36ab5", False, 36, "0xbb", "0xaa")
+    assert (b["readable"], b["target"], b["block_ts"]) == (True, None, 100)
+
+
+def test_n4_deposit_like_requires_forwarding_to_hub():
+    from address_misuse.negatives import n4_deposit_like
+    a, hub, user = "0xa", "0xh", "0xu"
+    t = pd.DataFrame({"from_address": [user, a], "to_address": [a, hub], "value": [100, 98]})
+    assert n4_deposit_like(t, a, hub)
+    t2 = pd.DataFrame({"from_address": [user, a, a], "to_address": [a, hub, user], "value": [100, 50, 48]})
+    assert not n4_deposit_like(t2, a, hub)

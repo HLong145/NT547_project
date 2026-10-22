@@ -2,23 +2,35 @@
 
 python -m address_misuse.engine.prepare creation    # thời điểm tạo contract trên chính chain (NCD về sau có code)
 python -m address_misuse.engine.prepare delegates   # symexec cho delegate EIP-7702 chưa có kết quả
-python -m address_misuse.engine.prepare history     # txlist Etherscan cho địa chỉ ETH âm (N1/N6/N7), không có trong BigQuery
+python -m address_misuse.engine.prepare sample      # mẫu đánh giá cố định (dương theo nhóm × chain, seed 0)
+python -m address_misuse.engine.prepare history     # txlist cho địa chỉ không có trong BigQuery (ETH âm, mọi địa chỉ BSC)
+
+Lịch sử: ETH âm N1/N6/N7 từ Etherscan; BSC (dương trong mẫu + âm) và các tập âm mới (N2–N4, N8) từ NodeReal
+`nr_getTransactionByAddress`, đổi sang đúng định dạng txlist Etherscan để dùng chung `txlist_frame`.
 """
 
 import argparse
+import gzip
 import json
 import os
+import time
+from datetime import datetime, timezone
 
 import pandas as pd
 import requests
 
 from address_misuse.config import INTERIM_DIR, SEED_DIR
-from address_misuse.engine.features import (ENGINE_CODE, ENGINE_CREATION, ENGINE_SYMEXEC, MATRIX, TXLIST_DIR,
-                                            load_symexec)
+from address_misuse.engine.features import (ENGINE_CODE, ENGINE_CREATION, ENGINE_SYMEXEC, MATRIX, load_symexec,
+                                            txlist_path)
 
 NODEREAL_URL = "https://bsc-mainnet.nodereal.io/v1/{}"
+NODEREAL_CHAIN_URL = "https://{}-mainnet.nodereal.io/v1/{}"
+ENGINE_SAMPLE = INTERIM_DIR / "engine_eval_sample.parquet"
+SAMPLE_SIZES = {"NCD": 300, "PCD": 200, "KEY": 150, "ADDR": 150}     # mỗi chain
 HISTORY_MAX_RECORDS = 10_000
-HISTORY_MAX_RECORDS_INFRA = 1_000     # N6/N7: mẫu 1.000 tx đầu, ghi `truncated`
+HISTORY_MAX_RECORDS_INFRA = 1_000     # hạ tầng (N6/N7, đích của N2–N4/N8): 1.000 tx đầu, ghi `truncated`
+ZERO = "0x" + "0" * 40
+BYZANTIUM = {"eth": 4_370_000}     # trước block này receipt chưa có status
 
 
 def _nodereal_creation(address: str, key: str) -> dict | None:
@@ -88,33 +100,164 @@ def cmd_delegates(timeout: float = 120, workers: int = 2):
             print(f"  {i}/{len(tasks)} {r['chain']} {r['address'][:10]} {r['status']}", flush=True)
 
 
-def negative_eth_addresses() -> dict[str, list[str]]:
-    n1 = pd.read_parquet(INTERIM_DIR / "n1_random_unflagged.parquet").query("chain == 'eth'").address
+def cmd_sample(seed: int = 0):
+    """Mẫu dương cố định cho đánh giá engine: SAMPLE_SIZES địa chỉ mỗi nhóm × chain (không trùng địa chỉ)."""
+    if ENGINE_SAMPLE.exists():
+        print(f"đã có {ENGINE_SAMPLE}; xoá file nếu muốn lấy lại")
+        return
+    ca = pd.read_parquet(MATRIX)[["chain", "address", "subtype"]]
+    eoa = pd.read_parquet(SEED_DIR / "eoa_misuse.parquet")[["chain", "address", "subtype"]]
+    df = pd.concat([ca, eoa], ignore_index=True)
+    df["address"] = df.address.str.lower()
+    parts = []
+    for (_, sub), g in df.drop_duplicates(["chain", "address"]).groupby(["chain", "subtype"]):
+        parts.append(g.sample(min(SAMPLE_SIZES[sub], len(g)), random_state=seed))
+    out = pd.concat(parts, ignore_index=True)
+    out.to_parquet(ENGINE_SAMPLE, index=False)
+    print(out.groupby(["chain", "subtype"]).size().to_string())
+
+
+def negative_addresses() -> dict[tuple[str, str], list[str]]:
+    """(nhóm, chain) → địa chỉ cần lịch sử. N2–N4/N8 lấy cột `target` (địa chỉ nhận tx) nếu có."""
+    out = {}
+    n1 = pd.read_parquet(INTERIM_DIR / "n1_random_unflagged.parquet")
+    for ch in ("eth", "bsc"):
+        out[("N1", ch)] = sorted(set(n1[n1.chain == ch].address.str.lower()))
     n6 = pd.read_parquet(INTERIM_DIR / "n6_benign_7702_delegates.parquet").query("kept").address
     n7 = pd.read_parquet(INTERIM_DIR / "n7_multichain_contracts.parquet").query("kept").address
-    return {"N1": sorted(set(n1.str.lower())), "N6+N7": sorted(set(pd.concat([n6, n7]).str.lower()))}
+    out[("N6+N7", "eth")] = sorted(set(pd.concat([n6, n7]).str.lower()))
+    out[("N7", "bsc")] = sorted(set(n7.str.lower()))
+    for name in ("n2_contract_calls", "n3_text_messages", "n4_exchange_deposits", "n8_normal_txs"):
+        p = INTERIM_DIR / f"{name}.parquet"
+        if p.exists():
+            d = pd.read_parquet(p)
+            col = "target" if "target" in d else "address"
+            for ch, g in d.groupby("chain"):
+                out[(name.split("_")[0].upper(), ch)] = sorted(set(g[col].str.lower()))
+    return out
+
+
+def _nodereal_record(t: dict, idx: int, chain: str = "eth") -> dict:
+    """Bản ghi `nr_getTransactionByAddress` → bản ghi txlist kiểu Etherscan.
+
+    NodeReal không trả transactionIndex: dùng thứ tự trong block theo kết quả `asc` (đủ cho rule sweep, vốn chỉ cần
+    tx nạp đứng trước tx rút). Trước Byzantium NodeReal trả status 0 cho mọi tx; dùng cùng quy ước với BigQuery
+    (lỗi ⇔ dùng hết gas)."""
+    ca = (t.get("contractAddress") or "").lower()
+    ca = "" if ca == ZERO else ca
+    to = (t.get("to") or "").lower()
+    block = int(t["blockNum"], 16)
+    if block < BYZANTIUM.get(chain, 0):
+        status = int(int(t.get("gasUsed") or 0) < int(t.get("gas") or 0))
+    else:
+        status = int(t.get("receiptsStatus") or 0)
+    return {"blockNumber": str(block), "transactionIndex": str(idx),
+            "timeStamp": str(int(t["blockTimeStamp"])), "hash": t.get("hash"), "from": (t.get("from") or "").lower(),
+            "to": "" if (ca and to in ("", ZERO)) else to, "value": str(int(t["value"], 16)), "gas": str(t.get("gas")),
+            "gasPrice": str(t.get("gasPrice") or 0), "gasUsed": str(t.get("gasUsed") or 0),
+            "isError": "0" if status == 1 else "1", "txreceipt_status": str(status), "input": t.get("input") or "0x",
+            "contractAddress": ca}
+
+
+def nodereal_transfers(chain: str, key: str, params: dict, retries: int = 5) -> dict:
+    """Một lần gọi `nr_getTransactionByAddress` (250 CU), thử lại khi lỗi. Lỗi không in URL vì URL chứa API key."""
+    err = None
+    for attempt in range(retries):
+        try:
+            j = requests.post(NODEREAL_CHAIN_URL.format(chain, key), json={
+                "jsonrpc": "2.0", "id": 1, "method": "nr_getTransactionByAddress", "params": [params]},
+                timeout=120).json()
+            if "error" not in j:
+                return j.get("result") or {}
+            err = j["error"]
+        except Exception as e:
+            err = type(e).__name__
+        time.sleep(2 * 2 ** attempt)
+    raise RuntimeError(f"NodeReal {chain} {params.get('address')}: {str(err)[:200]}")
+
+
+def nodereal_txlist(chain: str, address: str, key: str, max_records: int) -> tuple[list[dict], bool]:
+    """Tx ngoài (external) của địa chỉ theo thứ tự thời gian, tối đa `max_records` (1.000 tx/trang)."""
+    out, page = [], None
+    while True:
+        prm = {"category": ["external"], "address": address, "order": "asc", "maxCount": "0x3e8"}
+        if page:
+            prm["pageKey"] = page
+        res = nodereal_transfers(chain, key, prm)
+        out += res.get("transfers") or []
+        page = res.get("pageKey")
+        if not page or len(out) >= max_records:
+            break
+    truncated = bool(page) or len(out) > max_records
+    recs, prev, idx = [], None, 0
+    for t in out[:max_records]:
+        idx = idx + 1 if t["blockNum"] == prev else 0
+        prev = t["blockNum"]
+        recs.append(_nodereal_record(t, idx, chain))
+    return recs, truncated
+
+
+def fetch_nodereal(chain: str, address: str, key: str, max_records: int) -> None:
+    p = txlist_path(chain, address)
+    if p.exists():
+        return
+    txs, truncated = nodereal_txlist(chain, address, key, max_records)
+    rec = {"address": address, "chain": chain, "source": "nodereal",
+           "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "truncated": truncated,
+           "result": txs}
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    with gzip.open(tmp, "wt", encoding="utf-8") as f:
+        json.dump(rec, f)
+    tmp.replace(p)
 
 
 def cmd_history():
-    """N1 lấy tối đa 10k tx; N6/N7 (hạ tầng, hàng triệu tx, Etherscan ~45 s/trang) chỉ lấy 1.000 tx đầu."""
+    """ETH N1 (≤ 10k tx) và N6/N7 (1.000 tx đầu, Etherscan ~45 s/trang với hạ tầng) qua Etherscan;
+    BSC (dương trong mẫu đánh giá + âm) và các tập âm mới qua NodeReal."""
     from address_misuse.etherscan import Etherscan
     from address_misuse.reproduce_rules import fetch_txlist
+    neg = negative_addresses()
     es = Etherscan("eth")
     for grp, max_records in (("N1", HISTORY_MAX_RECORDS), ("N6+N7", HISTORY_MAX_RECORDS_INFRA)):
-        addrs = [a for a in negative_eth_addresses()[grp] if not (TXLIST_DIR / f"{a}.json.gz").exists()]
-        print(f"txlist Etherscan {grp}: {len(addrs)} địa chỉ (tối đa {max_records:,} tx/địa chỉ)", flush=True)
+        addrs = [a for a in neg[(grp, "eth")] if not txlist_path("eth", a).exists()]
+        print(f"txlist Etherscan {grp} eth: {len(addrs)} địa chỉ (tối đa {max_records:,} tx/địa chỉ)", flush=True)
         for i, a in enumerate(addrs, 1):
             fetch_txlist(es, a, max_records=max_records)
             if i % 25 == 0 or i == len(addrs):
+                print(f"  {i}/{len(addrs)}", flush=True)
+    key = os.environ.get("NODEREAL_API_KEY")
+    if not key:
+        print("bỏ qua NodeReal: thiếu NODEREAL_API_KEY")
+        return
+    jobs = []
+    if ENGINE_SAMPLE.exists():
+        s = pd.read_parquet(ENGINE_SAMPLE).query("chain == 'bsc'")
+        jobs.append(("dương", "bsc", sorted(set(s.address)), HISTORY_MAX_RECORDS))
+    jobs.append(("N1", "bsc", neg[("N1", "bsc")], HISTORY_MAX_RECORDS))
+    jobs.append(("N7", "bsc", neg[("N7", "bsc")], HISTORY_MAX_RECORDS_INFRA))
+    for (grp, ch), addrs in sorted(neg.items()):
+        if grp in ("N2", "N3", "N4", "N8"):
+            jobs.append((grp, ch, addrs, HISTORY_MAX_RECORDS_INFRA))
+    for grp, ch, addrs, max_records in jobs:
+        addrs = [a for a in addrs if not txlist_path(ch, a).exists()]
+        print(f"txlist NodeReal {grp} {ch}: {len(addrs)} địa chỉ (tối đa {max_records:,} tx/địa chỉ)", flush=True)
+        for i, a in enumerate(addrs, 1):
+            try:
+                fetch_nodereal(ch, a, key, max_records)
+            except RuntimeError as e:                             # lần chạy sau thử lại
+                print(f"  lỗi {e}", flush=True)
+            if i % 50 == 0 or i == len(addrs):
                 print(f"  {i}/{len(addrs)}", flush=True)
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["creation", "delegates", "history"])
+    ap.add_argument("step", choices=["creation", "delegates", "sample", "history"])
     ap.add_argument("--timeout", type=float, default=120, help="giây symexec mỗi delegate")
     a = ap.parse_args()
-    {"creation": cmd_creation, "delegates": lambda: cmd_delegates(a.timeout), "history": cmd_history}[a.step]()
+    {"creation": cmd_creation, "delegates": lambda: cmd_delegates(a.timeout), "sample": cmd_sample,
+     "history": cmd_history}[a.step]()
 
 
 if __name__ == "__main__":

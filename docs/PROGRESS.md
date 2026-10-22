@@ -20,7 +20,9 @@
 - ✅ D1 ETH (2026-10-22): `data/raw/eth/bq_txs.parquet` (bạn chạy BigQuery), 22,4M tx đến 2026-10-20, phủ 35.664/35.664 địa chỉ, khớp Etherscan 578/579 (khác duy nhất bản ghi GENESIS). FINDINGS_LOG 2026-10-22.
 - ✅ Nháp đặc tả risk score R(A,C): [RISK_SCORE.md](RISK_SCORE.md) (4 thành phần, học trọng số, ngưỡng, độ trễ, giao diện `engine/`).
 - ✅ Engine risk score (2026-10-22): `python -m address_misuse.engine 0x... --chain bsc --data 0x...`; 1,7 ms/mẫu offline. Chấm thử lộ 4 vấn đề (RISK_SCORE §6, FINDINGS_LOG 2026-10-22). Kế tiếp: sửa các vấn đề đó + lấy tx thô cho mẫu âm.
-- ✅ D4: N1 (400 địa chỉ ngẫu nhiên không bị gắn cờ), N6 (5 delegate 7702 hợp lệ, kiểm qua Blockscout) — `negatives.py`. Còn N5 (cần danh sách địa chỉ tin cậy), N2–N4, N8 (cần tx thô, D1).
+- ✅ D4: N1, N2 (800 tx), N3 (640 tx), N4 (83 địa chỉ nạp đã kiểm hành vi), N6, N7, N8 (800 tx) — `negatives.py`. Còn N5 (cần danh sách địa chỉ tin cậy).
+- ✅ Bước 2 engine (2026-10-23): lịch sử BSC qua NodeReal, `engine/evaluate.py` (4.364 mẫu, AUC 0,75–1,00 với trọng số 0,25). Rà soát xong, sửa 5 lỗi (FINDINGS_LOG 2026-10-23).
+- ⏳ **Cần bạn quyết:** mốc chia train/val/test (D8). Mốc trong PLAN_V2 cho test = 0 mẫu dương vì dữ liệu tác giả dừng ở 07/2025.
 - 🔄 D5: codebook v0.3 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Chờ chọn 2 người gán để chạy pilot.
 
 ## 2. Chờ người dùng
@@ -43,7 +45,7 @@
   - ✅ Symbolic execution chạy được trên Windows: bỏ SIGALRM, đặt deadline theo basic block.
   - ✅ Symbolic execution tái lập: khớp 100% trên các contract chạy xong.
   - ⬜ Test 6 địa chỉ đã biết qua Etherscan (cần key).
-- ⬜ **D1** Giao dịch thô: ETH qua BigQuery, BSC qua Etherscan.
+- ✅ **D1** Giao dịch thô: ETH qua BigQuery (35.664 địa chỉ); BSC qua NodeReal cho mẫu đánh giá (800 dương + âm).
 - 🔄 **D2** Chạy lại rule trên dữ liệu thô và so với CSV tác giả (lệch < 2%). ✅ Pilot 500 ETH (`reproduce_rules.py`): khớp 100% ở snapshot.
 - 🔄 **D3** Cross-chain
   - ✅ `crosschain.py`: `eth_getCode` song song trên 8 mạng, kèm verdict.
@@ -56,7 +58,9 @@
   - ✅ N7: 18 contract hạ tầng đa chain đã kiểm chứng (`known_multichain.py`).
   - ✅ N1: 400 địa chỉ ngẫu nhiên không bị gắn cờ (200/chain) — `negatives.py n1`.
   - ✅ N6: 5 delegate EIP-7702 hợp lệ (MetaMask, Coinbase, Uniswap Calibur, Simple7702Account, Ambire) — `negatives.py n6`.
-  - ⬜ Mở rộng N7 từ dữ liệu; N5 (danh sách địa chỉ tin cậy); N2–N4, N8 (cần tx thô).
+  - ✅ N2/N3/N8: quét 400 block ngẫu nhiên/chain (2023-01 → nay) — `negatives.py scan`, `from-scan`.
+  - ✅ N4: người gửi tới 6 ví nóng sàn, chỉ giữ 83/400 có hành vi địa chỉ nạp — `negatives.py n4`, `n4-verify`.
+  - ⬜ Mở rộng N7 từ dữ liệu; N5 (danh sách địa chỉ tin cậy).
 - 🔄 **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
   - ✅ Codebook v0.3, script lấy mẫu pilot 50 + tính κ; file mẫu đã làm mù (bằng chứng tra cùng một cách cho mọi tầng).
   - ⬜ Pilot 50 mẫu với 2 người gán → chỉnh codebook → gán ~2.000 mẫu (cần D4 xong).
@@ -65,13 +69,14 @@
 - ⬜ **D8** Đóng băng Dataset v1 (chia theo thời gian, không trùng địa chỉ giữa các tập, QA).
 
 ### Sau dữ liệu
-- 🔄 Module 2: engine và risk score R(A, C) (tuần 5–6). ✅ Nháp đặc tả [RISK_SCORE.md](RISK_SCORE.md). ✅ `src/address_misuse/engine/` (FeatureStore, 4 hàm S, luật cứng, CLI, 11 test), chấm thử 1.181 mẫu. ✅ Sửa 4 vấn đề trong RISK_SCORE §6 (2026-10-23, `engine/prepare.py`). ⬜ Bước 2: tập âm N2–N4, N8; lịch sử tx BSC qua NodeReal.
+- 🔄 Module 2: engine và risk score R(A, C) (tuần 5–6). ✅ Nháp đặc tả [RISK_SCORE.md](RISK_SCORE.md). ✅ `src/address_misuse/engine/` (FeatureStore, 4 hàm S, luật cứng, CLI, 11 test), chấm thử 1.181 mẫu. ✅ Sửa 4 vấn đề trong RISK_SCORE §6 (2026-10-23, `engine/prepare.py`). ✅ Bước 2: tập âm N2–N4, N8; lịch sử BSC; `engine/evaluate.py`; rà soát. ⬜ Học trọng số (sau D5, D8).
 - ⬜ Module 3: đánh giá P/R/F1/FPR và ROC (tuần 6–7).
 - ⬜ Module 4: wallet-side warning, độ trễ < 150 ms (tuần 7–8).
 - ⬜ Viết paper, Docker, slide (tuần 9–10).
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-23 — Bước 2 + rà soát**: `engine.prepare sample/history` (NodeReal cho BSC, 0 lỗi), `negatives scan/from-scan/n4/n4-verify`, `engine/evaluate.py`. Rà soát sửa: lịch sử BigQuery bị cắt xén cho địa chỉ ngoài danh sách truy vấn, thiếu bộ lọc IDM, 7702 trước kích hoạt, `at` của PCD, status trước Byzantium của NodeReal. 56 test pass. Chờ quyết mốc D8.
 - **2026-10-23 — Sửa 4 vấn đề của engine**: `engine/prepare.py` (`creation` 258/258, `delegates` symexec 30/30, `history` txlist cho 223 địa chỉ ETH âm); so contract bằng selector; delegate theo thời điểm `at`. 52 test pass. Chấm lại: N1 ETH trung vị 19,6 → 7,1 (FINDINGS_LOG 2026-10-22).
 - **2026-10-22 — Engine risk score**: `engine/features.py`, `engine/score.py`, `engine/__main__.py`, `tests/test_engine.py` (50 passed). Chấm thử 1.181 mẫu; phát hiện delegate 7702 của sweeper đã đổi sau snapshot tác giả (0% EOA ADDR còn delegate cũ) — FINDINGS_LOG 2026-10-22.
 - **2026-10-22 — Nhận `bq_txs.parquet`**: kiểm tra không trùng khoá, phủ đủ địa chỉ, đối chiếu Etherscan trên 579 địa chỉ pilot (FINDINGS_LOG 2026-10-22).

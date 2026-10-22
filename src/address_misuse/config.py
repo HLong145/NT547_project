@@ -22,6 +22,8 @@ SOURCES = ("github", "stackexchange")
 
 # Block kích hoạt EIP-7702 mà code tác giả dùng (txs_analyzer.py)
 EIP7702_ACTIVATION_BLOCK = {"eth": 22431111, "bsc": 47618307}
+# timestamp của hai block trên: trước đó không EOA nào có thể ủy quyền EIP-7702
+EIP7702_ACTIVATION_TS = {"eth": 1746612683, "bsc": 1742436600}
 
 # chainId và RPC công khai mặc định (ghi đè bằng biến môi trường RPC_<NAME>)
 NETWORKS = {
