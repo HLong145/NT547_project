@@ -2,14 +2,17 @@
 
 python -X utf8 -m address_misuse.d6_new state      → data/interim/d6_state.parquet   (getCode hiện tại, RPC công khai)
 python -X utf8 -m address_misuse.d6_new created    → data/raw/eth/creation.jsonl     (getcontractcreation, Etherscan)
-python -X utf8 -m address_misuse.d6_new rules [--per-type 400] → data/interim/d6_new_positives.parquet
+python -X utf8 -m address_misuse.d6_new delegates  → data/interim/d6_delegates.parquet (symexec delegate 7702 mới)
+python -X utf8 -m address_misuse.d6_new rules [--per-type 400] [--only ADDR] → data/interim/d6_new_positives.parquet
 
 Đầu vào: `data/raw/eth/bq_new_activity.parquet` (`bq_fetch new-fetch`, một dòng thống kê mỗi ứng viên có tx từ 2025-09-01).
 Lọc theo đúng luật của tác giả (`rules.py`), chỉ thêm bước sàng rẻ ở đầu:
 - CA (NCD/PCD): có tx gọi hàm đi vào và địa chỉ chưa từng tự gửi tx (contract không gửi tx; địa chỉ contract suy từ
   deployer + nonce không có private key). Không code → NCD; có code tạo SAU tx vào đầu tiên trong cửa sổ → PCD;
   có code tạo trước 2025-09-01 → không thể có tx gọi sớm trong cửa sổ, bỏ.
-- ADDR: EOA đã gửi tx type 4 và hiện uỷ quyền EIP-7702 tới delegate tác giả gắn cờ độc (`eip7702_delegate_stats.flag`).
+- ADDR: EOA đã gửi tx type 4 và hiện uỷ quyền EIP-7702 tới delegate có đường chuyển tiền, đúng điều kiện của tác giả
+  (`txs_analyzer.match_EOAMisuse_rules_for_ADDR`: symexec `transfer_all_eth` hoặc `transfer_msg_value`). Danh sách
+  delegate của tác giả đã cũ nên `delegates` chạy symexec cho mọi delegate mới (mỗi bytecode một lần).
 - KEY: chưa làm (địa chỉ lộ key gần như không nằm trong `candidate_addresses`, cần truy vấn riêng).
 Mỗi loại lấy mẫu ngẫu nhiên `--per-type` địa chỉ (seed cố định), tải txlist Etherscan (≤ 10k tx), chạy luật; dương mới
 = có ít nhất một tx bị gắn cờ từ 2025-09-01. Đây là nhãn theo luật, vẫn cần nhãn vàng (D5).
@@ -26,6 +29,7 @@ from address_misuse.crosschain_matrix import rpc_batch
 ACTIVITY = RAW_DIR / "eth" / "bq_new_activity.parquet"
 STATE = INTERIM_DIR / "d6_state.parquet"
 OUT = INTERIM_DIR / "d6_new_positives.parquet"
+DELEGATES = INTERIM_DIR / "d6_delegates.parquet"
 EIP7702_PREFIX = "0xef0100"
 BATCH = 100
 MAX_RECORDS = 10_000
@@ -94,8 +98,95 @@ def load_creations(chain: str) -> dict[str, dict]:
 
 
 def malicious_delegates() -> set[str]:
+    """Delegate đủ điều kiện ADDR theo tác giả. Chưa chạy `delegates` thì dùng `flag` của tác giả (danh sách cũ)."""
+    if DELEGATES.exists():
+        d = pd.read_parquet(DELEGATES)
+        return set(d[d.author_rule == True].delegate)                       # noqa: E712
+    print("  chưa có d6_delegates.parquet, dùng danh sách delegate cũ của tác giả", flush=True)
     st = pd.read_parquet(SEED_DIR / "eip7702_delegate_stats.parquet").query("chain == 'eth' and flag == 1")
     return set(st.delegate.str.lower())
+
+
+def _symexec_flags() -> dict[str, dict]:
+    """delegate (eth) -> cờ symexec: của tác giả trước, thiếu thì kết quả nhóm chạy lại (status ok)."""
+    from address_misuse.engine.features import ENGINE_SYMEXEC
+    out = {}
+    sx = pd.read_parquet(SEED_DIR / "symexec_results.parquet").query("chain == 'eth'")
+    for r in sx.itertuples():
+        out[r.address] = {"all_eth": bool(r.transfer_all_eth), "msg_value": bool(r.transfer_msg_value),
+                          "input_amount": bool(r.transfer_input_amount), "delegatecall": bool(r.delegatecall),
+                          "source": "author"}
+    rows = []
+    for path in (INTERIM_DIR / "symexec_repro.parquet",):
+        if path.exists():
+            rows += pd.read_parquet(path).to_dict("records")
+    if ENGINE_SYMEXEC.exists():
+        rows += [json.loads(x) for x in ENGINE_SYMEXEC.read_text(encoding="utf-8").splitlines() if x.strip()]
+    for r in rows:
+        if r.get("chain") == "eth" and r.get("status") == "ok":
+            out.setdefault(r["address"], {"all_eth": bool(r["ours_transfer_all_eth"]),
+                                          "msg_value": bool(r["ours_transfer_msg_value"]),
+                                          "input_amount": bool(r["ours_transfer_input_amount"]),
+                                          "delegatecall": bool(r["ours_delegatecall"]), "source": "ours"})
+    return out
+
+
+def cmd_delegates(timeout: float, workers: int):
+    """Symexec mọi delegate 7702 trong `d6_state` chưa có kết quả, nhiều EOA trước; bytecode trùng chỉ chạy một lần.
+    Kết quả ghi thêm vào `engine_symexec.jsonl` (engine dùng chung), bảng tổng hợp → `d6_delegates.parquet`."""
+    import hashlib
+    from address_misuse.engine.features import ENGINE_SYMEXEC
+    from address_misuse.reproduce_symexec import run_isolated
+    n_eoa = pd.read_parquet(STATE).query("state == '7702'").delegate.value_counts()
+    dels = n_eoa.index.tolist()
+    codes = {}
+    for i in range(0, len(dels), BATCH):
+        chunk = dels[i:i + BATCH]
+        codes.update(zip(chunk, rpc_batch("eth", [("eth_getCode", [a, "latest"]) for a in chunk], timeout=60)))
+    h = {a: hashlib.sha256((c or "").encode()).hexdigest()[:16] for a, c in codes.items()}
+    flags = _symexec_flags()
+    done_hash = {h[a] for a in dels if a in flags}
+    tasks, seen = [], set()
+    for a in dels:                                                      # thứ tự: nhiều EOA trước
+        c = codes.get(a)
+        if a in flags or not c or c == "0x" or h[a] in done_hash or h[a] in seen:
+            continue
+        seen.add(h[a])
+        tasks.append(("eth", "eip7702_delegate", a, c, timeout))
+    print(f"delegate 7702: {len(dels)}, đã có symexec {sum(a in flags for a in dels)}, "
+          f"bytecode khác nhau cần chạy {len(tasks)}", flush=True)
+    with ENGINE_SYMEXEC.open("a", encoding="utf-8") as f:
+        for i, r in enumerate(run_isolated(tasks, workers=workers, hard_limit=timeout + 60, max_mem_mb=1500), 1):
+            f.write(json.dumps(r) + "\n")
+            f.flush()
+            if i % 10 == 0 or i == len(tasks):
+                print(f"  {i}/{len(tasks)}", flush=True)
+    flags = _symexec_flags()
+    by_hash = {}
+    for a in dels:
+        if a in flags:
+            by_hash.setdefault(h[a], flags[a])
+    wallets = {}
+    n6 = INTERIM_DIR / "n6_benign_7702_delegates.parquet"
+    if n6.exists():
+        w = pd.read_parquet(n6).query("kept")
+        wallets = dict(zip(w.address.str.lower(), w.wallet))
+    rows = []
+    for a in dels:
+        f = flags.get(a) or by_hash.get(h[a])
+        rows.append({"delegate": a, "n_eoa": int(n_eoa[a]), "code_hash": h[a], "has_code": bool(codes.get(a) not in (None, "", "0x")),
+                     "symexec": None if f is None else ("own" if a in flags else "same_code"),
+                     "source": None if f is None else f["source"],
+                     **{k: (None if f is None else f[k]) for k in ("all_eth", "msg_value", "input_amount", "delegatecall")},
+                     "author_rule": None if f is None else bool(f["all_eth"] or f["msg_value"]),
+                     "known_wallet": wallets.get(a)})
+    out = pd.DataFrame(rows)
+    out.to_parquet(DELEGATES, index=False)
+    w = out.n_eoa
+    print(f"có kết quả: {out.author_rule.notna().sum()}/{len(out)} delegate ({w[out.author_rule.notna()].sum():,}/{w.sum():,} EOA)")
+    print(f"đủ điều kiện ADDR (all_eth|msg_value): {int((out.author_rule == True).sum())} delegate, "   # noqa: E712
+          f"{w[out.author_rule == True].sum():,} EOA; trong đó ví hợp lệ N6: "                     # noqa: E712
+          f"{int(((out.author_rule == True) & out.known_wallet.notna()).sum())}")                  # noqa: E712
 
 
 def candidates() -> pd.DataFrame:
@@ -110,11 +201,13 @@ def candidates() -> pd.DataFrame:
     return pd.concat([ncd, pcd, addr], ignore_index=True)
 
 
-def cmd_rules(per_type: int, seed: int):
+def cmd_rules(per_type: int, seed: int, only: str | None = None):
     from address_misuse.etherscan import Etherscan
     from address_misuse.reproduce_rules import fetch_txlist
     from address_misuse.rules import detect_ca_misuse, detect_eoa_addr
     c = candidates()
+    if only:
+        c = c[c.rule == only]
     print("ứng viên theo luật: " + ", ".join(f"{k} {n:,}" for k, n in c.rule.value_counts().items()), flush=True)
     pick = (c.groupby("rule", group_keys=False)
             .apply(lambda g: g.sample(min(len(g), per_type), random_state=seed)).reset_index(drop=True))
@@ -138,6 +231,8 @@ def cmd_rules(per_type: int, seed: int):
         if i % 50 == 0 or i == len(pick):
             print(f"  {i}/{len(pick)}", flush=True)
     out = pd.DataFrame(rows)
+    if only and OUT.exists():                                   # chạy lại một luật: giữ kết quả các luật khác
+        out = pd.concat([pd.read_parquet(OUT).query("rule != @only"), out], ignore_index=True)
     out.to_parquet(OUT, index=False)
     print(out.groupby("rule").agg(n=("address", "size"), new_pos=("is_new_positive", "sum"),
                                   any_misuse=("n_misuse_tx", lambda x: int((x > 0).sum())),
@@ -154,16 +249,21 @@ def _ts(txs: list[dict], flagged: dict) -> int:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["state", "created", "rules"])
+    ap.add_argument("step", choices=["state", "created", "delegates", "rules"])
     ap.add_argument("--per-type", type=int, default=400)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--only", choices=["NCD", "PCD", "ADDR"])
+    ap.add_argument("--timeout", type=float, default=120, help="giây symexec mỗi delegate")
+    ap.add_argument("--workers", type=int, default=2)
     a = ap.parse_args()
     if a.step == "state":
         cmd_state()
     elif a.step == "created":
         cmd_created()
+    elif a.step == "delegates":
+        cmd_delegates(a.timeout, a.workers)
     else:
-        cmd_rules(a.per_type, a.seed)
+        cmd_rules(a.per_type, a.seed, a.only)
 
 
 if __name__ == "__main__":

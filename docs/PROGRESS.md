@@ -77,6 +77,7 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-23 — D6: getCode xong** (202.850: code 107.726, 7702 71.741, none 23.383). `created` lấy bù cho 43,8k contract mới, sau đó tự chạy `rules`. Thêm `d6_new delegates`: điều kiện ADDR đúng như code tác giả (symexec `transfer_all_eth`/`transfer_msg_value` của delegate; `flag` cũ chỉ phủ 13/484 delegate), symexec mọi delegate mới (mỗi bytecode một lần) → `d6_delegates.parquet`; xong thì chạy lại `rules --only ADDR`.
 - **2026-10-23 — D5 pilot, người gán B xong**: thêm `sample_gold sheet` (Excel có danh sách chọn + sheet hướng dẫn), `check` (lỗi hình thức), `kappa` đọc .xlsx và chặn khi hai file khác bộ mẫu. File B: 50/50, không lỗi. Chờ file A để tính κ.
 - **2026-10-23 — D6 bước 2 (dở dang, tắt máy)**: `d6_new.py` (sàng ứng viên → getCode → creation → luật tác giả). Sơ bộ: ~13% ứng viên CA không có code (NCD); chỉ 2/5.451 EOA 7702 uỷ quyền tới delegate tác giả gắn cờ → danh sách đen cũ, cần phân loại delegate mới. Chạy lại `d6_new state` và `d6_new created` (tự tiếp tục), rồi `d6_new rules`.
 - **2026-10-23 — D8 + D6 bước 1**: chốt chia tập A + B; quét 600 block/chain 2020–2022 (NodeReal); chấm lại theo tập; BigQuery quota nhóm: lần 1 bị từ chối (kết quả quá lớn, 0 GB), lần 2 gom theo địa chỉ, 118,7 GB. 57 test pass.
