@@ -1,6 +1,6 @@
 import pandas as pd
 
-from address_misuse.negatives import classify_n6, sample_n1
+from address_misuse.negatives import classify_n5, classify_n6, sample_n1
 
 
 def test_sample_n1_excludes_flagged_and_dedups():
@@ -41,3 +41,16 @@ def test_n4_deposit_like_requires_forwarding_to_hub():
     assert n4_deposit_like(t, a, hub)
     t2 = pd.DataFrame({"from_address": [user, a, a], "to_address": [a, hub, user], "value": [100, 50, 48]})
     assert not n4_deposit_like(t2, a, hub)
+
+
+def test_classify_n5_keeps_recovery_names_and_author_benign():
+    df = pd.DataFrame({"blockscout": ["Recovery", None, None, "PancakeRouter"],
+                       "sourcify": [None, "TokenRescue", None, None],
+                       "manual": [None, None, 0, 1]})
+    out = classify_n5(df)
+    assert out.kept.tolist() == [True, True, True, False]
+    assert out.evidence.tolist() == ["verified_name", "verified_name", "author_manual", ""]
+    assert out.needs_review.tolist() == [True, True, False, False]
+    bad = classify_n5(pd.DataFrame({"blockscout": ["Rescue", "Retriever"], "sourcify": [None, None],
+                                    "manual": [None, 1], "deployer_leaked": [True, False]}))
+    assert not bad.kept.any()           # sweeper của kẻ tấn công cũng hay đặt tên "Rescue"

@@ -2,6 +2,48 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-23 — D3b Optimism: gần hết ví key lộ có tx đến trên OP đã bị gắn delegate EIP-7702 (nhãn TẠM)
+
+Tái tạo: `python -X utf8 -m address_misuse.l2_fetch fetch --chain op --max-gb 120` rồi
+`python -X utf8 -m address_misuse.l2_misuse state --chain op` → `data/raw/crosschain/code_op.jsonl`.
+
+- 3.405 địa chỉ suy ra từ key lộ có tx đến thành công trên OP; **3.294 (96,7%) hiện đang ủy quyền EIP-7702** cho
+  30 delegate. Ba delegate đầu: `0x3aa3…f0c7` (1.658 ví), `0x1232…7fac` (595), `0x8a67…408a` (522).
+- Chỉ 542 ví dùng delegate đã có trong bảng D6 (ETH); phần lớn là delegate riêng của OP → cần symexec trên code OP
+  trước khi kết luận là sweeper (dự đoán: kẻ tấn công gắn sweeper 7702 trên mọi chain nạn nhân có thể nhận tiền).
+- So với ETH/BSC (paper gốc), đây là dạng misuse KEY trên L2 mà tác giả không đo. Số loss chưa có, chờ txlist + luật.
+
+## 2026-10-23 — N5: contract "recovery" tại địa chỉ PCD — tên contract không đủ làm bằng chứng lành tính
+
+Tái tạo: `python -X utf8 -m address_misuse.negatives n5` → `data/interim/n5_recovery_contracts.parquet`.
+
+- 1.162 contract PCD (RQ3 của tác giả), 697 có tên đã verify (Blockscout / Sourcify). Tên khớp từ khoá recovery
+  (recover/rescue/refund/reclaim/retriev/return): 18.
+- Trong 18 đó có contract của **kẻ tấn công** cũng đặt tên kiểu cứu hộ: `0xc78a…6ef1` "Retriever" (ETH) và
+  `0x3914…680d` "RescueFacet" (BSC), đều bị tác giả gán tay là độc (manual = 1). Contract có deployer là địa chỉ key lộ:
+  4, tool tác giả gắn độc cả 4 (tỉ lệ chung 40%).
+- Tiêu chí cuối: giữ khi tác giả gán tay lành tính, hoặc tên recovery VÀ không bị gán tay độc VÀ deployer không phải
+  key lộ. Giữ **118** (ETH 58, BSC 60): 104 do tác giả gán tay lành tính, 15 do tên (14 chỉ dựa vào tên → `needs_review`,
+  đưa vào D5). 24 contract được giữ vẫn bị tool tự động của tác giả cho là độc (11 trong số gán tay lành tính, 13 trong
+  số chỉ dựa vào tên) → ví dụ báo nhầm của luật tự động PCD.
+- → Paper: N5 là nhóm âm khó nhất (cùng hành vi "rút hết token" với sweeper); không thể dựa vào tên contract; cần
+  người gán (D5) hoặc nguồn gốc deployer.
+
+## 2026-10-23 — D6: điều kiện delegate của luật ADDR (tác giả) gắn cờ cả ví MetaMask hợp lệ
+
+Tái tạo: `python -X utf8 -m address_misuse.d6_new delegates --workers 5` → `data/interim/d6_delegates.parquet`.
+
+- Symexec cho 484 delegate EIP-7702 đang được EOA trên ETH ủy quyền (d6_state): có kết quả 482 (2 delegate không có
+  code). Điều kiện delegate trong luật ADDR của tác giả (`transfer_all_eth` HOẶC `transfer_msg_value` hợp lệ) đúng ở
+  **318 delegate, 52.004 EOA**.
+- Trong đó **`EIP7702StatelessDeleGator` của MetaMask** (`0x63c0…e32b`, 36.041 EOA = 69% số EOA "đủ điều kiện") có
+  `transfer_msg_value` → bị coi như delegate độc. Các ví hợp lệ khác (Coinbase, Uniswap Calibur, Ambire, eth-infinitism)
+  không bị. Delegate xếp sau: `0x0727…6786` (6.687 EOA), `0x88cf…8d46` (3.955 EOA) cũng chỉ có `transfer_msg_value`.
+- → Chuyển tiếp `msg.value` là hành vi bình thường của hàm `execute` trong mọi smart wallet, nên tiêu chí này rất yếu;
+  phần thật sự phân biệt là điều kiện cặp sweep + số dư ≤ 1e14 của luật ADDR. Paper: báo kết quả ADDR mới theo hai cách
+  (đúng luật tác giả / bỏ delegate ví hợp lệ N6), và tách theo delegate. Engine (`wallet/online.py`) đã loại ví N6
+  khỏi danh sách delegate độc.
+
 ## 2026-10-23 — Module 4 phát lại lịch sử: ví lẽ ra cảnh báo bao nhiêu (nhãn TẠM)
 
 Tái tạo: `python -X utf8 -m address_misuse.wallet.replay` → `data/interim/wallet_replay.parquet`.
@@ -37,8 +79,7 @@ Tái tạo: `python -X utf8 -m address_misuse.freeze` (QA: `… freeze qa`). Mô
   chuỗi giống private key.
 - 681 mẫu âm `excluded` (53 địa chỉ, chủ yếu USDT trên BSC/ETH, USDC, PancakeSwap Router, WETH): contract phổ biến
   xuất hiện ở nhiều tập nên chỉ giữ ở tập sớm nhất.
-- Kiểm tra genesis (đang chạy, 3.000/4.256 ví KEY ETH): mới chỉ 1 ví có phân bổ genesis (`0xf46b…`), không ví nào
-  trong mẫu v1.
+- Kiểm tra genesis xong (4.256/4.256 ví KEY ETH): chỉ 1 ví có phân bổ genesis (`0xf46b…`), không thuộc mẫu v1.
 
 ## 2026-10-23 — Module 4 PoC: kiểm tra phía ví, độ trễ
 
@@ -89,8 +130,10 @@ Người gán A tái lập loss KEY (ETH) từ `data/raw/eth/bq_txs.parquet` (Bi
   Etherscan `txlist` trả về bản ghi block 0, `from = GENESIS`, 21,0 ETH (phân bổ presale 2015), và BigQuery
   `transactions` không có. Luật KEY của tác giả (`txs_analyzer.analyze_EOAMisuse_for_KEY_txs`) cộng mọi tx vào có
   `isError == 0` và `from != addr`, nên tính cả bản ghi này. Chủ ví tự chuyển 20,99895 ETH đi ở block 210675,
-  vậy đây không phải tiền nạp vào ví lộ key. Paper: loss KEY của tác giả bị thổi phồng ở các ví genesis. Cần đếm số ví
-  KEY có bản ghi `GENESIS` (Etherscan, `endblock=0`) và trừ ra.
+  vậy đây không phải tiền nạp vào ví lộ key.
+  **Đã đếm** (`python -X utf8 -m address_misuse.key_genesis`, `eth_getBalance(addr, block 0)` qua NodeReal cho cả
+  4.256 ví KEY ETH): **chỉ 1/4.256 ví** có phân bổ genesis, 21,0 ETH trên tổng value KEY ETH 103.628 ETH (0,02%).
+  → Lỗi có thật trong code tác giả nhưng ảnh hưởng tổng số không đáng kể; nêu trong paper như một lỗi biên.
   Tái tạo: `Etherscan('eth').call('account','txlist',address=…,startblock=0,endblock=700000,sort='asc')`.
 - **Tràn int64 khi tính phí:** `gas_price × receipt_gas_used` (cả hai int64 trong parquet) vượt 2^63 ở **41 tx**
   (33 địa chỉ đích): 25 tx thành số âm, **16 tx quay vòng thành số dương sai** (không lộ ra là âm). Đích là ví KEY: 2 tx /

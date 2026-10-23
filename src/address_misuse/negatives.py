@@ -2,6 +2,7 @@
 
 python -X utf8 -m address_misuse.negatives n1 [--per-chain 200 --seed 0]   → data/interim/n1_random_unflagged.parquet
 python -X utf8 -m address_misuse.negatives n6                              → data/interim/n6_benign_7702_delegates.parquet
+python -X utf8 -m address_misuse.negatives n5                              → data/interim/n5_recovery_contracts.parquet
 python -X utf8 -m address_misuse.negatives scan [--period recent|early]    → data/raw/<chain>/block_scan[_early].parquet
 python -X utf8 -m address_misuse.negatives from-scan [--per-chain 400]     → n8_normal_txs, n2_contract_calls,
                                                                               n3_text_messages (.parquet)
@@ -10,6 +11,9 @@ python -X utf8 -m address_misuse.negatives n4-verify                       (sau 
 
 N1: địa chỉ ứng viên của tác giả (cùng nguồn GitHub/StackExchange, có tx) mà rule KHÔNG gắn cờ → đo recall / tìm FN.
     Kèm trạng thái code hiện tại trên chính chain (EOA / contract / 7702) để chia tầng khi gán nhãn.
+N5: contract recovery chính chủ tại địa chỉ PCD (vd. `Recovery` ở địa chỉ PancakeSwap Router trên ETH): trong 1.162
+    contract PCD của tác giả (RQ3), giữ contract có tên verify (Blockscout/Sourcify) chứa recover/rescue/refund…
+    hoặc được tác giả gán tay là lành tính. Kiểm tra symexec / S_bytecode không coi contract trả lại tiền là độc.
 N6: implementation smart wallet EIP-7702 hợp lệ (MetaMask, Coinbase, Uniswap, Ambire, eth-infinitism). Mỗi ứng viên
     được KIỂM CHỨNG: tên contract đã verify trên Blockscout (không cần key) phải khớp và có code trên ETH.
     Cột `in_author_delegate_set` chỉ để tham khảo: tập symexec_results kind = eip7702_delegate của tác giả là
@@ -143,6 +147,97 @@ def cmd_n6():
     print(df[["wallet", "verified_name", "name_ok", "in_author_delegate_set", "networks_with_code", "kept"]]
           .to_string(index=False))
     print(f"\nGiữ {int(df.kept.sum())}/{len(df)} delegate lành tính.")
+
+
+# ---------------------------------------------------------------- N5
+
+SOURCIFY = "https://sourcify.dev/server/v2/contract/{}/{}"
+RECOVERY_RE = r"(?i)recover|rescue|refund|reclaim|retriev|return"
+
+
+def sourcify_name(chain: str, address: str, retries: int = 3) -> str | None:
+    for attempt in range(retries):
+        try:
+            r = requests.get(SOURCIFY.format(NETWORKS[chain][0], address), params={"fields": "compilation"}, timeout=30)
+            if r.status_code == 404:
+                return None
+            r.raise_for_status()
+            return (r.json().get("compilation") or {}).get("name")
+        except Exception:
+            time.sleep(3 * (attempt + 1))
+    return None
+
+
+def verified_names(pairs: list[tuple[str, str]]) -> dict[tuple[str, str], dict]:
+    """(chain, address) → {blockscout, sourcify}: tên contract đã verify (ETH: Blockscout + Sourcify; BSC: Sourcify).
+    Cache `data/raw/<chain>/verified_names.jsonl`."""
+    out = {}
+    for chain in sorted({c for c, _ in pairs}):
+        path = RAW_DIR / chain / "verified_names.jsonl"
+        if path.exists():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                r = json.loads(line)
+                out[(chain, r["address"])] = r
+        todo = [a for c, a in pairs if c == chain and (c, a) not in out]
+        print(f"tên verify {chain}: {len(todo)} địa chỉ cần tra", flush=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            for i, a in enumerate(todo, 1):
+                r = {"address": a, "sourcify": sourcify_name(chain, a),
+                     "blockscout": blockscout_name(a) if chain == "eth" else None}
+                out[(chain, a)] = r
+                f.write(json.dumps(r) + "\n")
+                f.flush()
+                if i % 100 == 0 or i == len(todo):
+                    print(f"  {i}/{len(todo)}", flush=True)
+    return out
+
+
+def classify_n5(df: pd.DataFrame) -> pd.DataFrame:
+    """Contract recovery chính chủ tại địa chỉ PCD. Giữ khi tác giả gán tay là lành tính (RQ3 manual = 0), hoặc khi tên
+    đã verify khớp từ khoá recovery VÀ tác giả không gán tay là độc VÀ deployer không phải địa chỉ key lộ (kẻ tấn công
+    cũng đặt tên sweeper là "Rescue"/"Retriever"). Nhóm chỉ dựa vào tên cần người xem lại (`needs_review`, D5)."""
+    df = df.copy()
+    if "deployer_leaked" not in df:
+        df["deployer_leaked"] = False
+    df["verified_name"] = df.blockscout.fillna(df.sourcify)
+    df["name_match"] = df.verified_name.fillna("").str.contains(RECOVERY_RE)
+    df["name_recovery"] = df.name_match & ~df.manual.eq(1) & ~df.deployer_leaked.fillna(False).astype(bool)
+    df["author_manual_benign"] = df.manual.eq(0)
+    df["kept"] = df.name_recovery | df.author_manual_benign
+    df["needs_review"] = df.name_recovery & ~df.author_manual_benign
+    df["evidence"] = [",".join(e for e, ok in (("verified_name", n), ("author_manual", m)) if ok)
+                      for n, m in zip(df.name_recovery, df.author_manual_benign)]
+    return df
+
+
+def cmd_n5():
+    pcd = pd.read_parquet(SEED_DIR / "rq3_pcd_patterns.parquet")
+    pcd["address"] = pcd.address.str.lower()
+    lab = pd.read_parquet(SEED_DIR / "rq3_contract_labels.parquet")
+    lab["address"] = lab.address.str.lower()
+    df = pcd.merge(lab, on=["chain", "address"], how="left")
+    m = pd.read_parquet(INTERIM_DIR / "crosschain_matrix.parquet", columns=["chain", "address", "deployer"])
+    df = df.merge(m.drop_duplicates(["chain", "address"]), on=["chain", "address"], how="left")
+    pk = set(pd.read_parquet(SEED_DIR / "candidate_pk_addresses.parquet").address.str.lower())
+    df["deployer_leaked"] = df.deployer.fillna("").str.lower().isin(pk)
+    names = verified_names(list(zip(df.chain, df.address)))
+    df["sourcify"] = [names[(c, a)]["sourcify"] for c, a in zip(df.chain, df.address)]
+    df["blockscout"] = [names[(c, a)]["blockscout"] for c, a in zip(df.chain, df.address)]
+    df = classify_n5(df)
+    out = INTERIM_DIR / "n5_recovery_contracts.parquet"
+    df.to_parquet(out, index=False)
+    pd.set_option("display.width", 200)
+    print(f"{len(df)} contract PCD; có tên verify: {df.verified_name.notna().sum()}")
+    print(df.verified_name.value_counts().head(25).to_string())
+    k = df[df.kept]
+    print(f"\nGiữ {len(k)} (tên recovery {int(k.name_recovery.sum())}, tác giả gán tay lành tính "
+          f"{int(k.author_manual_benign.sum())}, cần xem lại {int(k.needs_review.sum())}); "
+          f"tool tác giả cho là độc trong số giữ: {int(k.malicious.sum())}")
+    print(f"Tên khớp từ khoá nhưng bị loại (tác giả gán tay là độc / deployer lộ key): "
+          f"{int((df.name_match & ~df.name_recovery).sum())}")
+    print(k[["chain", "address", "verified_name", "malicious", "pattern", "detected", "manual", "evidence"]]
+          .to_string(index=False))
 
 
 # ---------------------------------------------------------------- quét block ngẫu nhiên (N2, N3, N8)
@@ -389,6 +484,7 @@ def main():
     p.add_argument("--per-chain", type=int, default=200)
     p.add_argument("--seed", type=int, default=0)
     sub.add_parser("n6")
+    sub.add_parser("n5")
     p = sub.add_parser("scan")
     p.add_argument("--period", choices=list(SCAN_PERIODS), default="recent")
     p.add_argument("--blocks", type=int, default=None, help="mặc định SCAN_BLOCKS[period]")
@@ -403,6 +499,8 @@ def main():
         cmd_n1(a.per_chain, a.seed)
     elif a.cmd == "n6":
         cmd_n6()
+    elif a.cmd == "n5":
+        cmd_n5()
     elif a.cmd == "scan":
         cmd_scan(a.period, a.blocks, a.seed)
     elif a.cmd == "from-scan":

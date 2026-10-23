@@ -117,6 +117,20 @@ Các bảng chính: `addresses` (chain, address, subtype, code_state, delegate_7
 - Đo misuse trên L2: lấy giao dịch tới các địa chỉ là contract trên ETH/BSC nhưng **không có code** trên Arbitrum/Optimism (top theo hoạt động, giới hạn ~5.000 địa chỉ).
 - Gắn nhãn: `NCD-XC` (có contract ở chain khác) và `NCD-Other`.
 
+**D3b – Đo misuse trên L2 (thêm 2026-10-23)** ← khắc phục giới hạn 2 chain của bài gốc (requirements: dataset ETH, BSC và L2)
+- Hiện trạng: tín hiệu cross-chain đã có trên 8 mạng (D3), nhưng nạn nhân, loss, nhãn và đánh giá mới chỉ có ETH + BSC.
+- Chain: **Arbitrum One, Optimism, Polygon PoS** qua BigQuery công khai `goog_blockchain_<chain>_us` (có `input` và
+  `receipts`). Base không có trên BigQuery công khai → để sau (RPC/explorer cho tập nhỏ).
+- Tập địa chỉ: giống pipeline tác giả — 7,58M địa chỉ ứng viên GitHub/StackExchange (`seed/candidate_addresses`) +
+  17.971 địa chỉ suy ra từ key lộ (`seed/candidate_pk_addresses`).
+- Bước 1 (`l2_fetch dry-run`, miễn phí): ước lượng GB cho truy vấn thống kê theo địa chỉ trên từng L2 (số tx đến, số tx gọi
+  hàm, tổng value, tx đầu/cuối, số tx gửi đi). **Chỉ chạy thật khi được duyệt** (quota nhóm 1 TB/tháng).
+- Bước 2: địa chỉ có tx đến → `eth_getCode` trên L2 + thời điểm tạo contract → luật NCD/PCD; địa chỉ key lộ → KEY/ADDR
+  (tiền vào bị rút sạch, cặp sweep).
+- Bước 3: tải tx chi tiết cho địa chỉ dương (input, status, gas) → `rules.py`, tính loss (ETH; POL trên Polygon), gắn
+  nhãn Type 4 bằng ma trận D3 (contract ở ETH/BSC nhưng không có code trên L2) → Dataset v2, đánh giá theo chain.
+- Rủi ro: quota; tx L2 rẻ nên nhiều spam/airdrop → lọc như ETH/BSC; Polygon dùng POL (giá khác ETH).
+
 **D4 – Tập âm & hard negatives (tuần 3)** ← cần để tính FPR và tỷ lệ cảnh báo sai
 
 | Loại | Cách lấy | Kiểm tra cho |
@@ -200,6 +214,7 @@ Các bảng chính: `addresses` (chain, address, subtype, code_state, delegate_7
 | 1 | D0, pilot 500 địa chỉ, ước tính chi phí | Pipeline chạy được |
 | 1–2 | D1 giao dịch thô, D2 tái lập | Báo cáo tái lập |
 | 2–3 | D3 cross-chain | Ma trận address × chain, nhãn Type 4 |
+| (thêm) | D3b misuse trên L2 (Arbitrum, Optimism, Polygon) | Nhãn misuse trên 5 chain → Dataset v2 |
 | 3 | D4 tập âm | Tập âm N1–N8 |
 | 3–4 | D5 gán nhãn, D6 mở rộng, D7 OSINT | ~2.000 nhãn vàng, κ |
 | 4 | D8 đóng băng dữ liệu | **Dataset v1** |

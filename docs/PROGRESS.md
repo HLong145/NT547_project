@@ -20,7 +20,7 @@
 - ✅ D1 ETH (2026-10-22): `data/raw/eth/bq_txs.parquet` (bạn chạy BigQuery), 22,4M tx đến 2026-10-20, phủ 35.664/35.664 địa chỉ, khớp Etherscan 578/579 (khác duy nhất bản ghi GENESIS). FINDINGS_LOG 2026-10-22.
 - ✅ Nháp đặc tả risk score R(A,C): [RISK_SCORE.md](RISK_SCORE.md) (4 thành phần, học trọng số, ngưỡng, độ trễ, giao diện `engine/`).
 - ✅ Engine risk score (2026-10-22): `python -m address_misuse.engine 0x... --chain bsc --data 0x...`; 1,7 ms/mẫu offline. Chấm thử lộ 4 vấn đề (RISK_SCORE §6, FINDINGS_LOG 2026-10-22). Kế tiếp: sửa các vấn đề đó + lấy tx thô cho mẫu âm.
-- ✅ D4: N1, N2 (800 tx), N3 (640 tx), N4 (83 địa chỉ nạp đã kiểm hành vi), N6, N7, N8 (800 tx) — `negatives.py`. Còn N5 (cần danh sách địa chỉ tin cậy).
+- ✅ D4: N1, N2 (800 tx), N3 (640 tx), N4 (83 địa chỉ nạp đã kiểm hành vi), N6, N7, N8 (800 tx) — `negatives.py`. ✅ N5 (2026-10-23): 118 contract recovery tại địa chỉ PCD (`negatives n5`; 14 chỉ dựa vào tên → cần D5 xem lại).
 - ✅ Bước 2 engine (2026-10-23): lịch sử BSC qua NodeReal, `engine/evaluate.py` (4.364 mẫu, AUC 0,75–1,00 với trọng số 0,25). Rà soát xong, sửa 5 lỗi (FINDINGS_LOG 2026-10-23).
 - ✅ D8 chốt (2026-10-23, A + B): train < 2023-02-10 ≤ val < 2023-10-05 ≤ test (phân vị 70/85% dương CA) + tập test ngoài thời gian ≥ 2025-09-01 từ dương mới D6. Quét thêm block 2020–2022 cho âm của train. AUC (trọng số 0,25): ETH train 0,83 / val 0,89 / test 0,90; BSC 0,82 / 0,86 / 0,98.
 - 🔄 D6 bước 1 xong: BigQuery (quota nhóm, 118,7 GB) → `data/raw/eth/bq_new_activity.parquet`, 1,26M ứng viên có tx từ 2025-09; 141.348 nhận tx gọi hàm mà không tự gửi. **Đang làm (bước 2, `d6_new.py`, chạy lại được, tự tiếp tục):** `d6_new state` (getCode 202.850 địa chỉ) → `d6_new created` (Etherscan) → `d6_new rules` → dương mới; truy vấn riêng cho 17.971 địa chỉ lộ key; dương mới cần nhãn vàng (D5).
@@ -55,13 +55,14 @@
   - ✅ Đối chiếu thời điểm deploy với tx đầu tiên (`crosschain_matrix timing`) cho ETH misuse.
   - ✅ Creation trên BSC qua Binplorer (13.472 contract).
   - ✅ Tx đầu tiên trên BSC (NodeReal `nr_getTransactionByAddress`).
+- ⬜ **D3b** Đo misuse trên L2 (Arbitrum, Optimism, Polygon) — thêm 2026-10-23, xem PLAN_V2 §D3b. Hiện cross-chain mới là *tín hiệu* (getCode 8 mạng); nạn nhân/loss/nhãn/đánh giá vẫn chỉ ETH + BSC như bài gốc. ✅ `l2_fetch.py` + dry-run (5,97M địa chỉ ứng viên + key lộ): bản `inbound` (bảng receipts, chỉ tx đến) arb 184 GB, op 91 GB, polygon 524 GB; bản có `input` 14,8 TB (không khả thi); lọc theo thời gian gần như không giảm. ✅ Đã duyệt và chạy (2026-10-23): op 91 GB → 835.832 địa chỉ có tx; arb 184 GB → 1.216.944 địa chỉ. Quota tháng 10 đã dùng 394 GB/1 TB. Polygon để tháng 11. 🔄 Bước 2 (`l2_misuse.py`): op lọc còn 162.507 địa chỉ (gọi hàm hoặc key lộ), getCode: 117.595 không có code trên op → đang getCode 7 mạng còn lại; txlist op (KEY 3.405 + PCD 6.216) qua Blockscout đang chạy (đã thêm giãn cách vì bị 429); **3.294/3.405 ví key lộ trên op đang gắn delegate 7702** (FINDINGS) → cần symexec 30 delegate trên code op; NCD 117k để sau, ưu tiên nhóm có code ở mạng khác; arb chờ Etherscan (Blockscout arb chặn 403).
 - 🔄 **D4** Tập âm N1–N8.
   - ✅ N7: 18 contract hạ tầng đa chain đã kiểm chứng (`known_multichain.py`).
   - ✅ N1: 400 địa chỉ ngẫu nhiên không bị gắn cờ (200/chain) — `negatives.py n1`.
   - ✅ N6: 5 delegate EIP-7702 hợp lệ (MetaMask, Coinbase, Uniswap Calibur, Simple7702Account, Ambire) — `negatives.py n6`.
   - ✅ N2/N3/N8: quét 400 block ngẫu nhiên/chain (2023-01 → nay) — `negatives.py scan`, `from-scan`.
   - ✅ N4: người gửi tới 6 ví nóng sàn, chỉ giữ 83/400 có hành vi địa chỉ nạp — `negatives.py n4`, `n4-verify`.
-  - ⬜ Mở rộng N7 từ dữ liệu; N5 (danh sách địa chỉ tin cậy).
+  - ⬜ Mở rộng N7 từ dữ liệu. ✅ N5.
 - 🔄 **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
   - ✅ Codebook v0.3, script lấy mẫu pilot 50 + tính κ; file mẫu đã làm mù (bằng chứng tra cùng một cách cho mọi tầng).
   - ⬜ Pilot 50 mẫu với 2 người gán → chỉnh codebook → gán ~2.000 mẫu (cần D4 xong).
@@ -77,6 +78,8 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-23 — D6 delegates xong**: 482/484 delegate có symexec; điều kiện ADDR của tác giả đúng ở 318 delegate / 52.004 EOA, trong đó 36.041 EOA là MetaMask (ví hợp lệ) → FINDINGS_LOG. Không chạy `rules --only ADDR` riêng: lần `rules` đầy đủ (tự chạy sau `created`) sẽ dùng bảng delegate mới.
+- **2026-10-23 — D3b + N5 + genesis**: thêm D3b (misuse trên L2) vào PLAN_V2; `l2_fetch dry-run` (bảng chi phí ở dòng D3b, Base không có trên BigQuery công khai). N5 xong: giữ 118 contract (siết tiêu chí: bỏ contract tên "Rescue/Retriever" mà tác giả gán tay là độc hoặc do ví key lộ deploy; FINDINGS). `key_genesis` xong: 1/4.256 ví KEY ETH có genesis (21 ETH, 0,02%).
 - **2026-10-23 — Replay + D8**: `wallet/replay.py` (điểm yếu PCD/ADDR, % tiền khác hẳn % tx); `freeze.py` đóng băng Dataset v1, QA đạt; README + DATASHEET. 68 test pass. D6 `created` 85k/107,7k, delegates 190/415, key_genesis 3.000/4.256.
 - **2026-10-23 — Module 4 PoC**: online store + proxy + bench; proxy chặn được tx tới ví Truffle lộ key; độ trễ lạnh bị giới hạn bởi RTT ~140 ms tới publicnode từ VN. Tăng symexec delegate lên 5 worker (2 worker quá chậm).
 - **2026-10-23 — Module 3 chạy thử**: test F1 0,826 (P 0,966, R 0,721, FPR 0,008), baseline F1 0,418; PCD recall 0,37, N7 FPR 0,16. Nhãn tạm. Song song: `key_genesis` (NodeReal số dư block 0 của 4.256 ví KEY), `d6_new delegates` (symexec 435 bytecode). 63 test pass.

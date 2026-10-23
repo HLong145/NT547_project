@@ -209,8 +209,8 @@ def cmd_rules(per_type: int, seed: int, only: str | None = None):
     if only:
         c = c[c.rule == only]
     print("ứng viên theo luật: " + ", ".join(f"{k} {n:,}" for k, n in c.rule.value_counts().items()), flush=True)
-    pick = (c.groupby("rule", group_keys=False)
-            .apply(lambda g: g.sample(min(len(g), per_type), random_state=seed)).reset_index(drop=True))
+    pick = pd.concat([g.sample(min(len(g), per_type), random_state=seed) for _, g in c.groupby("rule")],
+                     ignore_index=True)                  # groupby.apply bỏ cột "rule" ở pandas mới
     es = Etherscan("eth")
     cr = load_creations("eth")
     bal = es.balances(pick[pick.rule == "ADDR"].address.tolist()) if (pick.rule == "ADDR").any() else {}
