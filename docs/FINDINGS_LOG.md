@@ -2,6 +2,29 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-23 — Module 4 PoC: kiểm tra phía ví, độ trễ
+
+Tái tạo: `python -X utf8 -m address_misuse.wallet.bench --n 300` (`data/interim/wallet_bench.json`);
+proxy: `python -X utf8 -m address_misuse.wallet.proxy --port 8545`.
+
+- `wallet/online.py`: bảng tính sẵn nạp vào RAM **0,3–0,6 s, +107 MB** (OSINT 7,6M địa chỉ lưu 8 byte đầu, sắp xếp).
+  Online chỉ gọi getCode 8 mạng song song (keep-alive), cache theo địa chỉ, mạng trả muộn điền vào cache sau.
+- 300 địa chỉ tập test, RPC công khai publicnode, đo từ Việt Nam:
+
+| chờ tối đa | lạnh p50 / p95 / p99 | ấm p50 / p99 | đủ 8 mạng |
+|---|---|---|---|
+| 300 ms | 156 / 290 / 311 ms | 0,03 / 0,07 ms | 97% |
+| 150 ms | 152 / 165 / 173 ms | 0,04 / 0,13 ms | 45% |
+
+- Phần tính toán < 0,1 ms; lần lạnh gần như toàn bộ là **một vòng mạng tới RPC công khai** (đo riêng: 131–152 ms mỗi
+  mạng khi đã keep-alive, 555–670 ms lần bắt tay TLS đầu). Mục tiêu < 150 ms đạt khi trúng cache, chưa đạt khi lạnh
+  với RPC công khai ở VN. Hướng xử lý cho paper: kiểm tra ngay khi người dùng nhập địa chỉ (trước khi bấm gửi),
+  RPC gần hơn/riêng, hoặc chấp nhận thiếu vài mạng (timeout 150 ms: 45% đủ 8 mạng, thiếu TB 1 mạng).
+- `wallet/proxy.py`: chặn `eth_sendTransaction`/`eth_sendRawTransaction` (giải mã tx thô legacy/1/2/3/4, cả
+  authorizationList của tx 7702), trả lỗi 4001 kèm lý do. Thử thật: tx 1 ETH tới `0x6273…ef57` (Truffle, lộ key) bị
+  chặn sau 149 ms; `eth_blockNumber` chuyển tiếp bình thường. Hạn chế: MetaMask ký trước khi gửi, nên proxy chỉ chặn
+  được việc phát tx; cảnh báo trước khi ký cần Snap (GOALS, chưa chốt).
+
 ## 2026-10-23 — Module 3 chạy thử (nhãn TẠM: luật tác giả + N1–N8)
 
 Tái tạo: `python -m address_misuse.engine.evaluate` → `python -m address_misuse.engine.metrics --boot 300`
