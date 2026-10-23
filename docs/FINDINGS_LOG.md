@@ -2,6 +2,23 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-24 — D3b Arbitrum: địa chỉ misuse của tác giả trên ETH/BSC tiếp tục bị misuse trên Arbitrum (nhãn TẠM)
+
+Tái tạo: `python -X utf8 -m address_misuse.l2_misuse state|txlist|rules --chain arb --focus author`
+→ `data/interim/l2_misuse_arb.parquet` (cột `author_ca`, `xc`, `n_misuse_tx_nogas`, `cost_native_nogas`).
+
+- Tập xét: key lộ + dương CA của tác giả (ETH/BSC) có tx đến thành công trên Arbitrum: 14.763 địa chỉ. Trạng thái code
+  trên arb: NCD 6.933 (4.737 có code ở mạng khác = Type 4), PCD 1.925, KEY 3.536, 7702 174, UNKNOWN 2.195 (getCode lỗi do
+  chạy song song với job op — chạy lại `state` sau).
+- Luật tác giả nguyên bản: **NCD 951 dương (12,9 ETH), PCD 136 dương (60,4 ETH)**; 81% loss PCD+NCD nằm ở 5 địa chỉ
+  (lớn nhất 36,2 ETH). Năm misuse đầu: 2024 311, 2025 508, 2026 111.
+- **Điều kiện gas của NCD không dùng được trên Arbitrum**: `gasUsed` gồm phần phí L1, chỉ 17,5% tx gọi hàm tới NCD có
+  gasUsed ≤ 30.000 (trung vị 229k). Địa chỉ không có code thì gas thực thi L2 chỉ là phần nội tại, nên biến thể bỏ điều
+  kiện gas hợp lý hơn: **NCD 4.720 dương (104,4 ETH)**, trong đó 3.997 là Type 4 (contract có ở mạng khác, gọi nhầm trên
+  arb). Cần kiểm mẫu (D5) vì có thể lẫn địa chỉ từng có code (self-destruct) hoặc EOA 7702.
+- → Paper: (1) misuse không dừng ở chain gốc — hàng nghìn địa chỉ tác giả đã báo trên ETH/BSC vẫn nhận tx lỗi trên L2;
+  (2) ngưỡng gas của luật NCD phụ thuộc mô hình phí của chain, phải hiệu chỉnh theo chain (Arbitrum: trừ phần L1).
+
 ## 2026-10-24 — D3b Arbitrum: luật KEY của tác giả đếm cả lệnh sweep của kẻ tấn công là "misuse" (nhãn TẠM)
 
 Tái tạo: `python -X utf8 -m address_misuse.l2_misuse txlist --chain arb --kinds KEY` (Etherscan V2, gói free có arb)
@@ -96,6 +113,10 @@ Tái tạo: `python -X utf8 -m address_misuse.d6_new delegates --workers 5` → 
 
 Tái tạo: `python -X utf8 -m address_misuse.wallet.replay` → `data/interim/wallet_replay.parquet`.
 
+- **Cập nhật 2026-10-24:** đã tải txlist Etherscan cho 234 dương ETH test còn thiếu. ETH test: 2.357 tx misuse (182 địa
+  chỉ), cảnh báo 93,8% tx / 97,3% giá trị (47,2 / 48,5 ETH); bỏ địa chỉ lớn nhất (82% giá trị) còn 85,3%. Theo loại:
+  KEY 100%, NCD 93,5% tx, PCD 96,5% tx, **ADDR 0%** (65 tx). Báo nhầm ETH: N2 0,60%, N3 0%, N8 0,33%. (Bản trước in
+  % giá trị âm do tràn int64 khi cộng wei — đã sửa trong `replay.summary`.)
 - Cách làm: dương tập test có txlist kèm input trong cache (BSC: đủ 225 địa chỉ; ETH: chỉ 21, 234 địa chỉ chưa có
   txlist vì ETH dùng BigQuery không có input). Chạy luật tác giả lấy đúng các tx misuse từ 2023-10-05, chấm từng tx tại
   thời điểm của nó (chỉ dùng thông tin trước tx), trọng số + ngưỡng Module 3 (τ = 40,15). Cảnh báo = luật cứng hoặc

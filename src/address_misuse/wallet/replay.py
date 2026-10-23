@@ -107,7 +107,7 @@ def summary(df: pd.DataFrame) -> str:
             d = df[m & (df.chain == chain)]
             mis, nor = d[d.label == 1], d[d.label == 0]
             if len(mis):
-                v = mis.value_wei.map(int) + mis.gas_wei.map(int)
+                v = mis.value_wei.map(int).astype(object) + mis.gas_wei.map(int).astype(object)  # int Python: tổng vượt int64
                 vw = v[mis.warn].sum()
                 L.append(f"  {chain} misuse: {len(mis):,} tx ({mis.address.nunique()} địa chỉ); cảnh báo "
                          f"{mis.warn.mean():.1%} tx, {vw / max(v.sum(), 1):.1%} giá trị ({vw / 1e18:,.3f} / "
@@ -117,7 +117,7 @@ def summary(df: pd.DataFrame) -> str:
                 L.append(f"      (địa chỉ lớn nhất chiếm {top.iloc[-1] / max(v.sum(), 1):.0%} giá trị; bỏ nó ra: cảnh báo "
                          f"{v[mis.warn & rest].sum() / max(v[rest].sum(), 1):.1%} giá trị)")
                 for g, x in mis.groupby("grp"):
-                    xv = x.value_wei.map(int) + x.gas_wei.map(int)
+                    xv = x.value_wei.map(int).astype(object) + x.gas_wei.map(int).astype(object)
                     L.append(f"      {g}: {len(x):,} tx, cảnh báo {x.warn.mean():.1%} tx / "
                              f"{xv[x.warn].sum() / max(xv.sum(), 1):.1%} giá trị")
             for g, x in nor.groupby("grp"):

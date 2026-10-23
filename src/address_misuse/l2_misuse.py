@@ -238,6 +238,11 @@ def cmd_rules(chain: str, focus: str = "all"):
             res = detect_ca_misuse(r.address, txs, chain, creation=creation)
         else:
             continue
+        alt = None
+        if r.kind == "NCD" and chain not in GAS_PROXY_OK:
+            # Arbitrum: gasUsed gồm phí L1 → điều kiện gasUsed ≤ 30.000 của tác giả loại phần lớn tx (chỉ 17,5% tx gọi hàm
+            # tới NCD đạt). Địa chỉ không có code thì gas thực thi L2 chỉ là phần nội tại → biến thể bỏ điều kiện gas.
+            alt = detect_ca_misuse(r.address, [{**t, "gasUsed": "21000"} for t in txs], chain, creation=None)
         ts = [int(t["timeStamp"]) for t in txs if t["hash"] in {f["hash"] for f in res.flagged}]
         valued = [f for f in res.flagged if f.get("value_wei", 0) > 0]      # KEY: bỏ tx value 0 (lệnh sweep 7702)
         rows.append({"chain": chain, "address": r.address, "kind": r.kind, "subtype": res.subtype, "xc": r.xc,
@@ -246,6 +251,8 @@ def cmd_rules(chain: str, focus: str = "all"):
                      "n_misuse_value_tx": len(valued),
                      "value_native": sum(f["value_wei"] for f in valued) / 1e18,
                      "author_ca": r.address in author_ca_addresses_cached(),
+                     "n_misuse_tx_nogas": None if alt is None else alt.n_misuse_tx,
+                     "cost_native_nogas": None if alt is None else alt.cost_wei / 1e18,
                      "first_misuse_ts": min(ts) if ts else None, "last_misuse_ts": max(ts) if ts else None})
     df = pd.DataFrame(rows)
     out = INTERIM_DIR / f"l2_misuse_{chain}.parquet"
