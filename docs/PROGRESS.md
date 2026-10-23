@@ -71,12 +71,13 @@
 
 ### Sau dữ liệu
 - 🔄 Module 2: engine và risk score R(A, C) (tuần 5–6). ✅ Nháp đặc tả [RISK_SCORE.md](RISK_SCORE.md). ✅ `src/address_misuse/engine/` (FeatureStore, 4 hàm S, luật cứng, CLI, 11 test), chấm thử 1.181 mẫu. ✅ Sửa 4 vấn đề trong RISK_SCORE §6 (2026-10-23, `engine/prepare.py`). ✅ Bước 2: tập âm N2–N4, N8; lịch sử BSC; `engine/evaluate.py`; rà soát. ⬜ Học trọng số (sau D5, D8).
-- ⬜ Module 3: đánh giá P/R/F1/FPR và ROC (tuần 6–7).
+- 🔄 Module 3: đánh giá P/R/F1/FPR và ROC (tuần 6–7). ✅ `engine/metrics.py` (học `w` không âm trên train, ngưỡng trên val, P/R/F1/FPR + CI bootstrap, theo chain/loại/nhóm âm, tách luật cứng, ROC/PR csv, baseline getCode∧calldata, ablation), chạy thử với nhãn tạm (FINDINGS_LOG). ⬜ Chạy lại với nhãn vàng D5 + dương D6; thêm N8 cho val; GoPlus baseline.
 - ⬜ Module 4: wallet-side warning, độ trễ < 150 ms (tuần 7–8).
 - ⬜ Viết paper, Docker, slide (tuần 9–10).
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-23 — Module 3 chạy thử**: test F1 0,826 (P 0,966, R 0,721, FPR 0,008), baseline F1 0,418; PCD recall 0,37, N7 FPR 0,16. Nhãn tạm. Song song: `key_genesis` (NodeReal số dư block 0 của 4.256 ví KEY), `d6_new delegates` (symexec 435 bytecode). 63 test pass.
 - **2026-10-23 — D6: getCode xong** (202.850: code 107.726, 7702 71.741, none 23.383). `created` lấy bù cho 43,8k contract mới, sau đó tự chạy `rules`. Thêm `d6_new delegates`: điều kiện ADDR đúng như code tác giả (symexec `transfer_all_eth`/`transfer_msg_value` của delegate; `flag` cũ chỉ phủ 13/484 delegate), symexec mọi delegate mới (mỗi bytecode một lần) → `d6_delegates.parquet`; xong thì chạy lại `rules --only ADDR`.
 - **2026-10-23 — D5 pilot, người gán B xong**: thêm `sample_gold sheet` (Excel có danh sách chọn + sheet hướng dẫn), `check` (lỗi hình thức), `kappa` đọc .xlsx và chặn khi hai file khác bộ mẫu. File B: 50/50, không lỗi. Chờ file A để tính κ.
 - **2026-10-23 — D6 bước 2 (dở dang, tắt máy)**: `d6_new.py` (sàng ứng viên → getCode → creation → luật tác giả). Sơ bộ: ~13% ứng viên CA không có code (NCD); chỉ 2/5.451 EOA 7702 uỷ quyền tới delegate tác giả gắn cờ → danh sách đen cũ, cần phân loại delegate mới. Chạy lại `d6_new state` và `d6_new created` (tự tiếp tục), rồi `d6_new rules`.

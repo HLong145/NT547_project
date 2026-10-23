@@ -2,6 +2,24 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-23 — Module 3 chạy thử (nhãn TẠM: luật tác giả + N1–N8)
+
+Tái tạo: `python -m address_misuse.engine.evaluate` → `python -m address_misuse.engine.metrics --boot 300`
+(`data/interim/engine_metrics.json`, `engine_roc.csv`). Số liệu sẽ đổi khi có nhãn vàng D5 và dương mới D6.
+
+- `w` học trên train (logistic không âm): bytecode 0,25, cross 0,15, osint 0,52, history 0,07. Ngưỡng trên val:
+  τ_warn = τ_block = 40,15 (val chỉ có 75 mẫu N8 nên "FPR ≤ 1%" nghĩa là 0 cảnh báo sai; cần thêm N8 cho val).
+- **Test** (480 dương / 1.529 âm): AUC 0,960; mức warn P 0,966 [0,95–0,99], R 0,721 [0,69–0,76], F1 0,826,
+  FPR 0,008. Luật cứng một mình: R 0,358, P 1,0. Riêng R trên mẫu không dính luật cứng: P 0,935, R 0,565.
+  Baseline `getCode == 0x ∧ calldata`: P 0,942, R 0,269, F1 0,418.
+- Recall theo loại: KEY 1,00, NCD 0,96, ADDR 0,54, **PCD 0,37** (điểm yếu). FPR theo nhóm âm: **N7 0,158** (contract
+  đa chain bị S_cross nghi), N1 0,064, còn lại ≤ 0,008.
+- **Ngoài thời gian** (147 / 637, chưa có dương D6): F1 0,954, nhưng 121/136 TP là do luật cứng (KEY/ADDR).
+- Ablation (F1 / AUC test): bỏ bytecode 0,712 / 0,945; bỏ osint 0,824 / 0,896; bỏ cross 0,826 / 0,940; bỏ history
+  0,826 / 0,959; chỉ cross 0,707 / 0,658. Ở ngưỡng đã chọn, F1 gần như chỉ phụ thuộc S_bytecode + luật cứng; S_osint
+  chủ yếu tăng AUC. Cẩn trọng: dương được chọn từ tập ứng viên OSINT của tác giả, nên trọng số osint cao có thể là
+  do cách lấy mẫu (cần kiểm tra bằng nhãn vàng và âm có OSINT).
+
 ## 2026-10-23 — Tái lập loss KEY bằng BigQuery: phân bổ genesis bị tính là thiệt hại; tràn int64 phí gas
 
 Người gán A tái lập loss KEY (ETH) từ `data/raw/eth/bq_txs.parquet` (BigQuery, 22,4M tx), lệch 2/4.256 địa chỉ. Kiểm tra lại:
