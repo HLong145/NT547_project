@@ -2,7 +2,7 @@
 
 python -X utf8 -m address_misuse.negatives n1 [--per-chain 200 --seed 0]   → data/interim/n1_random_unflagged.parquet
 python -X utf8 -m address_misuse.negatives n6                              → data/interim/n6_benign_7702_delegates.parquet
-python -X utf8 -m address_misuse.negatives scan [--blocks 400]             → data/raw/<chain>/block_scan.parquet
+python -X utf8 -m address_misuse.negatives scan [--period recent|early]    → data/raw/<chain>/block_scan[_early].parquet
 python -X utf8 -m address_misuse.negatives from-scan [--per-chain 400]     → n8_normal_txs, n2_contract_calls,
                                                                               n3_text_messages (.parquet)
 python -X utf8 -m address_misuse.negatives n4 [--per-chain 200]            → data/interim/n4_exchange_deposits.parquet
@@ -16,7 +16,8 @@ N6: implementation smart wallet EIP-7702 hợp lệ (MetaMask, Coinbase, Uniswap
     MỌI delegate đã phân tích (kể cả ví hợp lệ như MetaMask), không phải tập delegate độc.
     Lưu ý: dữ liệu tác giả KHÔNG có EOA ủy quyền lành tính (mọi delegation đều từ EOA lộ key/ADDR) → EOA cho N6
     cần lấy từ dữ liệu on-chain mới (BigQuery, D1).
-N8/N2/N3: tx trong block ngẫu nhiên (2023-01 → nay) — mức tx, đích là `target`, ngữ cảnh là value + input.
+N8/N2/N3: tx trong block ngẫu nhiên (đợt "recent" 2023-01 → nay, "early" 2020–2022) — mức tx, đích là `target`,
+    ngữ cảnh là value + input.
     N8 = 1 tx ngẫu nhiên mỗi block; N2 = gọi contract (có code) bằng selector hay gặp trong misuse;
     N3 = input là văn bản đọc được, gửi tới EOA. Trạng thái code của đích là trạng thái HIỆN TẠI.
 N4: địa chỉ nạp sàn (EOA chuyển coin về ví nóng sàn). Sau khi có lịch sử, `n4-verify` chỉ giữ địa chỉ có hành vi
@@ -146,27 +147,61 @@ def cmd_n6():
 
 # ---------------------------------------------------------------- quét block ngẫu nhiên (N2, N3, N8)
 
-SCAN_START_TS = 1_672_531_200                     # 2023-01-01 UTC: phủ cả ba giai đoạn train / val / test (D8)
+# đợt quét: tên → (từ, tới, nguồn RPC). "recent" là đợt đầu; "early" bổ sung để tập train (trước 02/2023, D8) có
+# mẫu âm. publicnode ETH đã xoá block trước 09/2022 nên đợt "early" dùng RPC NodeReal (cần NODEREAL_API_KEY).
+SCAN_PERIODS = {"recent": (1_672_531_200, None, "publicnode"),               # 2023-01-01 → nay
+                "early": (1_577_836_800, 1_672_531_200, "nodereal")}       # 2020-01-01 → 2023-01-01
+SCAN_BLOCKS = {"recent": 400, "early": 600}
 SCAN_INPUT_MAX = 4_096                            # giữ tối đa 4.096 ký tự hex input (đủ cho selector và transfer)
 MISUSE_SELECTORS_TOP = 30
 PRUNED_BEFORE = {"eth": 15_500_000}             # publicnode ETH không còn block cũ hơn (lỗi 4444)
 
 
-def scan_path(chain: str):
-    return RAW_DIR / chain / "block_scan.parquet"
+def scan_path(chain: str, period: str = "recent"):
+    return RAW_DIR / chain / ("block_scan.parquet" if period == "recent" else f"block_scan_{period}.parquet")
 
 
-def _block(chain: str, number: int | str, full: bool = False) -> dict:
+def _nodereal_blocks(chain: str, calls: list[tuple[str, list]], retries: int = 5) -> list:
+    """Như `rpc_batch` nhưng qua RPC NodeReal (có block cũ), gọi từng lệnh; lỗi không in URL vì URL chứa API key."""
+    import os
+
+    from address_misuse.engine.prepare import NODEREAL_CHAIN_URL
+    url = NODEREAL_CHAIN_URL.format(chain, os.environ["NODEREAL_API_KEY"])
+    out = []
+    for method, params in calls:
+        err = None
+        for attempt in range(retries):
+            try:
+                j = requests.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                                  timeout=90).json()
+                if "result" in j:
+                    out.append(j["result"])
+                    break
+                err = j.get("error")
+            except Exception as e:
+                err = type(e).__name__
+            time.sleep(2 * 2 ** attempt)
+        else:
+            raise RuntimeError(f"NodeReal {chain} {method}: {str(err)[:200]}")
+    return out
+
+
+def _rpc(chain: str, calls: list[tuple[str, list]], source: str = "publicnode") -> list:
+    return _nodereal_blocks(chain, calls) if source == "nodereal" else rpc_batch(chain, calls, timeout=90)
+
+
+def _block(chain: str, number: int | str, full: bool = False, source: str = "publicnode") -> dict:
     tag = number if isinstance(number, str) else hex(number)
-    return rpc_batch(chain, [("eth_getBlockByNumber", [tag, full])], timeout=60)[0]
+    return _rpc(chain, [("eth_getBlockByNumber", [tag, full])], source)[0]
 
 
-def block_at(chain: str, ts: int) -> int:
+def block_at(chain: str, ts: int, source: str = "publicnode") -> int:
     """Block đầu tiên có timestamp ≥ ts (tìm nhị phân)."""
-    lo, hi = PRUNED_BEFORE.get(chain, 1), int(_block(chain, "latest")["number"], 16)
+    lo = PRUNED_BEFORE.get(chain, 1) if source == "publicnode" else 1
+    hi = int(_block(chain, "latest", source=source)["number"], 16)
     while lo < hi:
         mid = (lo + hi) // 2
-        if int(_block(chain, mid)["timestamp"], 16) < ts:
+        if int(_block(chain, mid, source=source)["timestamp"], 16) < ts:
             lo = mid + 1
         else:
             hi = mid
@@ -187,20 +222,24 @@ def scan_rows(chain: str, block: dict) -> list[dict]:
     return rows
 
 
-def cmd_scan(n_blocks: int, seed: int):
-    """Tải `n_blocks` block ngẫu nhiên từ 2023-01-01 tới nay trên ETH và BSC (RPC công khai, đủ tx)."""
+def cmd_scan(period: str, n_blocks: int | None, seed: int):
+    """Tải block ngẫu nhiên của một đợt quét (SCAN_PERIODS) trên ETH và BSC, đủ tx."""
+    start_ts, end_ts, source = SCAN_PERIODS[period]
+    n_blocks = n_blocks or SCAN_BLOCKS[period]
     rng = random.Random(seed)
     for chain in ("eth", "bsc"):
-        out = scan_path(chain)
+        out = scan_path(chain, period)
         if out.exists():
             print(f"{chain}: đã có {out}")
             continue
-        start, latest = block_at(chain, SCAN_START_TS), int(_block(chain, "latest")["number"], 16)
-        blocks = sorted(rng.sample(range(start, latest + 1), n_blocks))
-        print(f"{chain}: {n_blocks} block ngẫu nhiên trong [{start:,}, {latest:,}]", flush=True)
+        start = block_at(chain, start_ts, source)
+        end = (block_at(chain, end_ts, source) - 1 if end_ts else
+               int(_block(chain, "latest", source=source)["number"], 16))
+        blocks = sorted(rng.sample(range(start, end + 1), n_blocks))
+        print(f"{chain} {period}: {n_blocks} block ngẫu nhiên trong [{start:,}, {end:,}] ({source})", flush=True)
         rows = []
         for i in range(0, len(blocks), 5):
-            got = rpc_batch(chain, [("eth_getBlockByNumber", [hex(b), True]) for b in blocks[i:i + 5]], timeout=90)
+            got = _rpc(chain, [("eth_getBlockByNumber", [hex(b), True]) for b in blocks[i:i + 5]], source)
             for b in got:
                 if b:
                     rows += scan_rows(chain, b)
@@ -211,10 +250,10 @@ def cmd_scan(n_blocks: int, seed: int):
         print(f"  ghi {out} ({len(rows):,} tx)")
 
 
-def ordinary_txs(chain: str) -> pd.DataFrame:
+def ordinary_txs(chain: str, period: str = "recent") -> pd.DataFrame:
     """Tx thường trong block đã quét: bỏ tạo contract, tx hệ thống (gas price 0, đích 0x…1000 trên BSC)
     và tx gửi tới địa chỉ đã bị gắn cờ misuse."""
-    d = pd.read_parquet(scan_path(chain))
+    d = pd.read_parquet(scan_path(chain, period))
     flagged = {a for c, a in misuse_keys() if c == chain}
     keep = d.target.notna() & (d.gas_price > 0) & ~d.target.fillna("").str.startswith("0x" + "0" * 34)
     return d[keep & ~d.target.isin(flagged)].reset_index(drop=True)
@@ -248,20 +287,25 @@ def cmd_from_scan(per_chain: int, seed: int):
     sels = misuse_selectors()
     print(f"selector misuse phổ biến ({len(sels)}): {', '.join(sels.index[:10])} …")
     out = {"n8_normal_txs": [], "n2_contract_calls": [], "n3_text_messages": []}
-    for i, chain in enumerate(("eth", "bsc")):
-        d = ordinary_txs(chain)
-        n8 = d.groupby("block_number").sample(1, random_state=seed + i)
-        out["n8_normal_txs"].append(_with_state(n8.head(per_chain), chain))
-        n2 = d[d.selector.isin(sels.index) & ~d.index.isin(n8.index)]
-        n2 = _with_state(n2.sample(min(len(n2), per_chain * 3), random_state=seed + i), chain)
-        out["n2_contract_calls"].append(n2[n2.target_state == "code"].head(per_chain))
-        n3 = d[d.readable]
-        n3 = _with_state(n3.sample(min(len(n3), per_chain * 2), random_state=seed + i), chain)
-        out["n3_text_messages"].append(n3[n3.target_state.isin(["none", "7702"])].head(per_chain))
+    for j, period in enumerate(SCAN_PERIODS):                 # mỗi đợt quét lấy mẫu riêng (đợt cũ không đổi)
+        for i, chain in enumerate(("eth", "bsc")):
+            if not scan_path(chain, period).exists():
+                continue
+            d = ordinary_txs(chain, period)
+            rs = seed + i + 10 * j
+            n8 = d.groupby("block_number").sample(1, random_state=rs)
+            out["n8_normal_txs"].append(_with_state(n8.head(SCAN_BLOCKS[period]), chain).assign(period=period))
+            n2 = d[d.selector.isin(sels.index) & ~d.index.isin(n8.index)]
+            n2 = _with_state(n2.sample(min(len(n2), per_chain * 3), random_state=rs), chain)
+            out["n2_contract_calls"].append(n2[n2.target_state == "code"].head(per_chain).assign(period=period))
+            n3 = d[d.readable]
+            n3 = _with_state(n3.sample(min(len(n3), per_chain * 2), random_state=rs), chain)
+            out["n3_text_messages"].append(n3[n3.target_state.isin(["none", "7702"])].head(per_chain)
+                                           .assign(period=period))
     for name, parts in out.items():
         df = pd.concat(parts, ignore_index=True)
         df.to_parquet(INTERIM_DIR / f"{name}.parquet", index=False)
-        print(f"{name}: " + ", ".join(f"{c} {n}" for c, n in df.groupby("chain").size().items()))
+        print(f"{name}: " + ", ".join(f"{c}/{p} {n}" for (c, p), n in df.groupby(["chain", "period"]).size().items()))
 
 
 # ---------------------------------------------------------------- N4
@@ -346,7 +390,8 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     sub.add_parser("n6")
     p = sub.add_parser("scan")
-    p.add_argument("--blocks", type=int, default=400)
+    p.add_argument("--period", choices=list(SCAN_PERIODS), default="recent")
+    p.add_argument("--blocks", type=int, default=None, help="mặc định SCAN_BLOCKS[period]")
     p.add_argument("--seed", type=int, default=0)
     sub.add_parser("n4-verify")
     for name, n in (("from-scan", 400), ("n4", 200)):
@@ -359,7 +404,7 @@ def main():
     elif a.cmd == "n6":
         cmd_n6()
     elif a.cmd == "scan":
-        cmd_scan(a.blocks, a.seed)
+        cmd_scan(a.period, a.blocks, a.seed)
     elif a.cmd == "from-scan":
         cmd_from_scan(a.per_chain, a.seed)
     elif a.cmd == "n4-verify":

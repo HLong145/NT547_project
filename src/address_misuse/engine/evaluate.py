@@ -8,6 +8,10 @@ Cùng một quy trình cho mẫu dương và âm (tránh lệch giữa hai nhóm
   chọn tx sau khi contract được tạo trên chính chain (trước đó địa chỉ chưa phải PCD). Không có lịch sử → at = hôm nay.
   BigQuery không có input, nên ngữ cảnh chỉ biết "có calldata" (gas dùng > 21.000), không chạy được bộ lọc IDM / T3;
 - mẫu theo tx (N2, N3, N8): `at` = thời điểm block, ngữ cảnh = value + input thật.
+
+Chia tập (D8): `split` theo `at` (train / val / test, mốc ở `config`); một địa chỉ chỉ thuộc một tập — tập của mẫu
+sớm nhất, các mẫu khác của nó ở tập sau bị bỏ (`split = "excluded"`); mẫu không có `at` không thuộc tập nào
+(`split = "no_time"`). `out_of_time` = at ≥ 2025-09-01 (tập test thứ hai, cho dương mới của D6).
 """
 
 import argparse
@@ -16,7 +20,7 @@ import zlib
 import numpy as np
 import pandas as pd
 
-from address_misuse.config import INTERIM_DIR
+from address_misuse.config import INTERIM_DIR, OUT_OF_TIME_TS, SPLIT_TEST_TS, SPLIT_VAL_TS
 from address_misuse.engine.features import FeatureStore
 from address_misuse.engine.prepare import ENGINE_SAMPLE
 from address_misuse.engine.score import TxContext, score_features
@@ -88,7 +92,26 @@ def evaluate(seed: int = 0) -> pd.DataFrame:
         rows.append(_row(r, fs, at, ctx))
     for r in txs.itertuples():
         rows.append(_row(r, fs, int(r.at), TxContext(int(r.value_wei), r.calldata or "0x")))
-    return pd.DataFrame(rows)
+    return assign_split(pd.DataFrame(rows))
+
+
+def split_of(at) -> str:
+    if at is None or pd.isna(at):
+        return "no_time"
+    return "train" if at < SPLIT_VAL_TS else "val" if at < SPLIT_TEST_TS else "test"
+
+
+def assign_split(df: pd.DataFrame) -> pd.DataFrame:
+    """Tập theo `at`; địa chỉ xuất hiện ở nhiều tập chỉ giữ ở tập của mẫu sớm nhất (không trùng địa chỉ, D8)."""
+    df = df.copy()
+    df["split"] = [split_of(a) for a in df["at"]]
+    df["out_of_time"] = df["at"].fillna(0) >= OUT_OF_TIME_TS
+    timed = df[df.split != "no_time"]
+    home = timed.sort_values("at").drop_duplicates(["chain", "address"]).set_index(["chain", "address"]).split
+    keys = list(zip(df.chain, df.address))
+    clash = [(s != "no_time") and home.get(k) != s for k, s in zip(keys, df.split)]
+    df.loc[clash, "split"] = "excluded"
+    return df
 
 
 def _row(r, fs: FeatureStore, at, ctx) -> dict:
@@ -129,6 +152,20 @@ def summary(df: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
+def split_summary(df: pd.DataFrame) -> str:
+    lines = ["Theo tập (D8): số mẫu dương/âm và AUC dương vs mọi mẫu âm cùng chain:"]
+    for ch in ("eth", "bsc"):
+        for sp in ("train", "val", "test", "excluded", "no_time"):
+            d = df[(df.chain == ch) & (df.split == sp)]
+            pos, neg = d[d.label == 1], d[d.label == 0]
+            lines.append(f"  {ch} {sp:8s}: dương {len(pos):4d}, âm {len(neg):4d}"
+                         + (f", AUC {auc(pos.R, neg.R):.3f}" if sp in ("train", "val", "test") else ""))
+        d = df[(df.chain == ch) & df.out_of_time]
+        lines.append(f"  {ch} ngoài thời gian (≥ 2025-09-01): dương {int((d.label == 1).sum())}, "
+                     f"âm {int((d.label == 0).sum())}")
+    return "\n".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=0)
@@ -137,6 +174,8 @@ def main():
     df.to_parquet(OUT, index=False)
     print(f"ghi {OUT} ({len(df)} mẫu)\n")
     print(summary(df))
+    print()
+    print(split_summary(df))
 
 
 if __name__ == "__main__":

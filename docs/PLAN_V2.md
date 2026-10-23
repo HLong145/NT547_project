@@ -148,7 +148,10 @@ Các bảng chính: `addresses` (chain, address, subtype, code_state, delegate_7
 - Không thu thập hay lưu private key; chỉ dùng danh sách địa chỉ đã suy ra sẵn trong dữ liệu Zenodo.
 
 **D8 – Đóng băng dữ liệu (cuối tuần 4)**
-- Chia tập theo thời gian: train < mốc kích hoạt EIP-7702 (ETH block 22.431.111 / BSC 47.618.307) ≤ val < 2025-09-01 ≤ test. Không để địa chỉ trùng giữa các tập (tránh lỗi rò rỉ dữ liệu như tập 10k).
+- Chia tập theo thời gian, **chốt 2026-10-23 (A + B)**. Mốc cũ (train < kích hoạt EIP-7702 ≤ val < 2025-09-01 ≤ test) cho test = 0 mẫu dương vì dữ liệu tác giả dừng ở 07/2025, nên đổi:
+  - **A — đánh giá chính** trên dữ liệu tác giả: mốc = phân vị 70% / 85% thời điểm tx đầu tiên của 34.480 dương CA: train < 2023-02-10 ≤ val < 2023-10-05 ≤ test (`config.SPLIT_VAL_TS`, `SPLIT_TEST_TS`). Xét theo `at` của từng mẫu.
+  - **B — test ngoài thời gian**: dương mới từ D6 (ứng viên chưa bị gắn cờ, tx từ 2025-09-01, `config.OUT_OF_TIME_TS`) kèm âm cùng giai đoạn. Kiểm tra mô hình học trên dữ liệu cũ có còn đúng với kiểu misuse mới (EIP-7702) không. Truy vấn BigQuery `bq_fetch new-dry-run` / `new-fetch` (~197 GB quota của nhóm, chạy khi được duyệt).
+  - Không để địa chỉ trùng giữa các tập (tránh lỗi rò rỉ dữ liệu như tập 10k): địa chỉ thuộc tập của mẫu sớm nhất, mẫu muộn hơn của nó bị bỏ (`engine/evaluate.assign_split`).
 - QA tự động: không trùng khóa, checksum địa chỉ, tính lại tổng loss, quét để chắc chắn không có private key.
 - Ghi `final/README` và datasheet ngắn; ẩn một phần địa chỉ cá nhân khi trích trong paper.
 

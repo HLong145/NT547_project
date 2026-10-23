@@ -25,6 +25,12 @@ EIP7702_ACTIVATION_BLOCK = {"eth": 22431111, "bsc": 47618307}
 # timestamp của hai block trên: trước đó không EOA nào có thể ủy quyền EIP-7702
 EIP7702_ACTIVATION_TS = {"eth": 1746612683, "bsc": 1742436600}
 
+# D8 (chốt 2026-10-23): chia theo thời điểm xét `at`, mốc = phân vị 70/85% thời điểm tx đầu tiên của dương CA
+# trong dữ liệu tác giả. Tập "ngoài thời gian" (≥ 2025-09-01) là tập test thứ hai cho dương mới của D6.
+SPLIT_VAL_TS = 1675987200          # 2023-02-10 UTC: train < mốc này ≤ val
+SPLIT_TEST_TS = 1696464000         # 2023-10-05 UTC: val < mốc này ≤ test
+OUT_OF_TIME_TS = 1756684800        # 2025-09-01 UTC
+
 # chainId và RPC công khai mặc định (ghi đè bằng biến môi trường RPC_<NAME>)
 NETWORKS = {
     "eth": (1, "https://ethereum-rpc.publicnode.com"),

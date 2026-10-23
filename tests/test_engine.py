@@ -150,3 +150,11 @@ def test_pick_event_uses_misuse_txs_only():
     assert pick_event(txs, A, "+PCD", 5, seed=0) is None                # PCD: chỉ tx sau khi contract được tạo
     assert pick_event(txs, A, "-N1", None, seed=0)[0] in (1, 2)
     assert pick_event(None, A, "-N1", None, seed=0) is None
+
+
+def test_assign_split_by_time_without_address_overlap():
+    from address_misuse.config import SPLIT_TEST_TS, SPLIT_VAL_TS
+    from address_misuse.engine.evaluate import assign_split
+    df = pd.DataFrame({"chain": "eth", "address": ["0xa", "0xb", "0xb", "0xc"], "label": [1, 0, 0, 0],
+                       "at": [SPLIT_VAL_TS - 1, SPLIT_VAL_TS, SPLIT_TEST_TS + 5, None]})
+    assert assign_split(df).split.tolist() == ["train", "val", "excluded", "no_time"]

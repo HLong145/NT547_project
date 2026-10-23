@@ -87,7 +87,7 @@ Phụ thuộc D1 (tx thô ETH qua BigQuery hoặc Etherscan, BSC qua NodeReal). 
 ## 3. Học trọng số và ngưỡng
 
 1. **Nhãn:** `is_misuse` từ nhãn vàng D5. Mẫu âm: N1, N6, N7 (sau này thêm N2–N5, N8).
-2. **Chia tập theo thời gian, không trùng địa chỉ** (D8): train / val / test.
+2. **Chia tập theo thời gian, không trùng địa chỉ** (D8, chốt 2026-10-23): train < 2023-02-10 ≤ val < 2023-10-05 ≤ test theo `at` của mẫu (phân vị 70/85% của dương CA); thêm tập test ngoài thời gian (≥ 2025-09-01) từ dương mới của D6. Danh sách đen delegate và mọi thống kê dựng từ dữ liệu chỉ lấy trong train.
 3. **Học `w`:** logistic regression với hệ số không âm trên 4 thành phần S (train), rồi chuẩn hoá `w_i = β_i / Σβ`. Như vậy R ∈ [0, 100] đúng như công thức, và giữ nguyên thứ hạng của mô hình.
    - Báo cáo thêm bản xác suất đã hiệu chỉnh `σ(β₀ + Σβ_i S_i)` để so sánh.
    - Nếu một β về 0, ghi nhận thành phần đó không đóng góp.
@@ -139,7 +139,7 @@ def score(address: str, chain: str, at: int | None = None, ctx: TxContext | None
   - [x] So contract giữa các chain: trùng hash **hoặc** Jaccard selector dispatcher ≥ 0,8 (`same_contract`). S_cross trung bình của N7 từ 0,17–0,20 về 0.
   - [x] Hoá ra 100% PCD có symexec; 258 contract thiếu là địa chỉ **NCD về sau mới được deploy**. `engine.prepare creation` lấy thời điểm tạo (Etherscan cho ETH, NodeReal cho BSC, 258/258) → `engine_creation.parquet`; khi `at` trước thời điểm tạo, địa chỉ được coi là chưa có code.
 - [x] Bước 2 (2026-10-23): lịch sử BSC (NodeReal), tập âm N2/N3/N4/N8, `engine/evaluate.py` chấm 4.364 mẫu theo thời gian (dương và âm cùng quy trình chọn `at`). Rà soát sửa 5 lỗi: BigQuery chỉ dùng cho địa chỉ đã truy vấn, bộ lọc IDM, 7702 trước kích hoạt, `at` của PCD, khoá lịch sử theo chain (FINDINGS_LOG 2026-10-23).
-- [ ] Trước khi học `w`: dựng lại danh sách đen delegate chỉ từ train; báo cáo KEY riêng (luật cứng); OSINT cùng quy trình cho mọi mẫu (D7) hoặc báo cáo kèm bản bỏ S_osint; chọn lại mốc chia D8.
+- [ ] Trước khi học `w`: dựng lại danh sách đen delegate chỉ từ train; báo cáo KEY riêng (luật cứng); OSINT cùng quy trình cho mọi mẫu (D7) hoặc báo cáo kèm bản bỏ S_osint. ✅ Mốc chia D8 đã chốt (A + B, 2026-10-23).
 - [ ] Sau D5 + D8: học `w`, chọn ngưỡng, ablation.
 - [ ] Sau D7: S_osint có số repo và ngữ cảnh.
 

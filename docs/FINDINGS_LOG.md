@@ -2,6 +2,39 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-23 — D8 chốt chia tập (A + B); quét block 2020–2022; D6 BigQuery bước 1
+
+**Quyết định D8** (người dùng duyệt, PLAN_V2 D8): mốc cũ cho test = 0 dương (dữ liệu tác giả dừng 07/2025).
+- A — đánh giá chính: phân vị 70/85% thời điểm tx đầu tiên của 34.480 dương CA (theo năm: 2020 474, 2021 11.759,
+  2022 11.035, 2023 7.351, 2024 3.350, 2025 495) → train < 2023-02-10 ≤ val < 2023-10-05 ≤ test, theo `at` của mẫu.
+  Địa chỉ chỉ ở tập của mẫu sớm nhất (`engine/evaluate.assign_split`).
+- B — test ngoài thời gian (≥ 2025-09-01): dương mới từ D6 + âm cùng giai đoạn.
+
+**Âm cho giai đoạn train** (tái tạo: `negatives scan --period early` → `negatives from-scan` → `engine.prepare history`):
+600 block ngẫu nhiên/chain 2020-01 → 2022-12 qua RPC NodeReal (ETH ~100k tx, BSC 96.049 tx; BSC bắt đầu từ
+block 1 = 08/2020). Thêm N8 1.169, N2 800, N3 96 (văn bản tới EOA hiếm trước làn sóng inscription 2023).
+Đợt "recent" không đổi (cùng seed).
+
+**Kết quả theo tập** (trọng số 0,25, chưa học; AUC dương vs mọi âm cùng chain; `data/interim/engine_eval.log`):
+
+| chain | train (dương/âm, AUC) | val | test | ngoài thời gian (dương/âm) |
+|---|---|---|---|---|
+| ETH | 414 / 1.200, 0,827 | 96 / 157, 0,893 | 255 / 761, 0,897 | 60 / 423 |
+| BSC | 438 / 1.137, 0,818 | 70 / 113, 0,859 | 225 / 768, 0,975 | 87 / 529 |
+
+Bỏ do trùng địa chỉ giữa tập: ETH 376, BSC 305 mẫu âm (đích phổ biến như USDT xuất hiện ở nhiều giai đoạn).
+Không có `at` (không lịch sử): ETH 35 dương / 6 âm, BSC 67 / 6. AUC train thấp hơn test: train có nhiều âm
+2020–2022 khó hơn và dương cũ hơn; cần xem lại sau khi học `w` (chưa kết luận).
+
+**D6 bước 1 — BigQuery quota của nhóm** (`bq_fetch new-fetch`, job `eabe747a…`, **tính phí 118,7 GB**):
+- Lần đầu lấy từng tx (ước lượng 196,7 GB) bị BigQuery từ chối `responseTooLarge` (> 10 GB kết quả), **0 GB tính
+  phí**. Đổi sang gom một dòng thống kê mỗi địa chỉ (tx vào + tx ra), rẻ hơn.
+- 4.989.536 ứng viên ETH chưa gắn cờ → 1.258.647 có tx từ 2025-09-01: 747.340 có tx vào (trung vị 3 tx), 360.356
+  có tx gọi hàm vào, 1.067.624 có tx gửi đi, 61.502 gửi tx type 4 (EIP-7702). **141.348 nhận tx gọi hàm mà không
+  tự gửi tx** (ứng viên NCD/PCD, cần getCode + creation rồi chạy `rules.py`).
+- Địa chỉ lộ key (`candidate_pk_addresses`, 17.971) gần như không nằm trong `candidate_addresses` (46 ETH) nên
+  chưa có trong truy vấn này → KEY mới cần truy vấn riêng (nhỏ).
+
 ## 2026-10-23 — Bước 2: tập âm N2/N3/N4/N8, lịch sử BSC, rà soát toàn bộ quy trình engine
 
 **Dữ liệu mới** (tái tạo: `python -m address_misuse.engine.prepare sample` → `negatives scan --blocks 400` →
