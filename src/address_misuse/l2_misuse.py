@@ -43,18 +43,26 @@ def pk_addresses() -> set[str]:
     return set(pd.read_parquet(SEED_DIR / "candidate_pk_addresses.parquet").address.str.lower())
 
 
-def activity(chain: str) -> pd.DataFrame:
+def author_ca_addresses() -> set[str]:
+    return set(pd.read_parquet(SEED_DIR / "ca_misuse.parquet", columns=["address"]).address.str.lower())
+
+
+def activity(chain: str, focus: str = "all") -> pd.DataFrame:
     """Địa chỉ đáng xét: key lộ có tx đến thành công, hoặc có tx đến thành công dạng gọi hàm (NCD/PCD cần calldata).
-    Arbitrum không lọc được theo gas (gồm phí L1) nên giữ mọi địa chỉ có tx đến thành công."""
+    Arbitrum không lọc được theo gas (gồm phí L1) nên giữ mọi địa chỉ có tx đến thành công.
+    `focus="author"`: chỉ key lộ + địa chỉ tác giả đã kết luận misuse CA trên ETH/BSC (câu hỏi cross-chain trực tiếp)."""
     df = pd.read_parquet(RAW_DIR / chain / "bq_l2_activity_inbound.parquet")
     pk = df.address.isin(pk_addresses())
     call = df.n_in_ok_gas_gt_21000 > 0 if chain in GAS_PROXY_OK else df.n_in_ok > 0
-    return df[(df.n_in_ok > 0) & (pk | call)].reset_index(drop=True)
+    keep = (df.n_in_ok > 0) & (pk | call)
+    if focus == "author":
+        keep &= pk | df.address.isin(author_ca_addresses())
+    return df[keep].reset_index(drop=True)
 
 
-def cmd_state(chain: str):
+def cmd_state(chain: str, focus: str = "all"):
     XC_DIR.mkdir(parents=True, exist_ok=True)
-    addrs = sorted(activity(chain).address)
+    addrs = sorted(activity(chain, focus).address)
     print(f"{chain}: {len(addrs):,} địa chỉ đáng xét; getCode trên chính {chain} trước", flush=True)
     probe_network(chain, addrs)
     st = load_code(chain).set_index("address")[f"{chain}_state"]
@@ -64,8 +72,8 @@ def cmd_state(chain: str):
         probe_network(n, none)
 
 
-def candidates(chain: str) -> pd.DataFrame:
-    df = activity(chain)
+def candidates(chain: str, focus: str = "all") -> pd.DataFrame:
+    df = activity(chain, focus)
     for n in XC_NETS:
         df = df.merge(load_code(n)[["address", f"{n}_state"]], on="address", how="left")
     df["is_pk"] = df.address.isin(pk_addresses())
@@ -174,8 +182,8 @@ def load_creations(chain: str) -> dict:
 ETHERSCAN_FREE = {"arb", "polygon"}
 
 
-def cmd_txlist(chain: str, kinds: list[str]):
-    c = candidates(chain)
+def cmd_txlist(chain: str, kinds: list[str], focus: str = "all"):
+    c = candidates(chain, focus)
     c = c[c.kind.isin(kinds)]
     print(f"{chain}: ứng viên {c.kind.value_counts().to_dict()}", flush=True)
     pcd = sorted(c.address[c.kind == "PCD"])
@@ -214,8 +222,8 @@ def _load(chain: str, address: str) -> tuple[list[dict], bool] | None:
     return txs, bool(d.get("truncated"))
 
 
-def cmd_rules(chain: str):
-    c = candidates(chain)
+def cmd_rules(chain: str, focus: str = "all"):
+    c = candidates(chain, focus)
     cre = load_creations(chain)
     rows = []
     for r in c.itertuples():
@@ -231,9 +239,13 @@ def cmd_rules(chain: str):
         else:
             continue
         ts = [int(t["timeStamp"]) for t in txs if t["hash"] in {f["hash"] for f in res.flagged}]
+        valued = [f for f in res.flagged if f.get("value_wei", 0) > 0]      # KEY: bỏ tx value 0 (lệnh sweep 7702)
         rows.append({"chain": chain, "address": r.address, "kind": r.kind, "subtype": res.subtype, "xc": r.xc,
                      "xc_nets": r.xc_nets, "n_tx": res.n_tx, "n_misuse_tx": res.n_misuse_tx,
                      "cost_wei": str(res.cost_wei), "cost_native": res.cost_wei / 1e18, "truncated": truncated,
+                     "n_misuse_value_tx": len(valued),
+                     "value_native": sum(f["value_wei"] for f in valued) / 1e18,
+                     "author_ca": r.address in author_ca_addresses_cached(),
                      "first_misuse_ts": min(ts) if ts else None, "last_misuse_ts": max(ts) if ts else None})
     df = pd.DataFrame(rows)
     out = INTERIM_DIR / f"l2_misuse_{chain}.parquet"
@@ -245,6 +257,15 @@ def cmd_rules(chain: str):
                                                 loss=("cost_native", "sum"))
         print(g.to_string())
     print(f"ghi {out}")
+
+
+_AUTHOR_CA: set[str] = set()
+
+
+def author_ca_addresses_cached() -> set[str]:
+    if not _AUTHOR_CA:
+        _AUTHOR_CA.update(author_ca_addresses())
+    return _AUTHOR_CA
 
 
 def cmd_delegates(chain: str, timeout: float, workers: int):
@@ -321,18 +342,20 @@ def main():
     ap.add_argument("--chain", choices=["arb", "op", "polygon"], required=True)
     ap.add_argument("--kinds", nargs="+", default=["KEY", "NCD", "PCD"])
     ap.add_argument("--timeout", type=float, default=300)
+    ap.add_argument("--focus", choices=["all", "author"], default="all",
+                    help="author: chỉ key lộ + dương CA của tác giả trên ETH/BSC")
     ap.add_argument("--workers", type=int, default=3)
     a = ap.parse_args()
     if a.step == "state":
-        cmd_state(a.chain)
+        cmd_state(a.chain, a.focus)
     elif a.step == "txlist":
-        cmd_txlist(a.chain, a.kinds)
+        cmd_txlist(a.chain, a.kinds, a.focus)
     elif a.step == "rules":
-        cmd_rules(a.chain)
+        cmd_rules(a.chain, a.focus)
     elif a.step == "delegates":
         cmd_delegates(a.chain, a.timeout, a.workers)
     else:
-        c = candidates(a.chain)
+        c = candidates(a.chain, a.focus)
         print(pd.crosstab(c.kind, c.xc, margins=True).to_string())
 
 
