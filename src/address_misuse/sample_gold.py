@@ -1,6 +1,8 @@
 """D5 — lấy mẫu gán nhãn vàng (pilot 50 mẫu) kèm bằng chứng điền sẵn, và tính Cohen's κ.
 
 python -X utf8 -m address_misuse.sample_gold pilot [--seed 0]
+python -X utf8 -m address_misuse.sample_gold sheet B      → data/gold/annotator_B.xlsx (file Excel để gán)
+python -X utf8 -m address_misuse.sample_gold check data/gold/annotator_B.xlsx   (kiểm tra hình thức trước khi tính κ)
 python -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_A.csv data/gold/annotator_B.csv
 
 Đầu ra trong data/gold/ (chỉ dùng nội bộ, có địa chỉ đầy đủ):
@@ -319,6 +321,154 @@ def cmd_pilot(seed: int = 0) -> pd.DataFrame:
     return items
 
 
+# ---------------------------------------------------------------- file Excel cho người gán
+
+CHOICES = {"is_misuse": ["1", "0", "?"], "type": ["T1", "T2", "T3", "T4", "T5", "T6", "NONE"],
+           "subtype": ["NCD", "PCD", "KEY", "ADDR", "7702", "-"], "malicious": ["1", "0", "-"],
+           "confidence": ["high", "medium", "low"]}
+SHEET = "Gan_nhan"
+GUIDE = [
+    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.3 §2–§6; đọc bản đầy đủ nếu phân vân)",
+    "",
+    "Quy tắc: gán ĐỘC LẬP. Không xem pilot50_key.csv, file của người gán kia, hay CODEBOOK §10 trước khi xong.",
+    "Chỉ điền các cột màu vàng ở sheet Gan_nhan. Các cột còn lại là bằng chứng; ô '-' = không tra được, không suy ra gì.",
+    "Trạng thái code là HIỆN TẠI. Khi kết luận phụ thuộc thời điểm (T4, PCD) hãy xem first_tx_date hoặc mở explorer_url.",
+    "",
+    "is_misuse: 1 / 0 / ?   (? chỉ khi thiếu bằng chứng, tối đa 5 mẫu)",
+    "type: một type chính T1…T6, hoặc NONE khi is_misuse = 0",
+    "  T1 gọi hàm tới địa chỉ không có code (NCD), không có contract cùng địa chỉ ở chain khác deploy TRƯỚC tx",
+    "  T2 contract 'hố đen' hoặc contract cài sẵn chiếm tiền (PCD, không có đường rút)",
+    "  T3 gửi token vào chính contract token đó",
+    "  T4 NCD trên chain này + cùng địa chỉ có code ở chain khác, deploy TRƯỚC tx đầu tiên (ghi xc_chain)",
+    "  T5 key lộ / sweeper / EIP-7702 delegate độc (ADDR cũng T5 nếu tiền bị sweeper rút)",
+    "  T6 address poisoning (trùng 4 ký tự đầu + 4 cuối, có tx mồi giá trị 0)",
+    "  Ưu tiên: T4 > T1; T5 > T6",
+    "subtype: NCD / PCD / KEY / ADDR / 7702 / -",
+    "xc_chain: chỉ với T4, tên chain có contract gốc (eth, bsc, arb, op, base, polygon…); còn lại '-'",
+    "malicious: 1 nếu có bên thứ ba chủ động khai thác (sweeper, contract cài sẵn, delegate độc); 0; hoặc '-'",
+    "confidence: high / medium / low (mức chắc chắn của chính bạn)",
+    "evidence: bằng chứng đã dùng, ví dụ: code, timing, tx, symexec, label",
+    "note: BẮT BUỘC khi confidence = low, is_misuse = ?, hoặc mẫu là ca khó (CODEBOOK §5)",
+    "",
+    "Cây quyết định (CODEBOOK §4):",
+    "1. Địa chỉ có code trên chain này lúc tx?  Không → 2;  Có → 4",
+    "2. Tx gọi hàm / hành vi chỉ hợp lý với contract?  Không → 5;  Có → 3",
+    "3. Cùng địa chỉ có code ở chain khác deploy TRƯỚC tx đầu tiên?  Có → T4;  deploy SAU → T1 (note 'xc deployed_after');  không rõ → T1",
+    "4. Code là contract người dùng định gọi và gọi đúng hàm → NONE;  là 7702 (0xef0100…) → 5;  không phải (PCD) → T2",
+    "5. EOA: key lộ / delegate độc / tiền bị rút gần như ngay → T5;  giống địa chỉ quen + tx mồi → T6;  ví thường/sàn/smart wallet hợp lệ → NONE",
+    "",
+    "Ca khó hay gặp (CODEBOOK §5):",
+    "- xc_timing = deployed_after → T1, không phải T4.  xc_timing = unknown → mở explorer chain kia; vẫn không biết → T4, confidence low.",
+    "- Cùng contract trên mọi chain kể cả chain này (Multicall3, Permit2, Safe, EntryPoint…) → âm.",
+    "- Gửi nhầm tới predeploy của chain KHÁC (ví dụ 0x4200…0006 trên ETH) → T4.  Precompile/system contract của chính chain → thường âm.",
+    "- 7702 tới smart wallet hợp lệ (delegate_known_wallet có tên) và chủ ví vẫn rút tiền bình thường → âm.",
+    "  delegate_symexec_transfer = True KHÔNG có nghĩa là độc; phải xem tiền thực tế đi đâu.",
+    "- Ví sàn auto-sweep về ví tổng của sàn → âm.  Tx chỉ mất gas tới NCD vẫn là misuse.  Calldata là văn bản tới EOA → âm.",
+    "",
+    "Xong thì lưu file (giữ nguyên tên sheet Gan_nhan) và báo lại để tính κ.",
+]
+
+
+def cmd_sheet(who: str) -> None:
+    """File Excel cho người gán `who`: bằng chứng (đã làm mù) + cột nhãn có danh sách chọn + sheet hướng dẫn."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+    items = pd.read_csv(GOLD_DIR / "pilot50_items.csv", dtype=str).fillna("-")
+    evidence = [c for c in items.columns if c not in ("item_id", "chain", "address")]
+    cols = ["item_id", "chain", "address", *LABEL_COLS, *evidence]
+    out = GOLD_DIR / f"annotator_{who}.xlsx"
+    if out.exists():
+        raise SystemExit(f"{out} đã có, không ghi đè (có thể đã có nhãn). Xoá/đổi tên trước nếu muốn tạo lại.")
+    wb = Workbook()
+    ws = wb.active
+    ws.title = SHEET
+    ws.append(cols)
+    for _, r in items.iterrows():
+        ws.append([r.get(c, "") for c in cols])
+    yellow, bold = PatternFill("solid", fgColor="FFF2CC"), Font(bold=True)
+    last = len(items) + 1
+    for j, c in enumerate(cols, 1):
+        ws.cell(1, j).font = bold
+        ws.column_dimensions[get_column_letter(j)].width = 44 if c in ("address", "note") else 12 if c in LABEL_COLS else 16
+        for i in range(2, last + 1):
+            cell = ws.cell(i, j)
+            if c in LABEL_COLS:
+                cell.fill = yellow
+                cell.number_format = "@"                        # giữ "1"/"0" là chữ, không thành số
+            elif c.startswith("explorer_url") and str(cell.value).startswith("http"):
+                cell.hyperlink = cell.value
+                cell.style = "Hyperlink"
+        if c in LABEL_COLS:
+            ws.cell(1, j).fill = yellow
+    for c, opts in CHOICES.items():
+        col = get_column_letter(cols.index(c) + 1)
+        dv = DataValidation(type="list", formula1='"' + ",".join(opts) + '"', allow_blank=True)
+        dv.add(f"{col}2:{col}{last}")
+        ws.add_data_validation(dv)
+    ws.freeze_panes = "D2"                                      # giữ dòng tiêu đề + mã, chain, địa chỉ
+    g = wb.create_sheet("Huong_dan")
+    for line in GUIDE:
+        g.append([line])
+    g["A1"].font = bold
+    g.column_dimensions["A"].width = 140
+    for row in g.iter_rows():
+        row[0].alignment = Alignment(wrap_text=True, vertical="top")
+    wb.save(out)
+    print(f"Ghi {len(items)} mẫu → {out}")
+
+
+def read_labels(path: str) -> pd.DataFrame:
+    """Nhãn của một người gán, từ .csv (annotator_template) hoặc .xlsx (`cmd_sheet`)."""
+    if str(path).lower().endswith(".xlsx"):
+        d = pd.read_excel(path, sheet_name=SHEET, dtype=str)
+    else:
+        d = pd.read_csv(path, dtype=str)
+    d = d[["item_id", *[c for c in ("address", *LABEL_COLS) if c in d.columns]]].fillna("")
+    return d.apply(lambda s: s.str.strip())
+
+
+def check_labels(d: pd.DataFrame) -> list[str]:
+    """Lỗi hình thức theo CODEBOOK §2 (không so với nhãn tác giả hay người gán kia)."""
+    errs = []
+    for r in d.itertuples(index=False):
+        g = r._asdict()
+        at = lambda c: g.get(c, "")
+        for c, opts in CHOICES.items():
+            v = at(c)
+            if c in ("is_misuse", "type", "confidence") and not v:
+                errs.append(f"{r.item_id}: thiếu {c}")
+            elif v and v.lower() not in [o.lower() for o in opts]:
+                errs.append(f"{r.item_id}: {c} = {v!r} không hợp lệ")
+        m, t = at("is_misuse"), at("type").upper()
+        if m == "0" and t and t != "NONE":
+            errs.append(f"{r.item_id}: is_misuse = 0 nhưng type = {t} (phải NONE)")
+        if m == "1" and t == "NONE":
+            errs.append(f"{r.item_id}: is_misuse = 1 nhưng type = NONE")
+        xc = at("xc_chain")
+        if t == "T4" and xc in ("", "-"):
+            errs.append(f"{r.item_id}: T4 nhưng chưa ghi xc_chain")
+        if t != "T4" and xc not in ("", "-"):
+            errs.append(f"{r.item_id}: xc_chain = {xc} chỉ dùng với T4 (ghi vào note nếu cần)")
+        if (at("confidence").lower() == "low" or m == "?") and not at("note"):
+            errs.append(f"{r.item_id}: confidence low hoặc is_misuse ? thì phải có note")
+    n_q = int((d.is_misuse == "?").sum())
+    if n_q > len(d) // 10:
+        errs.append(f"có {n_q} mẫu is_misuse = ? (tối đa {len(d) // 10})")
+    return errs
+
+
+def cmd_check(path: str) -> None:
+    d = read_labels(path)
+    errs = check_labels(d)
+    filled = d.is_misuse != ""
+    print(f"{path}: {int(filled.sum())}/{len(d)} mẫu đã điền is_misuse")
+    for col in ("is_misuse", "type", "confidence"):
+        print(f"  {col}: " + ", ".join(f"{k or '(trống)'} {n}" for k, n in d[col].value_counts().items()))
+    print("Không có lỗi hình thức." if not errs else f"{len(errs)} lỗi:\n  " + "\n  ".join(errs))
+
+
 # ---------------------------------------------------------------- κ
 
 def cohen_kappa(a: list, b: list) -> float:
@@ -333,9 +483,13 @@ def cohen_kappa(a: list, b: list) -> float:
 
 
 def cmd_kappa(path_a: str, path_b: str) -> dict[str, float]:
-    a = pd.read_csv(path_a, dtype=str).fillna("")
-    b = pd.read_csv(path_b, dtype=str).fillna("")
+    a = read_labels(path_a)
+    b = read_labels(path_b)
     j = a.merge(b, on="item_id", suffixes=("_A", "_B"))
+    if "address_A" in j and "address_B" in j:                   # hai người phải gán cùng một bộ mẫu
+        diff = j[j.address_A.str.lower() != j.address_B.str.lower()]
+        if len(diff):
+            raise SystemExit(f"{len(diff)} item_id trỏ tới địa chỉ khác nhau, ví dụ {diff.item_id.iloc[0]}: hai file không cùng bộ mẫu")
     j = j[(j.is_misuse_A != "") & (j.is_misuse_B != "")]
     out = {}
     for col in ("is_misuse", "type"):
@@ -355,12 +509,20 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pilot")
     p.add_argument("--seed", type=int, default=0)
+    c = sub.add_parser("check")
+    c.add_argument("path")
+    sh = sub.add_parser("sheet")
+    sh.add_argument("who", nargs="?", default="B")
     k = sub.add_parser("kappa")
     k.add_argument("a")
     k.add_argument("b")
     args = ap.parse_args()
     if args.cmd == "pilot":
         cmd_pilot(args.seed)
+    elif args.cmd == "check":
+        cmd_check(args.path)
+    elif args.cmd == "sheet":
+        cmd_sheet(args.who)
     else:
         cmd_kappa(args.a, args.b)
 

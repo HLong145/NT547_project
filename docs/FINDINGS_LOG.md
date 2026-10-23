@@ -2,6 +2,25 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-23 — Tái lập loss KEY bằng BigQuery: phân bổ genesis bị tính là thiệt hại; tràn int64 phí gas
+
+Người gán A tái lập loss KEY (ETH) từ `data/raw/eth/bq_txs.parquet` (BigQuery, 22,4M tx), lệch 2/4.256 địa chỉ. Kiểm tra lại:
+
+- **Phân bổ genesis bị tác giả tính là loss.** `0xf46b6b9c…aae782f6`: tác giả 24,19 ETH, BigQuery 3,29 ETH (tx vào, status 1).
+  Etherscan `txlist` trả về bản ghi block 0, `from = GENESIS`, 21,0 ETH (phân bổ presale 2015), và BigQuery
+  `transactions` không có. Luật KEY của tác giả (`txs_analyzer.analyze_EOAMisuse_for_KEY_txs`) cộng mọi tx vào có
+  `isError == 0` và `from != addr`, nên tính cả bản ghi này. Chủ ví tự chuyển 20,99895 ETH đi ở block 210675,
+  vậy đây không phải tiền nạp vào ví lộ key. Paper: loss KEY của tác giả bị thổi phồng ở các ví genesis. Cần đếm số ví
+  KEY có bản ghi `GENESIS` (Etherscan, `endblock=0`) và trừ ra.
+  Tái tạo: `Etherscan('eth').call('account','txlist',address=…,startblock=0,endblock=700000,sort='asc')`.
+- **Tràn int64 khi tính phí:** `gas_price × receipt_gas_used` (cả hai int64 trong parquet) vượt 2^63 ở **41 tx**
+  (33 địa chỉ đích): 25 tx thành số âm, **16 tx quay vòng thành số dương sai** (không lộ ra là âm). Đích là ví KEY: 2 tx /
+  2 ví (`0x62730609…8bef57` phí thật 14,99 ETH, `0x8ad2f6fc…2371e9` 10,09 ETH); đích là CA misuse: 4 tx. Phí lớn là
+  thật (gas price tới ~1,2M gwei), không phải dữ liệu rác. Sửa: nhân bằng số nguyên Python/Decimal cho mọi dòng, không
+  vá riêng dòng âm.
+- NCD/PCD: `bq_txs` không có cột `input` nên không chạy được luật tác giả; dùng tập con Etherscan
+  (`reproduce_rules.py`, đã có cache 2.277 txlist ETH, 2.297 BSC).
+
 ## 2026-10-23 — D8 chốt chia tập (A + B); quét block 2020–2022; D6 BigQuery bước 1
 
 **Quyết định D8** (người dùng duyệt, PLAN_V2 D8): mốc cũ cho test = 0 dương (dữ liệu tác giả dừng 07/2025).
