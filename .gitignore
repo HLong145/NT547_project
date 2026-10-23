@@ -20,14 +20,12 @@ data/Address-Misuse/
 data/raw/
 # seed: tạo bằng `python -m address_misuse.seed` (MANIFEST.json vẫn được commit)
 data/seed/*.parquet
+# interim: commit kết quả (nhỏ, đã quét không có chuỗi giống private key); bỏ log và ma trận .npy (tái tạo được)
 data/interim/*
-!data/interim/crosschain_pilot.parquet
-!data/interim/symexec_repro.parquet
-!data/interim/rules_repro_eth.parquet
-!data/interim/crosschain_matrix.parquet
-!data/interim/n7_multichain_contracts.parquet
-!data/interim/n6_benign_7702_delegates.parquet
-!data/interim/n1_random_unflagged.parquet
+!data/interim/*.parquet
+!data/interim/*.json
+!data/interim/*.jsonl
+!data/interim/*.csv
 
 # Paper gốc (bản quyền USENIX/tác giả) — tải tại link trong README
 docs/*.pdf
