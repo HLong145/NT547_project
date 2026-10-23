@@ -2,6 +2,44 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-23 — Module 4 phát lại lịch sử: ví lẽ ra cảnh báo bao nhiêu (nhãn TẠM)
+
+Tái tạo: `python -X utf8 -m address_misuse.wallet.replay` → `data/interim/wallet_replay.parquet`.
+
+- Cách làm: dương tập test có txlist kèm input trong cache (BSC: đủ 225 địa chỉ; ETH: chỉ 21, 234 địa chỉ chưa có
+  txlist vì ETH dùng BigQuery không có input). Chạy luật tác giả lấy đúng các tx misuse từ 2023-10-05, chấm từng tx tại
+  thời điểm của nó (chỉ dùng thông tin trước tx), trọng số + ngưỡng Module 3 (τ = 40,15). Cảnh báo = luật cứng hoặc
+  R ≥ τ. Giá trị = value + phí gas.
+- Kết quả tập test:
+
+| | tx misuse | cảnh báo (% tx) | cảnh báo (% giá trị) | báo nhầm N8 / N2 / N3 |
+|---|---:|---:|---:|---|
+| ETH (13 địa chỉ) | 954 | 96,6% | 99,4% (0,84 / 0,85 ETH) | 0,33% / 0,60% / 0% |
+| BSC (190 địa chỉ) | 4.273 | 67,2% | **0,4%** (0,39 / 90,7 BNB) | 0% / 0% / 0% |
+
+- Theo loại (BSC): KEY 100% tx, NCD 71% tx (85,6% giá trị), **PCD 1,3%**, **ADDR 1,4%**. Tỉ lệ địa chỉ có ít nhất 1
+  tx được cảnh báo: KEY 100%, NCD 91%, PCD 17%, ADDR 2%.
+- Giá trị tập trung: một contract PCD trên BSC (`0x2401…6fdf`, R = 23,8, chỉ có tín hiệu PCD-XC) chiếm 80% giá trị
+  BSC và bị bỏ sót hoàn toàn; bỏ nó ra vẫn chỉ cảnh báo 2,2% giá trị. → % tx và % tiền kể hai câu chuyện khác nhau:
+  engine bắt tốt các tx nhỏ, lặp lại (KEY, NCD) nhưng bỏ sót các tx lớn đi vào PCD. Điểm yếu chính là PCD (trùng với
+  Module 3: recall PCD 0,37) và ADDR (chỉ bắt được khi có delegate 7702 độc).
+- Ngoài thời gian (≥ 2025-09-01): BSC 287 tx, cảnh báo 100% (81,5% do luật cứng); ETH 45 tx, 48,9% (PCD 0/23).
+- Hạn chế: mẫu ETH nhỏ (13 địa chỉ, 59% giá trị từ 1 địa chỉ); danh sách key lộ / OSINT không có mốc thời gian nên
+  coi như đã biết trước; nhãn dương là nhãn luật tác giả (chưa có nhãn vàng D5).
+
+## 2026-10-23 — D8: Dataset v1 đóng băng, QA đạt
+
+Tái tạo: `python -X utf8 -m address_misuse.freeze` (QA: `… freeze qa`). Mô tả: `data/final/README.md`, `docs/DATASHEET.md`.
+
+- 6.429 mẫu, 4.477 địa chỉ; dương 1.600, âm 4.829. Test: ETH 255/761, BSC 225/768 (dương/âm).
+- QA tự động đạt, 0 cảnh báo: khoá, dạng địa chỉ + EIP-55, nhãn khớp nhóm, không địa chỉ hai nhãn, không âm nào là
+  dương của tác giả hay địa chỉ suy ra từ key lộ, không địa chỉ ở hai tập, split khớp `at`, loss không âm, không có
+  chuỗi giống private key.
+- 681 mẫu âm `excluded` (53 địa chỉ, chủ yếu USDT trên BSC/ETH, USDC, PancakeSwap Router, WETH): contract phổ biến
+  xuất hiện ở nhiều tập nên chỉ giữ ở tập sớm nhất.
+- Kiểm tra genesis (đang chạy, 3.000/4.256 ví KEY ETH): mới chỉ 1 ví có phân bổ genesis (`0xf46b…`), không ví nào
+  trong mẫu v1.
+
 ## 2026-10-23 — Module 4 PoC: kiểm tra phía ví, độ trễ
 
 Tái tạo: `python -X utf8 -m address_misuse.wallet.bench --n 300` (`data/interim/wallet_bench.json`);

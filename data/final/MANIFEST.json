@@ -1,0 +1,140 @@
+{
+ "version": "v1",
+ "created_utc": "2026-10-23 14:10:19",
+ "script": "python -X utf8 -m address_misuse.freeze",
+ "split_boundaries_utc": {
+  "val_from": "2023-02-10",
+  "test_from": "2023-10-05",
+  "out_of_time_from": "2025-09-01",
+  "val_ts": 1675987200,
+  "test_ts": 1696464000,
+  "out_of_time_ts": 1756684800
+ },
+ "n_samples": 6429,
+ "n_addresses": 4477,
+ "counts": {
+  "excluded/bsc/-N2": 215,
+  "excluded/bsc/-N3": 14,
+  "excluded/bsc/-N8": 76,
+  "excluded/eth/-N2": 263,
+  "excluded/eth/-N3": 2,
+  "excluded/eth/-N8": 111,
+  "no_time/bsc/+KEY": 67,
+  "no_time/bsc/-N1": 5,
+  "no_time/bsc/-N7": 1,
+  "no_time/eth/+KEY": 7,
+  "no_time/eth/+PCD": 28,
+  "no_time/eth/-N1": 6,
+  "test/bsc/+ADDR": 59,
+  "test/bsc/+KEY": 72,
+  "test/bsc/+NCD": 59,
+  "test/bsc/+PCD": 35,
+  "test/bsc/-N1": 46,
+  "test/bsc/-N2": 148,
+  "test/bsc/-N3": 222,
+  "test/bsc/-N4": 46,
+  "test/bsc/-N7": 9,
+  "test/bsc/-N8": 297,
+  "test/eth/+ADDR": 51,
+  "test/eth/+KEY": 41,
+  "test/eth/+NCD": 75,
+  "test/eth/+PCD": 88,
+  "test/eth/-N1": 48,
+  "test/eth/-N2": 105,
+  "test/eth/-N3": 337,
+  "test/eth/-N4": 35,
+  "test/eth/-N6": 5,
+  "test/eth/-N7": 10,
+  "test/eth/-N8": 221,
+  "train/bsc/+ADDR": 76,
+  "train/bsc/+KEY": 11,
+  "train/bsc/+NCD": 212,
+  "train/bsc/+PCD": 139,
+  "train/bsc/-N1": 88,
+  "train/bsc/-N2": 409,
+  "train/bsc/-N3": 44,
+  "train/bsc/-N7": 4,
+  "train/bsc/-N8": 592,
+  "train/eth/+ADDR": 86,
+  "train/eth/+KEY": 94,
+  "train/eth/+NCD": 179,
+  "train/eth/+PCD": 55,
+  "train/eth/-N1": 132,
+  "train/eth/-N2": 410,
+  "train/eth/-N3": 56,
+  "train/eth/-N7": 5,
+  "train/eth/-N8": 597,
+  "val/bsc/+ADDR": 15,
+  "val/bsc/+NCD": 29,
+  "val/bsc/+PCD": 26,
+  "val/bsc/-N1": 61,
+  "val/bsc/-N2": 28,
+  "val/bsc/-N7": 4,
+  "val/bsc/-N8": 20,
+  "val/eth/+ADDR": 13,
+  "val/eth/+KEY": 8,
+  "val/eth/+NCD": 46,
+  "val/eth/+PCD": 29,
+  "val/eth/-N1": 14,
+  "val/eth/-N2": 22,
+  "val/eth/-N3": 61,
+  "val/eth/-N4": 2,
+  "val/eth/-N7": 3,
+  "val/eth/-N8": 55
+ },
+ "negative_groups": {
+  "-N1": "địa chỉ ứng viên ngẫu nhiên tác giả không gắn cờ",
+  "-N2": "tx gọi contract bình thường (có calldata)",
+  "-N3": "tx gửi văn bản (input là chữ đọc được) tới EOA",
+  "-N4": "địa chỉ nạp tiền sàn giao dịch",
+  "-N6": "delegate EIP-7702 của ví hợp lệ",
+  "-N7": "contract đa chuỗi hợp lệ (cùng địa chỉ trên nhiều chain)",
+  "-N8": "tx ngẫu nhiên trong block (nền bình thường)"
+ },
+ "qa": {
+  "seed_mixed_case_addresses": 0,
+  "seed_bad_checksum": 0,
+  "author_loss_native_total": {
+   "bsc/ADDR": 419.475,
+   "bsc/KEY": 8644.455,
+   "bsc/NCD": 7514.315,
+   "bsc/PCD": 1167.091,
+   "eth/ADDR": 1627.42,
+   "eth/KEY": 103711.28,
+   "eth/NCD": 19238.408,
+   "eth/PCD": 3500.006
+  },
+  "sample_loss_native_total": {
+   "bsc/ADDR": 5.102,
+   "bsc/KEY": 87.962,
+   "bsc/NCD": 75.457,
+   "bsc/PCD": 318.703,
+   "eth/ADDR": 9.138,
+   "eth/KEY": 223.301,
+   "eth/NCD": 152.828,
+   "eth/PCD": 3051.317
+  }
+ },
+ "files": {
+  "dataset_v1.parquet": {
+   "sha256": "ec107da0fa21d404990dfc482cb0a8629c514ddaed9739edfadad2a0186b0dcc",
+   "bytes": 867272
+  },
+  "splits/train.csv": {
+   "sha256": "0075896dbb6572a9be1a4d223ece6d9adbc39156799c9be96a0770c6136b37a5",
+   "bytes": 391150
+  },
+  "splits/val.csv": {
+   "sha256": "f760be489d45a7edd37ecbfe824a9ed7aa17d5e0a5879e54f482463d0f96d0e5",
+   "bytes": 47342
+  },
+  "splits/test.csv": {
+   "sha256": "1af726c204310ae606709d814591b42ad37987878b2bde37f9220d2088ad8b04",
+   "bytes": 246508
+  },
+  "splits/out_of_time.csv": {
+   "sha256": "3956e40263e34fae9f541028627b4a970cda66ad68d0f9170467224432776c8b",
+   "bytes": 97708
+  }
+ }
+}

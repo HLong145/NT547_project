@@ -67,16 +67,17 @@
   - ⬜ Pilot 50 mẫu với 2 người gán → chỉnh codebook → gán ~2.000 mẫu (cần D4 xong).
 - 🔄 **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6. ✅ Bước 1: thống kê tx từ 2025-09 của 4,99M ứng viên ETH (BigQuery 118,7 GB).
 - ⬜ **D7** OSINT GitHub cho top ~3.000 địa chỉ (giúp truy nguồn NCD trên ETH từ testnet cũ).
-- 🔄 **D8** Đóng băng Dataset v1. ✅ Mốc chia đã chốt (A + B), `assign_split` không trùng địa chỉ. ⬜ QA, README, datasheet.
+- 🔄 **D8** Đóng băng Dataset v1. ✅ Mốc chia đã chốt (A + B), `assign_split` không trùng địa chỉ. ✅ `freeze.py`: `data/final/dataset_v1.parquet` + `splits/` + `MANIFEST.json`, QA tự động đạt; [README](../data/final/README.md), [DATASHEET](DATASHEET.md). ⬜ v2: thêm dương mới D6 vào tập ngoài thời gian, N5, nhãn vàng.
 
 ### Sau dữ liệu
 - 🔄 Module 2: engine và risk score R(A, C) (tuần 5–6). ✅ Nháp đặc tả [RISK_SCORE.md](RISK_SCORE.md). ✅ `src/address_misuse/engine/` (FeatureStore, 4 hàm S, luật cứng, CLI, 11 test), chấm thử 1.181 mẫu. ✅ Sửa 4 vấn đề trong RISK_SCORE §6 (2026-10-23, `engine/prepare.py`). ✅ Bước 2: tập âm N2–N4, N8; lịch sử BSC; `engine/evaluate.py`; rà soát. ⬜ Học trọng số (sau D5, D8).
 - 🔄 Module 3: đánh giá P/R/F1/FPR và ROC (tuần 6–7). ✅ `engine/metrics.py` (học `w` không âm trên train, ngưỡng trên val, P/R/F1/FPR + CI bootstrap, theo chain/loại/nhóm âm, tách luật cứng, ROC/PR csv, baseline getCode∧calldata, ablation), chạy thử với nhãn tạm (FINDINGS_LOG). ⬜ Chạy lại với nhãn vàng D5 + dương D6; thêm N8 cho val; GoPlus baseline.
-- 🔄 Module 4: wallet-side warning, độ trễ < 150 ms (tuần 7–8). ✅ `wallet/online.py` (chấm online, cache), `wallet/proxy.py` (RPC proxy chặn tx, giải mã tx thô kể cả 7702), `wallet/bench.py` (lạnh p50 156 ms do vòng mạng tới RPC công khai, ấm p99 < 0,2 ms). ⬜ Replay lịch sử + cảnh báo sai trên N8; demo Anvil fork; quyết định Snap hay proxy (GOALS).
+- 🔄 Module 4: wallet-side warning, độ trễ < 150 ms (tuần 7–8). ✅ `wallet/online.py` (chấm online, cache), `wallet/proxy.py` (RPC proxy chặn tx, giải mã tx thô kể cả 7702), `wallet/bench.py` (lạnh p50 156 ms do vòng mạng tới RPC công khai, ấm p99 < 0,2 ms). ✅ `wallet/replay.py`: phát lại tx misuse tập test — BSC cảnh báo 67% tx nhưng chỉ 0,4% giá trị (1 contract PCD chiếm 80% tiền bị sót), ETH 97% tx / 99% giá trị (mẫu nhỏ); báo nhầm N8 ETH 0,33%, BSC 0%. ⬜ demo Anvil fork; quyết định Snap hay proxy (GOALS).
 - ⬜ Viết paper, Docker, slide (tuần 9–10).
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-23 — Replay + D8**: `wallet/replay.py` (điểm yếu PCD/ADDR, % tiền khác hẳn % tx); `freeze.py` đóng băng Dataset v1, QA đạt; README + DATASHEET. 68 test pass. D6 `created` 85k/107,7k, delegates 190/415, key_genesis 3.000/4.256.
 - **2026-10-23 — Module 4 PoC**: online store + proxy + bench; proxy chặn được tx tới ví Truffle lộ key; độ trễ lạnh bị giới hạn bởi RTT ~140 ms tới publicnode từ VN. Tăng symexec delegate lên 5 worker (2 worker quá chậm).
 - **2026-10-23 — Module 3 chạy thử**: test F1 0,826 (P 0,966, R 0,721, FPR 0,008), baseline F1 0,418; PCD recall 0,37, N7 FPR 0,16. Nhãn tạm. Song song: `key_genesis` (NodeReal số dư block 0 của 4.256 ví KEY), `d6_new delegates` (symexec 435 bytecode). 63 test pass.
 - **2026-10-23 — D6: getCode xong** (202.850: code 107.726, 7702 71.741, none 23.383). `created` lấy bù cho 43,8k contract mới, sau đó tự chạy `rules`. Thêm `d6_new delegates`: điều kiện ADDR đúng như code tác giả (symexec `transfer_all_eth`/`transfer_msg_value` của delegate; `flag` cũ chỉ phủ 13/484 delegate), symexec mọi delegate mới (mỗi bytecode một lần) → `d6_delegates.parquet`; xong thì chạy lại `rules --only ADDR`.
