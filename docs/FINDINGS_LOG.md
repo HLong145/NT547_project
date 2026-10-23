@@ -2,6 +2,47 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-24 — D3b Arbitrum: luật KEY của tác giả đếm cả lệnh sweep của kẻ tấn công là "misuse" (nhãn TẠM)
+
+Tái tạo: `python -X utf8 -m address_misuse.l2_misuse txlist --chain arb --kinds KEY` (Etherscan V2, gói free có arb)
+rồi `... rules --chain arb` → `data/interim/l2_misuse_arb.parquet`.
+
+- 3.536 địa chỉ key lộ có tx đến thành công trên Arbitrum (cả 3.536 đều là dương KEY của tác giả trên ETH/BSC).
+  Luật KEY tác giả (mọi tx đến từ địa chỉ khác, không lỗi) → **3.536/3.536 dương**, 16.896 tx, loss 12,82 ETH.
+- Nhưng tách theo loại tx đến:
+  | loại | tx | địa chỉ |
+  |---|---|---|
+  | value 0, gọi hàm | 11.241 | 3.488 |
+  | value 0, tx thường | 700 | 97 |
+  | có value | 4.955 | 271 |
+  - Tx value 0 gọi hàm phần lớn là **lệnh sweep do kẻ tấn công gửi vào EOA đã gắn delegate 7702**:
+    `loserSweepETH_…()` 5.650 tx, `sweep(address[])`, `forwardTokens(…)`, `withdrawEth(…)`. Hai sender
+    `0x4791…5ff6` (5.067 tx) và `0xa619…8e4a` (1.674 tx).
+  - **3.265/3.536 địa chỉ (92%) chỉ có tx value 0** → không phải người dùng gửi nhầm tiền. Misuse thật (có người
+    gửi value tới ví key lộ): 271 địa chỉ, 12,65 ETH (5 địa chỉ đầu chiếm 52%, trung vị 0,0012 ETH).
+- Thời điểm misuse đầu tiên: 2.983/3.536 vào 2025, 364 vào 2026 (sau khi Arbitrum hỗ trợ EIP-7702).
+- → Paper: định nghĩa KEY của tác giả (đúng cho ETH/BSC trước 7702) **thổi phồng số nạn nhân** khi delegate 7702 xuất
+  hiện; cần thêm điều kiện "value > 0 hoặc chuyển token tới ví" và loại tx do kẻ tấn công điều khiển (sender gọi
+  hàm sweep). Kiểm tra lại cùng điểm này cho KEY trên ETH sau 2025-05 (D6).
+- Ghi chú kỹ thuật: cộng `value` bằng int64 của pandas bị tràn (ra số âm) → luôn cộng bằng int Python (giống lỗi
+  tràn phí gas đã ghi).
+
+## 2026-10-23 — D6: misuse mới sau 2025-09 trên ETH rất hiếm trong mẫu ngẫu nhiên (lần 1)
+
+Tái tạo: `python -X utf8 -m address_misuse.d6_new rules --per-type 400` → `data/interim/d6_new_positives_random400.parquet`
+(bản sao kết quả lần 1, log `d6_rules_random400.log`).
+
+- Ứng viên: ADDR 37.525 (EOA đang ủy quyền delegate thỏa điều kiện tác giả), NCD 18.038, PCD 2. Lấy ngẫu nhiên 400/luật.
+- Dương mới (tx misuse từ 2025-09-01): **ADDR 1/400, NCD 3/400, PCD 1/2**. Ba NCD có 3 ca bị cắt ở 10k tx.
+- 387/400 ứng viên ADDR dùng delegate MetaMask → điều kiện delegate của tác giả gần như chỉ chọn ví hợp lệ; luật đầy
+  đủ (cặp sweep + số dư ≤ 1e14) loại hết. Lần 2 chạy toàn bộ 1.549 EOA không dùng delegate ví hợp lệ N6
+  (`rules --only ADDR --no-wallets --per-type 2000`, log `d6_rules_addr_nowallet.log`).
+- Lần 2 (toàn bộ 1.549 EOA, 120 delegate, không dùng delegate ví N6): **38 dương mới** (2,5%), 76 tx misuse mới,
+  loss 0,082 ETH (nạn nhân ADDR thường chỉ còn ít tiền); 47 có misuse ở mọi thời điểm; 5 bị cắt ở 10k tx. Delegate
+  nhiều dương nhất: `0x8332…77f0` (8), `0x2c6f…571d` (6). So với mẫu ngẫu nhiên có MetaMask: 1/400 (0,25%).
+- → Paper: số ADDR mới phải báo theo cả hai cách (có / không ví N6); tỉ lệ dương trong ứng viên = thước đo độ chặt
+  của bước lọc.
+
 ## 2026-10-23 — D3b Optimism: gần hết ví key lộ có tx đến trên OP đã bị gắn delegate EIP-7702 (nhãn TẠM)
 
 Tái tạo: `python -X utf8 -m address_misuse.l2_fetch fetch --chain op --max-gb 120` rồi
@@ -12,6 +53,13 @@ Tái tạo: `python -X utf8 -m address_misuse.l2_fetch fetch --chain op --max-gb
 - Chỉ 542 ví dùng delegate đã có trong bảng D6 (ETH); phần lớn là delegate riêng của OP → cần symexec trên code OP
   trước khi kết luận là sweeper (dự đoán: kẻ tấn công gắn sweeper 7702 trên mọi chain nạn nhân có thể nhận tiền).
 - So với ETH/BSC (paper gốc), đây là dạng misuse KEY trên L2 mà tác giả không đo. Số loss chưa có, chờ txlist + luật.
+- Symexec (`python -X utf8 -m address_misuse.l2_misuse delegates --chain op` → `data/interim/l2_delegates_op.parquet`):
+  op có 356 delegate / 38.131 EOA (trong tập địa chỉ đáng xét); 177 trùng bytecode delegate ETH (dùng lại kết quả D6),
+  172 chạy mới, có kết quả 351. **Cả 30 delegate của ví key lộ đều thỏa điều kiện ADDR của tác giả (3.294/3.294 ví)**;
+  22 delegate (859 ví) có `transfer_all_eth` (sweeper rõ), 4 delegate (2.430 ví, gồm `0x3aa3…f0c7` 1.658 ví) chỉ có
+  `transfer_msg_value`. Không ví key lộ nào dùng delegate ví hợp lệ N6 (MetaMask có 12.014 EOA trên op, 0 key lộ).
+- → Paper: trên L2, kẻ tấn công nắm key lộ gắn sẵn sweeper 7702 để tự rút tiền mới đến; lớp phòng thủ phía ví nên
+  cảnh báo khi gửi tới EOA có delegate thuộc nhóm này (luật cứng `malicious_delegate` mở rộng sang L2).
 
 ## 2026-10-23 — N5: contract "recovery" tại địa chỉ PCD — tên contract không đủ làm bằng chứng lành tính
 

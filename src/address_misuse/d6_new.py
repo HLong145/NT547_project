@@ -201,13 +201,16 @@ def candidates() -> pd.DataFrame:
     return pd.concat([ncd, pcd, addr], ignore_index=True)
 
 
-def cmd_rules(per_type: int, seed: int, only: str | None = None):
+def cmd_rules(per_type: int, seed: int, only: str | None = None, no_wallets: bool = False):
     from address_misuse.etherscan import Etherscan
     from address_misuse.reproduce_rules import fetch_txlist
     from address_misuse.rules import detect_ca_misuse, detect_eoa_addr
     c = candidates()
     if only:
         c = c[c.rule == only]
+    if no_wallets and DELEGATES.exists():                       # bỏ EOA dùng delegate của ví hợp lệ (N6, vd MetaMask)
+        d = pd.read_parquet(DELEGATES)
+        c = c[~c.delegate.isin(set(d[d.known_wallet.notna()].delegate))]
     print("ứng viên theo luật: " + ", ".join(f"{k} {n:,}" for k, n in c.rule.value_counts().items()), flush=True)
     pick = pd.concat([g.sample(min(len(g), per_type), random_state=seed) for _, g in c.groupby("rule")],
                      ignore_index=True)                  # groupby.apply bỏ cột "rule" ở pandas mới
@@ -253,6 +256,7 @@ def main():
     ap.add_argument("--per-type", type=int, default=400)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--only", choices=["NCD", "PCD", "ADDR"])
+    ap.add_argument("--no-wallets", action="store_true", help="bỏ EOA dùng delegate của ví hợp lệ N6")
     ap.add_argument("--timeout", type=float, default=120, help="giây symexec mỗi delegate")
     ap.add_argument("--workers", type=int, default=2)
     a = ap.parse_args()
@@ -263,7 +267,7 @@ def main():
     elif a.step == "delegates":
         cmd_delegates(a.timeout, a.workers)
     else:
-        cmd_rules(a.per_type, a.seed, a.only)
+        cmd_rules(a.per_type, a.seed, a.only, a.no_wallets)
 
 
 if __name__ == "__main__":

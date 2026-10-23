@@ -3,13 +3,15 @@
 python -X utf8 -m address_misuse.l2_misuse state --chain op       # getCode 8 mạng cho địa chỉ có tx đến thành công
 python -X utf8 -m address_misuse.l2_misuse txlist --chain op      # txlist + thời điểm tạo contract cho ứng viên
 python -X utf8 -m address_misuse.l2_misuse rules --chain op       # chạy rules.py → data/interim/l2_misuse_<chain>.parquet
+python -X utf8 -m address_misuse.l2_misuse delegates --chain op   # symexec delegate 7702 trên L2 → l2_delegates_<chain>
 
 Ứng viên (theo trạng thái code HIỆN TẠI trên L2, giống cách tác giả làm trên ETH/BSC):
 - KEY: địa chỉ suy ra từ key lộ (`seed/candidate_pk_addresses`) có tx đến;
 - NCD: không có code trên L2; PCD: có code trên L2 (contract được tạo sau tx đến đầu tiên mới có thể là PCD);
 - Type 4 (XC): có code ở mạng khác trong 8 mạng của D3 (`xc_code/code_<net>.jsonl`, dùng chung cache với D3).
-Nguồn txlist: Optimism qua Blockscout (API tương thích Etherscan, không cần key). Arbitrum: Blockscout chặn
-(Cloudflare 403) → Etherscan V2 (gói free có arb), chỉ chạy khi không có job Etherscan nào khác (D6).
+Nguồn txlist: Arbitrum, Polygon qua Etherscan V2 (gói free có hai chain này). Optimism: Etherscan free không hỗ trợ,
+Routescan không có OP → Blockscout, nhưng không có key chỉ được 10 lượt rồi bị chặn nhiều phút; cần key miễn phí
+(dev.blockscout.com) đặt trong `.env` là `BLOCKSCOUT_API_KEY`.
 Lưu ý Arbitrum: `gasUsed` gồm cả phần phí L1, nên điều kiện NCD `gasUsed ≤ 30.000` của tác giả sẽ bỏ sót; ghi rõ khi
 báo kết quả.
 """
@@ -17,6 +19,7 @@ báo kết quả.
 import argparse
 import gzip
 import json
+import os
 import time
 
 import pandas as pd
@@ -73,8 +76,8 @@ def candidates(chain: str) -> pd.DataFrame:
     df.loc[st == "none", "kind"] = "NCD"
     df.loc[st == "code", "kind"] = "PCD"
     df.loc[st == "7702", "kind"] = "7702"
-    df.loc[df.is_pk, "kind"] = "KEY"
     df.loc[st.isna(), "kind"] = "UNKNOWN"
+    df.loc[df.is_pk, "kind"] = "KEY"                            # KEY chỉ cần txlist, không cần trạng thái code
     df["xc"] = df.xc_nets != ""
     return df
 
@@ -89,7 +92,8 @@ def _bs_get(chain: str, params: dict, retries: int = 6) -> dict:
         time.sleep(max(0.0, _last_call[0] + BS_GAP - time.monotonic()))
         _last_call[0] = time.monotonic()
         try:
-            r = requests.get(BLOCKSCOUT_API[chain], params=params, timeout=120)
+            key = os.environ.get("BLOCKSCOUT_API_KEY")
+            r = requests.get(BLOCKSCOUT_API[chain], params={**params, **({"apikey": key} if key else {})}, timeout=120)
             if r.status_code == 200:
                 return r.json()
             err = f"HTTP {r.status_code}"
@@ -167,19 +171,29 @@ def load_creations(chain: str) -> dict:
     return {r["address"]: r["creation"] for r in map(json.loads, p.read_text(encoding="utf-8").splitlines())}
 
 
+ETHERSCAN_FREE = {"arb", "polygon"}
+
+
 def cmd_txlist(chain: str, kinds: list[str]):
-    if chain not in BLOCKSCOUT_API:
-        raise SystemExit(f"{chain}: chưa có nguồn txlist không cần Etherscan (xem docstring)")
     c = candidates(chain)
     c = c[c.kind.isin(kinds)]
     print(f"{chain}: ứng viên {c.kind.value_counts().to_dict()}", flush=True)
-    fetch_creations(chain, sorted(c.address[c.kind == "PCD"]))
+    pcd = sorted(c.address[c.kind == "PCD"])
+    if chain in ETHERSCAN_FREE:
+        from address_misuse.etherscan import Etherscan
+        from address_misuse import reproduce_rules as rr
+        es = Etherscan(chain)
+        rr.fetch_creations(es, pcd)
+        get = lambda a: rr.fetch_txlist(es, a, max_records=MAX_RECORDS)         # noqa: E731
+    else:
+        fetch_creations(chain, pcd)
+        get = lambda a: fetch_txlist(chain, a)                                   # noqa: E731
     todo = [a for a in c.address if not txlist_path(chain, a).exists()]
     print(f"txlist cần tải: {len(todo):,}", flush=True)
     for i, a in enumerate(todo, 1):
         try:
-            fetch_txlist(chain, a)
-        except RuntimeError as e:
+            get(a)
+        except Exception as e:
             print(f"  lỗi {e}", flush=True)
         if i % 200 == 0 or i == len(todo):
             print(f"  {i:,}/{len(todo):,}", flush=True)
@@ -233,11 +247,81 @@ def cmd_rules(chain: str):
     print(f"ghi {out}")
 
 
+def cmd_delegates(chain: str, timeout: float, workers: int):
+    """Delegate 7702 của các địa chỉ đáng xét trên L2: lấy code trên chính L2, bytecode trùng delegate ETH đã có
+    symexec (D6) thì dùng lại, còn lại chạy symexec. Điều kiện ADDR của tác giả: `transfer_all_eth` | `transfer_msg_value`."""
+    import hashlib
+    from address_misuse.d6_new import _symexec_flags
+    from address_misuse.engine.features import ENGINE_SYMEXEC
+    from address_misuse.reproduce_symexec import run_isolated
+    raw = pd.DataFrame([json.loads(x) for x in (XC_DIR / f"code_{chain}.jsonl").read_text(encoding="utf-8").splitlines()])
+    raw = raw[raw.err.isna()] if "err" in raw else raw
+    raw = raw.drop_duplicates("a", keep="last")
+    raw = raw[raw.a.isin(set(activity(chain).address)) & raw.d.notna()]
+    raw["d"] = raw.d.str.lower()
+    pk = pk_addresses()
+    n_eoa = raw.d.value_counts()
+    n_pk = raw[raw.a.isin(pk)].d.value_counts()
+    dels = n_eoa.index.tolist()
+    codes = {}
+    for i in range(0, len(dels), 20):
+        chunk = dels[i:i + 20]
+        codes.update(zip(chunk, rpc_batch(chain, [("eth_getCode", [a, "latest"]) for a in chunk], timeout=60)))
+    h = {a: hashlib.sha256((c or "").encode()).hexdigest()[:16] for a, c in codes.items()}
+
+    def flags_by_hash():
+        eth = _symexec_flags()                                  # cùng bytecode → cùng kết quả symexec
+        rows = [json.loads(x) for x in ENGINE_SYMEXEC.read_text(encoding="utf-8").splitlines() if x.strip()]             if ENGINE_SYMEXEC.exists() else []
+        own = {r["address"]: {"all_eth": bool(r["ours_transfer_all_eth"]), "msg_value": bool(r["ours_transfer_msg_value"]),
+                              "input_amount": bool(r["ours_transfer_input_amount"]),
+                              "delegatecall": bool(r["ours_delegatecall"]), "source": f"ours_{chain}"}
+               for r in rows if r.get("chain") == chain and r.get("status") == "ok"}
+        return eth, own
+
+    eth, own = flags_by_hash()
+    d6 = pd.read_parquet(INTERIM_DIR / "d6_delegates.parquet") if (INTERIM_DIR / "d6_delegates.parquet").exists() else None
+    eth_hash = {} if d6 is None else {r.code_hash: eth[r.delegate] for r in d6.itertuples() if r.delegate in eth}
+    tasks, seen = [], set()
+    for a in dels:
+        c = codes.get(a)
+        if a in own or not c or c == "0x" or h[a] in eth_hash or h[a] in seen:
+            continue
+        seen.add(h[a])
+        tasks.append((chain, "eip7702_delegate", a, c, timeout))
+    print(f"{chain}: {len(dels)} delegate 7702, {int(n_eoa.sum()):,} EOA (key lộ {int(n_pk.sum()):,}); "
+          f"trùng bytecode delegate ETH: {sum(h[a] in eth_hash for a in dels)}; cần symexec {len(tasks)}", flush=True)
+    with ENGINE_SYMEXEC.open("a", encoding="utf-8") as f:
+        for i, r in enumerate(run_isolated(tasks, workers=workers, hard_limit=timeout + 60, max_mem_mb=1500), 1):
+            f.write(json.dumps(r) + "\n")
+            f.flush()
+            print(f"  {i}/{len(tasks)} {r['address'][:10]} {r.get('status')}", flush=True)
+    eth, own = flags_by_hash()
+    own_hash = {h[a]: v for a, v in own.items() if a in h}
+    rows = []
+    for a in dels:
+        fl = own.get(a) or own_hash.get(h[a]) or eth_hash.get(h[a])
+        rows.append({"chain": chain, "delegate": a, "n_eoa": int(n_eoa[a]), "n_eoa_pk": int(n_pk.get(a, 0)),
+                     "code_hash": h[a], "has_code": codes.get(a) not in (None, "", "0x"),
+                     "source": None if fl is None else fl["source"],
+                     **{k: (None if fl is None else fl[k]) for k in ("all_eth", "msg_value", "input_amount", "delegatecall")},
+                     "author_rule": None if fl is None else bool(fl["all_eth"] or fl["msg_value"])})
+    out = pd.DataFrame(rows)
+    path = INTERIM_DIR / f"l2_delegates_{chain}.parquet"
+    out.to_parquet(path, index=False)
+    ok = out.author_rule == True                                # noqa: E712
+    print(f"có kết quả {out.author_rule.notna().sum()}/{len(out)}; đủ điều kiện ADDR: {int(ok.sum())} delegate, "
+          f"{int(out.n_eoa[ok].sum()):,} EOA (key lộ {int(out.n_eoa_pk[ok].sum()):,}) → {path}")
+    print(out.sort_values("n_eoa", ascending=False).head(12)[["delegate", "n_eoa", "n_eoa_pk", "source", "all_eth",
+                                                            "msg_value", "input_amount", "author_rule"]].to_string(index=False))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["state", "txlist", "rules", "summary"])
+    ap.add_argument("step", choices=["state", "txlist", "rules", "summary", "delegates"])
     ap.add_argument("--chain", choices=["arb", "op", "polygon"], required=True)
     ap.add_argument("--kinds", nargs="+", default=["KEY", "NCD", "PCD"])
+    ap.add_argument("--timeout", type=float, default=300)
+    ap.add_argument("--workers", type=int, default=3)
     a = ap.parse_args()
     if a.step == "state":
         cmd_state(a.chain)
@@ -245,6 +329,8 @@ def main():
         cmd_txlist(a.chain, a.kinds)
     elif a.step == "rules":
         cmd_rules(a.chain)
+    elif a.step == "delegates":
+        cmd_delegates(a.chain, a.timeout, a.workers)
     else:
         c = candidates(a.chain)
         print(pd.crosstab(c.kind, c.xc, margins=True).to_string())
