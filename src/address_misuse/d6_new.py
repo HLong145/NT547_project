@@ -1,0 +1,170 @@
+"""D6 bước 2: tìm dương MỚI (misuse từ 2025-09-01) trong ứng viên ETH chưa bị tác giả gắn cờ — tập test ngoài thời gian (D8, B).
+
+python -X utf8 -m address_misuse.d6_new state      → data/interim/d6_state.parquet   (getCode hiện tại, RPC công khai)
+python -X utf8 -m address_misuse.d6_new created    → data/raw/eth/creation.jsonl     (getcontractcreation, Etherscan)
+python -X utf8 -m address_misuse.d6_new rules [--per-type 400] → data/interim/d6_new_positives.parquet
+
+Đầu vào: `data/raw/eth/bq_new_activity.parquet` (`bq_fetch new-fetch`, một dòng thống kê mỗi ứng viên có tx từ 2025-09-01).
+Lọc theo đúng luật của tác giả (`rules.py`), chỉ thêm bước sàng rẻ ở đầu:
+- CA (NCD/PCD): có tx gọi hàm đi vào và địa chỉ chưa từng tự gửi tx (contract không gửi tx; địa chỉ contract suy từ
+  deployer + nonce không có private key). Không code → NCD; có code tạo SAU tx vào đầu tiên trong cửa sổ → PCD;
+  có code tạo trước 2025-09-01 → không thể có tx gọi sớm trong cửa sổ, bỏ.
+- ADDR: EOA đã gửi tx type 4 và hiện uỷ quyền EIP-7702 tới delegate tác giả gắn cờ độc (`eip7702_delegate_stats.flag`).
+- KEY: chưa làm (địa chỉ lộ key gần như không nằm trong `candidate_addresses`, cần truy vấn riêng).
+Mỗi loại lấy mẫu ngẫu nhiên `--per-type` địa chỉ (seed cố định), tải txlist Etherscan (≤ 10k tx), chạy luật; dương mới
+= có ít nhất một tx bị gắn cờ từ 2025-09-01. Đây là nhãn theo luật, vẫn cần nhãn vàng (D5).
+"""
+
+import argparse
+import json
+
+import pandas as pd
+
+from address_misuse.config import INTERIM_DIR, OUT_OF_TIME_TS, RAW_DIR, SEED_DIR
+from address_misuse.crosschain_matrix import rpc_batch
+
+ACTIVITY = RAW_DIR / "eth" / "bq_new_activity.parquet"
+STATE = INTERIM_DIR / "d6_state.parquet"
+OUT = INTERIM_DIR / "d6_new_positives.parquet"
+EIP7702_PREFIX = "0xef0100"
+BATCH = 100
+MAX_RECORDS = 10_000
+
+
+def screened() -> pd.DataFrame:
+    """Ứng viên qua bước sàng: `kind` = "ca" (nhận tx gọi hàm, không tự gửi) hoặc "7702" (đã gửi tx type 4)."""
+    d = pd.read_parquet(ACTIVITY)
+    ca = d[(d.n_in_call.fillna(0) > 0) & d.n_out.isna()].assign(kind="ca")
+    t4 = d[d.n_out_type4.fillna(0) > 0].assign(kind="7702")
+    return pd.concat([ca, t4], ignore_index=True)
+
+
+def code_state(code: str | None) -> tuple[str, str | None]:
+    if code is None:
+        return "error", None
+    if code.startswith(EIP7702_PREFIX):
+        return "7702", "0x" + code[len(EIP7702_PREFIX):len(EIP7702_PREFIX) + 40]
+    return ("none" if code in ("0x", "") else "code"), None
+
+
+def cmd_state():
+    s = screened()
+    old = pd.read_parquet(STATE) if STATE.exists() else pd.DataFrame(columns=["address", "state", "delegate"])
+    done = set(old[old.state != "error"].address)
+    todo = sorted(set(s.address) - done)
+    print(f"getCode: {len(todo):,} địa chỉ cần tra (đã có {len(done):,})", flush=True)
+    rows, parts = [], [old[old.state != "error"]]
+    for i in range(0, len(todo), BATCH):
+        chunk = todo[i:i + BATCH]
+        try:
+            codes = rpc_batch("eth", [("eth_getCode", [a, "latest"]) for a in chunk], timeout=60)
+        except Exception as e:
+            print(f"  lỗi lô {i}: {type(e).__name__}", flush=True)
+            codes = [None] * len(chunk)
+        for a, c in zip(chunk, codes):
+            st, dlg = code_state(c)
+            rows.append({"address": a, "state": st, "delegate": dlg})
+        if (i // BATCH) % 100 == 99 or i + BATCH >= len(todo):          # ghi tạm để chạy lại tiếp tục được
+            pd.concat(parts + [pd.DataFrame(rows)], ignore_index=True).to_parquet(STATE, index=False)
+            print(f"  {min(i + BATCH, len(todo)):,}/{len(todo):,}", flush=True)
+    out = pd.concat(parts + [pd.DataFrame(rows)], ignore_index=True)
+    out.to_parquet(STATE, index=False)
+    print(out.state.value_counts().to_string())
+
+
+def _state_table() -> pd.DataFrame:
+    return screened().merge(pd.read_parquet(STATE), on="address", how="left")
+
+
+def cmd_created():
+    from address_misuse.etherscan import Etherscan
+    from address_misuse.reproduce_rules import fetch_creations
+    d = _state_table()
+    code = sorted(set(d[(d.kind == "ca") & (d.state == "code")].address))
+    print(f"getcontractcreation: {len(code):,} contract (Etherscan, 5 địa chỉ/lần, có cache)", flush=True)
+    fetch_creations(Etherscan("eth"), code)
+
+
+def load_creations(chain: str) -> dict[str, dict]:
+    """Cache của `reproduce_rules.fetch_creations` ({} = không phải contract)."""
+    path = RAW_DIR / chain / "creation.jsonl"
+    if not path.exists():
+        return {}
+    return {r["address"]: r["creation"] for r in map(json.loads, path.read_text(encoding="utf-8").splitlines())}
+
+
+def malicious_delegates() -> set[str]:
+    st = pd.read_parquet(SEED_DIR / "eip7702_delegate_stats.parquet").query("chain == 'eth' and flag == 1")
+    return set(st.delegate.str.lower())
+
+
+def candidates() -> pd.DataFrame:
+    """Ứng viên theo loại luật: NCD, PCD (có thời điểm tạo trong/ sau cửa sổ), ADDR (delegate độc)."""
+    d = _state_table()
+    cr = load_creations("eth")
+    ca = d[d.kind == "ca"].copy()
+    ca["create_ts"] = [int(cr[a]["timestamp"]) if cr.get(a) else None for a in ca.address]
+    ncd = ca[ca.state == "none"].assign(rule="NCD")
+    pcd = ca[(ca.state == "code") & (ca.create_ts.fillna(0) > ca.first_in_ts)].assign(rule="PCD")
+    addr = d[(d.kind == "7702") & d.delegate.isin(malicious_delegates())].assign(rule="ADDR")
+    return pd.concat([ncd, pcd, addr], ignore_index=True)
+
+
+def cmd_rules(per_type: int, seed: int):
+    from address_misuse.etherscan import Etherscan
+    from address_misuse.reproduce_rules import fetch_txlist
+    from address_misuse.rules import detect_ca_misuse, detect_eoa_addr
+    c = candidates()
+    print("ứng viên theo luật: " + ", ".join(f"{k} {n:,}" for k, n in c.rule.value_counts().items()), flush=True)
+    pick = (c.groupby("rule", group_keys=False)
+            .apply(lambda g: g.sample(min(len(g), per_type), random_state=seed)).reset_index(drop=True))
+    es = Etherscan("eth")
+    cr = load_creations("eth")
+    bal = es.balances(pick[pick.rule == "ADDR"].address.tolist()) if (pick.rule == "ADDR").any() else {}
+    rows = []
+    for i, r in enumerate(pick.itertuples(), 1):
+        rec = fetch_txlist(es, r.address, max_records=MAX_RECORDS)
+        txs = rec["result"]
+        if r.rule == "ADDR":
+            res = detect_eoa_addr(r.address, txs, balance_wei=bal.get(r.address, 0), eip7702_delegate_malicious=True)
+        else:
+            res = detect_ca_misuse(r.address, txs, "eth", creation=cr.get(r.address) or None)
+        new = [f for f in res.flagged if _ts(txs, f) >= OUT_OF_TIME_TS]
+        rows.append({"address": r.address, "rule": r.rule, "subtype": res.subtype, "n_tx": len(txs),
+                     "truncated": rec["truncated"], "n_misuse_tx": res.n_misuse_tx, "n_misuse_new": len(new),
+                     "first_misuse_new_ts": min((_ts(txs, f) for f in new), default=None),
+                     "cost_wei_new": str(sum(f.get("value_wei", 0) for f in new)), "delegate": r.delegate,
+                     "is_new_positive": bool(new)})
+        if i % 50 == 0 or i == len(pick):
+            print(f"  {i}/{len(pick)}", flush=True)
+    out = pd.DataFrame(rows)
+    out.to_parquet(OUT, index=False)
+    print(out.groupby("rule").agg(n=("address", "size"), new_pos=("is_new_positive", "sum"),
+                                  any_misuse=("n_misuse_tx", lambda x: int((x > 0).sum())),
+                                  truncated=("truncated", "sum")).to_string())
+
+
+def _ts(txs: list[dict], flagged: dict) -> int:
+    """Thời điểm của tx bị gắn cờ (bản ghi gắn cờ chỉ có block, tra lại trong txlist)."""
+    for tx in txs:
+        if tx["hash"] == flagged["hash"]:
+            return int(tx["timeStamp"])
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("step", choices=["state", "created", "rules"])
+    ap.add_argument("--per-type", type=int, default=400)
+    ap.add_argument("--seed", type=int, default=0)
+    a = ap.parse_args()
+    if a.step == "state":
+        cmd_state()
+    elif a.step == "created":
+        cmd_created()
+    else:
+        cmd_rules(a.per_type, a.seed)
+
+
+if __name__ == "__main__":
+    main()

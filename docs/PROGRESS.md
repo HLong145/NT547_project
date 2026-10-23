@@ -23,7 +23,7 @@
 - ✅ D4: N1, N2 (800 tx), N3 (640 tx), N4 (83 địa chỉ nạp đã kiểm hành vi), N6, N7, N8 (800 tx) — `negatives.py`. Còn N5 (cần danh sách địa chỉ tin cậy).
 - ✅ Bước 2 engine (2026-10-23): lịch sử BSC qua NodeReal, `engine/evaluate.py` (4.364 mẫu, AUC 0,75–1,00 với trọng số 0,25). Rà soát xong, sửa 5 lỗi (FINDINGS_LOG 2026-10-23).
 - ✅ D8 chốt (2026-10-23, A + B): train < 2023-02-10 ≤ val < 2023-10-05 ≤ test (phân vị 70/85% dương CA) + tập test ngoài thời gian ≥ 2025-09-01 từ dương mới D6. Quét thêm block 2020–2022 cho âm của train. AUC (trọng số 0,25): ETH train 0,83 / val 0,89 / test 0,90; BSC 0,82 / 0,86 / 0,98.
-- 🔄 D6 bước 1 xong: BigQuery (quota nhóm, 118,7 GB) → `data/raw/eth/bq_new_activity.parquet`, 1,26M ứng viên có tx từ 2025-09; 141.348 nhận tx gọi hàm mà không tự gửi. **Kế tiếp:** lọc tiếp (getCode, creation) → lấy txlist → `rules.py` → dương mới; truy vấn riêng cho 17.971 địa chỉ lộ key; dương mới cần nhãn vàng (D5).
+- 🔄 D6 bước 1 xong: BigQuery (quota nhóm, 118,7 GB) → `data/raw/eth/bq_new_activity.parquet`, 1,26M ứng viên có tx từ 2025-09; 141.348 nhận tx gọi hàm mà không tự gửi. **Đang làm (bước 2, `d6_new.py`, chạy lại được, tự tiếp tục):** `d6_new state` (getCode 202.850 địa chỉ) → `d6_new created` (Etherscan) → `d6_new rules` → dương mới; truy vấn riêng cho 17.971 địa chỉ lộ key; dương mới cần nhãn vàng (D5).
 - 🔄 D5: codebook v0.3 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Chờ chọn 2 người gán để chạy pilot.
 
 ## 2. Chờ người dùng
@@ -77,6 +77,7 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- **2026-10-23 — D6 bước 2 (dở dang, tắt máy)**: `d6_new.py` (sàng ứng viên → getCode → creation → luật tác giả). Sơ bộ: ~13% ứng viên CA không có code (NCD); chỉ 2/5.451 EOA 7702 uỷ quyền tới delegate tác giả gắn cờ → danh sách đen cũ, cần phân loại delegate mới. Chạy lại `d6_new state` và `d6_new created` (tự tiếp tục), rồi `d6_new rules`.
 - **2026-10-23 — D8 + D6 bước 1**: chốt chia tập A + B; quét 600 block/chain 2020–2022 (NodeReal); chấm lại theo tập; BigQuery quota nhóm: lần 1 bị từ chối (kết quả quá lớn, 0 GB), lần 2 gom theo địa chỉ, 118,7 GB. 57 test pass.
 - **2026-10-23 — Bước 2 + rà soát**: `engine.prepare sample/history` (NodeReal cho BSC, 0 lỗi), `negatives scan/from-scan/n4/n4-verify`, `engine/evaluate.py`. Rà soát sửa: lịch sử BigQuery bị cắt xén cho địa chỉ ngoài danh sách truy vấn, thiếu bộ lọc IDM, 7702 trước kích hoạt, `at` của PCD, status trước Byzantium của NodeReal. 56 test pass. Chờ quyết mốc D8.
 - **2026-10-23 — Sửa 4 vấn đề của engine**: `engine/prepare.py` (`creation` 258/258, `delegates` symexec 30/30, `history` txlist cho 223 địa chỉ ETH âm); so contract bằng selector; delegate theo thời điểm `at`. 52 test pass. Chấm lại: N1 ETH trung vị 19,6 → 7,1 (FINDINGS_LOG 2026-10-22).
