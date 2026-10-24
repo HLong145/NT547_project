@@ -84,7 +84,7 @@
   - ✅ Codebook v0.3, script lấy mẫu pilot 50 + tính κ; file mẫu đã làm mù (bằng chứng tra cùng một cách cho mọi tầng).
   - ⬜ Pilot 50 mẫu với 2 người gán → chỉnh codebook → gán ~2.000 mẫu (cần D4 xong).
 - 🔄 **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6. ✅ Bước 1: thống kê tx từ 2025-09 của 4,99M ứng viên ETH (BigQuery 118,7 GB).
-- ⬜ **D7** OSINT GitHub cho top ~3.000 địa chỉ (giúp truy nguồn NCD trên ETH từ testnet cũ).
+- 🔄 **D7** (2026-10-24: token GitHub dùng được, 30 lượt code search/phút; `osint_github.py run` chạy nền cho 4.549 địa chỉ của dataset_v2, dương theo thiệt hại trước rồi âm ngẫu nhiên, ~8 giờ, cache `data/raw/osint/github.jsonl`, `summary` để xem tỉ lệ có kết quả theo nhãn; bước sau: nối số file/repo/ngữ cảnh vào S_osint) OSINT GitHub cho top ~3.000 địa chỉ (giúp truy nguồn NCD trên ETH từ testnet cũ).
 - 🔄 **D8** Đóng băng Dataset v1. ✅ Mốc chia đã chốt (A + B), `assign_split` không trùng địa chỉ. ✅ `freeze.py`: `data/final/dataset_v1.parquet` + `splits/` + `MANIFEST.json`, QA tự động đạt; [README](../data/final/README.md), [DATASHEET](DATASHEET.md). ⬜ v2: thêm dương mới D6 vào tập ngoài thời gian, N5, nhãn vàng.
 
 ### Sau dữ liệu
@@ -201,3 +201,4 @@
 .venv\Scripts\python.exe -m address_misuse.crosschain <addr> --chain bsc --data 0x...
 .venv\Scripts\python.exe -m address_misuse.crosschain_pilot --top 100
 ```
+- **2026-10-24 — Key Blockscout/GitHub**: `BLOCKSCOUT_API_KEY` chỉ chạy trên endpoint PRO `api.blockscout.com/10/api` (endpoint `optimism.blockscout.com/api` vẫn 429); đã đổi trong `l2_misuse.py`, đang chạy `l2_misuse txlist --chain op --focus author --max-records 1000` (4.482 NCD, 3.405 KEY, 982 PCD), sau đó `rules --chain op --focus author`. D7 xem trên.

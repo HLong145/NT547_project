@@ -30,7 +30,7 @@ from address_misuse.crosschain_matrix import XC_DIR, load_code, probe_network, r
 from address_misuse.engine.features import txlist_path
 from address_misuse.rules import detect_ca_misuse, detect_eoa_key
 
-BLOCKSCOUT_API = {"op": "https://optimism.blockscout.com/api"}
+BLOCKSCOUT_API = {"op": "https://api.blockscout.com/10/api"}   # Blockscout PRO: key dev.blockscout.com chỉ chạy ở đây
 MAX_RECORDS = 10_000
 PAGE = 1_000
 XC_NETS = [n for n in NETWORKS]
