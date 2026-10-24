@@ -812,3 +812,17 @@ Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn
   test bị bỏ vì không có tx nào bị luật tác giả gắn cờ sau mốc test: ETH 42, BSC 20.
 - **dataset_v2** đóng băng: 6.547 mẫu (1.600 dương, 4.947 âm), QA đạt (checksum 0 sai). Số liệu GoPlus: tra được 99% mẫu.
 
+## 2026-10-25 — D7 GitHub OSINT và OP (Blockscout hết credit)
+
+- **D7 xong**: `osint_github run` tra 4.549 địa chỉ của dataset_v2 (code search, ~6 giờ), cache `data/raw/osint/github.jsonl`;
+  xem lại bằng `osint_github summary`. Có kết quả: dương 82,9% (n=1.594), âm 83,9% (n=2.955), số file trung vị 4 ở cả hai.
+  **S_osint nhị phân (có / không trên GitHub) không phân biệt dương và âm**: địa chỉ có mặt trên GitHub vì là contract nổi tiếng,
+  danh sách đen (DefiLlama adapters…), ví dụ. Theo nhóm: PCD 96%, NCD 89%, N2 94%, N8 81%, ADDR 74%, KEY 65%, N1 61%.
+  Việc cần làm trước khi dùng số này: tách ngữ cảnh (đường dẫn test/ví dụ/README, repo "blacklist" so với repo mã nguồn)
+  và thử `1 − e^(−n/k)` theo số repo; hiện `n_context` đã lưu nhưng chưa nối vào `S_osint`. Ablation hiện tại "bỏ osint"
+  (F1 0,925 vs 0,926) nhất quán với điều này; trọng số 0,359 của osint chủ yếu do tập `candidate_addresses` của tác giả.
+- **OP (Blockscout PRO)**: key chạy ở `api.blockscout.com/10/api` nhưng gói miễn phí hết credit sau ~1.250 txlist
+  (HTTP 402 `Out of credits`), nên `txlist --chain op --focus author` mới tải 1.254/8.869 địa chỉ; đã dừng tác vụ để khỏi lặp
+  lỗi 402. Chưa chạy `rules --chain op` (dữ liệu thiếu sẽ làm số misuse OP lệch). Hướng đi: chờ credit reset (chưa rõ chu kỳ)
+  hoặc giữ OP chỉ ở mức tín hiệu getCode, như PLAN_V2 §D3b đã cho phép.
+
