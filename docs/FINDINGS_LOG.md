@@ -2,6 +2,28 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-24 — D3b Polygon: misuse trên Polygon lớn hơn Arbitrum nhiều, 88% NCD là Type 4 (nhãn TẠM)
+
+Tái tạo: `python -X utf8 -m address_misuse.l2_misuse txlist --chain polygon --focus author --max-records 1000` rồi
+`... rules --chain polygon --focus author` → `data/interim/l2_misuse_polygon.parquet`. Loss tính bằng POL (native).
+
+- Tập xét: key lộ + dương CA tác giả (ETH/BSC) có tx đến thành công trên Polygon: NCD 13.608, PCD 4.634, KEY 4.450;
+  22.679 có txlist (13,9% bị cắt ở 1.000 tx, nhưng chỉ 0,8% địa chỉ dương bị cắt → số dương gần đủ, loss là cận dưới).
+  13 PCD bỏ vì không biết lúc tạo (rà soát lần 2, #5).
+- Luật tác giả nguyên bản (Polygon `gasUsed` chỉ là gas L2 nên điều kiện gas ≤ 30.000 dùng được, khác Arbitrum):
+  | loại | địa chỉ | tx misuse | loss (POL) |
+  |---|---|---|---|
+  | NCD, không code ở mạng khác | 1.532 | 37.006 | 18.778 |
+  | NCD, Type 4 (có code ở mạng khác) | 11.614 | 221.022 | 125.909 |
+  | PCD | 128 + 167 XC | 12.539 | 29.639 |
+  | KEY | 4.447 | 31.649 | 112.810 |
+- **13.441 / 18.229 địa chỉ CA tác giả báo trên ETH/BSC cũng là misuse trên Polygon** (Arbitrum: 1.316 theo luật gốc).
+  Misuse trên Polygon bắt đầu sớm: năm misuse đầu 2021 5.436, 2022 5.245, 2023 2.516, 2024 1.187, 2025 2.730, 2026 737.
+- Loss tập trung: NCD top 1 = 30%, top 10 = 75%; PCD top 1 = 67%, top 10 = 99%; trung vị ~0,006 POL/địa chỉ.
+- KEY: 3.023/4.447 địa chỉ chỉ có tx value 0 (như Arbitrum, lệnh của kẻ chiếm ví); 1.424 địa chỉ có người gửi value.
+- → Paper: Type 4 (gọi nhầm chain) là dạng misuse chủ yếu trên Polygon; con số tác giả chỉ tính ETH/BSC đánh giá thấp
+  phạm vi misuse của cùng tập địa chỉ. Cần D5 kiểm mẫu trước khi dùng làm số chính thức.
+
 ## 2026-10-24 — Rà soát lần 2 (mọi module) + baseline GoPlus
 
 **Lỗi đã sửa:**
