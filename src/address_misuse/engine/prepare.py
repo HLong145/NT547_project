@@ -2,6 +2,7 @@
 
 python -m address_misuse.engine.prepare creation    # thời điểm tạo contract trên chính chain (NCD về sau có code)
 python -m address_misuse.engine.prepare delegates   # symexec cho delegate EIP-7702 chưa có kết quả
+python -m address_misuse.engine.prepare contracts   # symexec cho contract trong mẫu đánh giá chưa có kết quả (chủ yếu âm)
 python -m address_misuse.engine.prepare sample      # mẫu đánh giá cố định (dương theo nhóm × chain, seed 0)
 python -m address_misuse.engine.prepare history     # txlist cho địa chỉ không có trong BigQuery (ETH âm, mọi địa chỉ BSC)
 
@@ -98,6 +99,36 @@ def cmd_delegates(timeout: float = 120, workers: int = 2):
             f.write(json.dumps(r) + "\n")
             f.flush()
             print(f"  {i}/{len(tasks)} {r['chain']} {r['address'][:10]} {r['status']}", flush=True)
+
+
+def cmd_contracts(timeout: float = 120, workers: int = 4):
+    """Symexec mọi contract trong `engine_eval` chưa có kết quả. Trước đây chỉ dương (ứng viên của tác giả) có symexec,
+    âm nhận điểm mặc định UNKNOWN_CODE → S_bytecode lệch theo nhãn (FINDINGS 2026-10-24). Proxy chưa có trong
+    `proxy_map` được phân tích trên chính bytecode proxy (có DELEGATECALL → không phải T2)."""
+    from address_misuse.crosschain import get_code
+    from address_misuse.engine.features import FeatureStore
+    from address_misuse.reproduce_symexec import run_isolated
+    ev = pd.read_parquet(INTERIM_DIR / "engine_eval.parquet").query("state == 'code'")
+    fs = FeatureStore()
+    todo = sorted({(r.chain, r.address) for r in ev.itertuples() if fs._symexec_of(r.chain, r.address) is None})
+    print(f"contract trong mẫu đánh giá: {ev[['chain', 'address']].drop_duplicates().shape[0]}, chưa có symexec: "
+          f"{len(todo)}", flush=True)
+    tasks = []
+    for chain, a in todo:
+        try:
+            code = get_code(chain, a)
+        except Exception as e:                                # RPC lỗi: lần chạy sau thử lại
+            print(f"  getCode lỗi {chain} {a}: {e!r:.80}")
+            continue
+        if code and code != "0x":
+            tasks.append((chain, "eval_contract", a, code, timeout))
+    print(f"chạy symexec {len(tasks)} contract, {workers} tiến trình, timeout {timeout:.0f}s", flush=True)
+    with ENGINE_SYMEXEC.open("a", encoding="utf-8") as f:
+        for i, r in enumerate(run_isolated(tasks, workers=workers, hard_limit=timeout + 60, max_mem_mb=1500), 1):
+            f.write(json.dumps(r) + "\n")
+            f.flush()
+            if i % 20 == 0 or i == len(tasks):
+                print(f"  {i}/{len(tasks)}", flush=True)
 
 
 def cmd_sample(seed: int = 0):
@@ -253,10 +284,11 @@ def cmd_history():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["creation", "delegates", "sample", "history"])
+    ap.add_argument("step", choices=["creation", "delegates", "contracts", "sample", "history"])
     ap.add_argument("--timeout", type=float, default=120, help="giây symexec mỗi delegate")
     a = ap.parse_args()
-    {"creation": cmd_creation, "delegates": lambda: cmd_delegates(a.timeout), "sample": cmd_sample,
+    {"creation": cmd_creation, "delegates": lambda: cmd_delegates(a.timeout), "contracts": lambda: cmd_contracts(a.timeout),
+     "sample": cmd_sample,
      "history": cmd_history}[a.step]()
 
 

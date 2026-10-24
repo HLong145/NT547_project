@@ -2,6 +2,28 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-24 — Phân tích điểm yếu ADDR / PCD (chỉ train + val) và lệch đánh giá do symexec chỉ có ở dương
+
+Tái tạo: đọc `data/interim/engine_eval.parquet` (split train/val), τ = 40,15 (`engine_metrics.json`).
+
+- **Lệch S_bytecode theo nhãn (lỗi phương pháp, phải sửa trước khi báo số Module 3):** symexec chỉ có cho contract
+  ứng viên của tác giả (dương). Contract âm (N1, N2, N7, N8) gần như 100% không có symexec → nhận điểm mặc định
+  UNKNOWN_CODE = 0,3; dương PCD có kết quả thật (56% là T2, 43% điểm 0). Vì vậy "T2 không báo nhầm lần nào" là ảo.
+  Có 727 contract (chủ yếu âm) chưa có symexec → `python -X utf8 -m address_misuse.engine.prepare contracts`, rồi chạy
+  lại `engine.evaluate` + `engine.metrics` + `wallet.replay`.
+- **OSINT lệch nhẹ theo khung lấy mẫu:** S_osint > 0 ở 100% dương và N1/N7 (đều lấy từ ứng viên GitHub/SE), N2 92%,
+  N8 72%, N3 27%, N4 0%. Trọng số học được cho osint (0,52) một phần phản ánh khung lấy mẫu. Ablation "bỏ osint" giữ
+  nguyên recall test (0,72) và FPR 0,9% → báo cả hai cấu hình trong paper.
+- **ADDR (190 mẫu train/val): recall 0,5%.** ADDR trước 7702 là EOA bị sweeper chiếm; engine chỉ có tín hiệu lịch sử
+  sweep (trọng số học được 0,073, tối đa +7 điểm R) và osint. R trung vị 7,1. SWEEP (cặp nạp → rút sạch trước `at`)
+  có ở 36/190 ADDR (19%), 7/113 KEY, và 5/~2.600 âm (đều có tỉ lệ sweep ≤ 0,011).
+  Luật cứng đề xuất `sweeper`: SWEEP với tỉ lệ n_sweep / n_plain_in ≥ 0,02 → ADDR train/val 0,5% → **17,9%**, âm
+  train/val 0 báo nhầm. 81% ADDR còn lại không có dấu hiệu nào trước `at` (lịch sử chỉ có tx nạp) → giới hạn của
+  cảnh báo phía ví khi không có danh sách ví bị chiếm.
+- **PCD (249 mẫu train/val): recall 22,9%.** T2 (không có đường rút) ở 56%, PCD-XC ở 45%, cả hai 21%; 18% không có tín
+  hiệu (symexec thấy đường rút). Với trọng số hiện tại T2 một mình cho R ≈ 25 < τ; T2 + PCD-XC ≈ 32 < τ. Quyết định
+  tăng trọng số T2 phải chờ symexec của contract âm (ý trên) mới đo được báo nhầm thật.
+
 ## 2026-10-24 — D3b Arbitrum: địa chỉ misuse của tác giả trên ETH/BSC tiếp tục bị misuse trên Arbitrum (nhãn TẠM)
 
 Tái tạo: `python -X utf8 -m address_misuse.l2_misuse state|txlist|rules --chain arb --focus author`

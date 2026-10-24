@@ -79,6 +79,7 @@
 ## 4. Nhật ký (mới nhất ở trên)
 
 - **2026-10-23 — D6 delegates xong**: 482/484 delegate có symexec; điều kiện ADDR của tác giả đúng ở 318 delegate / 52.004 EOA, trong đó 36.041 EOA là MetaMask (ví hợp lệ) → FINDINGS_LOG. Không chạy `rules --only ADDR` riêng: lần `rules` đầy đủ (tự chạy sau `created`) sẽ dùng bảng delegate mới.
+- **2026-10-24 — phân tích ADDR/PCD (train/val)**: phát hiện symexec chỉ có ở dương → S_bytecode lệch theo nhãn; đang chạy `engine.prepare contracts` (727 contract) rồi chạy lại Module 3/4. Đề xuất luật cứng `sweeper` (ADDR train/val 0,5% → 17,9%, 0 báo nhầm). FINDINGS.
 - **2026-10-24 — replay ETH đủ + arb focus author**: replay ETH test 182 địa chỉ, cảnh báo 93,8% tx / 97,3% giá trị, ADDR 0%; arb NCD/PCD xong (FINDINGS). Sửa tràn int64 trong `replay.summary`.
 - **2026-10-24 — commit interim + job mới**: commit 23 file kết quả `data/interim` (đã quét không có chuỗi giống key); 69 test, 38 module import, `freeze qa` đạt. Đang chạy: txlist Etherscan cho 234 dương ETH test → chạy lại replay; arb `--focus author`.
 - **2026-10-24 — D3b arb KEY + op delegate**: Blockscout op chặn khi không có key (chờ người dùng tạo key); chuyển sang arb qua Etherscan; KEY arb xong; symexec 172 delegate op xong (FINDINGS).
