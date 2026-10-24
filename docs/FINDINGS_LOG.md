@@ -2,6 +2,43 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-24 — Rà soát toàn bộ quy trình đánh giá (Module 3) và D3b
+
+Tái tạo: `engine_eval.parquet` + cache `data/raw/<chain>/txlist/*.json.gz` (cờ `truncated`), `seed/eoa_misuse.parquet`.
+
+Lỗi phương pháp đã sửa trong code (số Module 3 cũ không dùng được, chạy lại sau khi các job lấy dữ liệu xong):
+
+- **Nguồn lịch sử trùng với nhãn trên ETH:** 800/800 mẫu dương ETH lấy lịch sử từ BigQuery (không input), 100% mẫu âm
+  ETH từ Etherscan (có input). Sửa: `FeatureStore` ưu tiên txlist, BigQuery chỉ dùng khi chưa có; `prepare history`
+  lấy txlist ETH cho 526 dương còn thiếu.
+- **Lịch sử mẫu âm bị cắt trước `at`:** âm hạ tầng chỉ lấy 1.000 tx đầu. Mẫu có `at` sau tx thứ 1.000: N2 91%,
+  N8 ETH 70% / BSC 89%, N3 ETH 34% / BSC 71%. Khi đó đặc trưng lịch sử tính trên đầu đời contract, có khi cách `at`
+  nhiều năm. Sửa: mọi mẫu chỉ dùng 1.000 tx gần nhất trước `at` (`HISTORY_WINDOW`), và `prepare windows` lấy đúng
+  cửa sổ đó cho 3.010 mẫu âm (ETH: Etherscan `sort=desc&endblock`; BSC: NodeReal lùi từng đoạn 1e5 block).
+- **Ngữ cảnh mẫu dương dùng calldata giả `0xffffffff`** kể cả khi txlist có input thật (BSC). Bộ lọc IDM / T3 vì thế
+  chỉ chạy trên mẫu âm. Sửa: dùng input thật khi có.
+- **Học trọng số trên cả mẫu dính luật cứng:** mẫu KEY luôn có S_osint = 1 nên kéo w_osint lên. Sửa: chỉ học trên mẫu
+  không dính luật cứng (giống chọn ngưỡng). Trên eval cũ: w_osint 0,524 → 0,387, τ 40,15 → 43,54.
+- **OSINT theo khung lấy mẫu:** mọi dương có S_osint > 0, âm thì 0–97% tuỳ nhóm. Thêm tập `test_osint` (chỉ mẫu có
+  trong danh sách OSINT: 480 dương, 455 âm). Trên eval cũ: FPR 0,8% → 2,6%, AUC 0,959 → 0,867. Đây là con số công bằng
+  hơn cho phần không phải OSINT.
+
+Phát hiện về dữ liệu tác giả:
+
+- **KEY đếm cả tx value 0:** trong `eoa_misuse` của tác giả, 11.294/13.328 địa chỉ KEY trên BSC (85%) và 602/4.643 trên
+  ETH (13%) không nhận đồng nào, chỉ có tx value 0. Trong Dataset v1: KEY BSC 140/163 và ETH 18/159 như vậy, tất cả có
+  `at` trong 2025–2026, tức sau EIP-7702 (cùng hiện tượng sweeper gọi ví đã uỷ quyền như ở Arbitrum). Không ảnh hưởng
+  phát hiện, vì KEY là luật cứng, nhưng quy mô KEY của tác giả trên BSC bị phóng đại. Dataset v2 cần cờ `key_value0`.
+- **449 địa chỉ âm là dương của tác giả ở chain kia:** ví dụ contract thật trên ETH (N2, N8) bị gửi nhầm trên BSC
+  (NCD), và ngược lại. Đúng định nghĩa (âm trên chính chain), đây là các mẫu âm khó, đáng nêu trong paper.
+
+Hạn chế ghi nhận (không sửa):
+
+- **Polygon D3b:** 966/2.269 txlist (43%) bị cắt ở 1.000 tx (`--max-records 1000`), nên số misuse Polygon là cận dưới.
+- **L2 `xc`:** dùng code hiện tại ở mạng khác, không xét thời điểm.
+- **`at` của N7 và PCD bị cắt** được chọn trong 1.000 / 10.000 tx đầu, nên lệch về đầu đời địa chỉ.
+- **`endblock=99_999_999`** trong Etherscan: Polygon đã tới block 96,07M. Đã nâng lên 9.999.999.999.
+
 ## 2026-10-24 — Phân tích điểm yếu ADDR / PCD (chỉ train + val) và lệch đánh giá do symexec chỉ có ở dương
 
 Tái tạo: đọc `data/interim/engine_eval.parquet` (split train/val), τ = 40,15 (`engine_metrics.json`).

@@ -34,3 +34,13 @@ def test_curve_ends_at_full_recall():
     c = curve("x", np.array([1, 0, 1, 0]), np.array([.9, .8, .7, .1]))
     assert c.tpr.iloc[-1] == 1.0 and c.fpr.iloc[-1] == 1.0
     assert c.threshold.is_monotonic_decreasing
+
+
+def test_learn_weights_ignores_hard_rule_samples():
+    from address_misuse.engine.metrics import learn_weights
+    rng = np.random.default_rng(0)
+    y = rng.integers(0, 2, 300)
+    soft = pd.DataFrame({"a": y + rng.normal(0, .3, 300), "b": rng.normal(0, .3, 300), "label": y, "hard": None})
+    key = pd.DataFrame({"a": 0.0, "b": 1.0, "label": 1, "hard": "leaked_key"}, index=range(300, 600))
+    w = learn_weights(pd.concat([soft, key]), ["a", "b"])
+    assert w["a"] > 0.9                                            # mẫu KEY (b = 1) không kéo trọng số về b

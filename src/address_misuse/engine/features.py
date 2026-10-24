@@ -34,6 +34,8 @@ ENGINE_CREATION = INTERIM_DIR / "engine_creation.parquet"   # thời điểm t�
 ENGINE_SYMEXEC = INTERIM_DIR / "engine_symexec.jsonl"       # symexec bổ sung (delegate 7702 mới, ...)
 BQ_TXS = RAW_DIR / "eth" / "bq_txs.parquet"
 HISTORY_CHAINS = ("eth", "bsc")                            # BigQuery chỉ có ETH; BSC chỉ từ txlist NodeReal
+HISTORY_WINDOW = 1_000                                     # mọi mẫu: chỉ xét 1.000 tx gần nhất trước `at`
+TXWIN_DIR = "txwin"                                        # data/raw/<chain>/txwin/<address>_<at>.json.gz
 TX_COLS = ["block_number", "transaction_index", "block_ts", "from_address", "to_address", "value", "gas_price",
            "receipt_gas_used", "receipt_status", "receipt_contract_address"]
 
@@ -126,13 +128,27 @@ def txlist_frame(txs: list[dict]) -> pd.DataFrame:
              "to_address": (t["to"] or "").lower() or None, "value": int(t["value"]), "gas_price": int(t["gasPrice"]),
              "receipt_gas_used": int(t["gasUsed"]),
              "receipt_status": int(t["isError"] == "0" and t.get("txreceipt_status", "1") != "0"),
-             "receipt_contract_address": (t.get("contractAddress") or "").lower() or None}
+             "receipt_contract_address": (t.get("contractAddress") or "").lower() or None,
+             "input": t.get("input") or "0x"}
             for t in txs if t["from"] != "GENESIS"]
-    return pd.DataFrame(rows, columns=TX_COLS)
+    return pd.DataFrame(rows, columns=TX_COLS + ["input"])          # `input` chỉ có ở txlist, BigQuery không có
 
 
 def txlist_path(chain: str, address: str):
     return RAW_DIR / chain / "txlist" / f"{address}.json.gz"          # cùng chỗ với reproduce_rules
+
+
+def txwin_path(chain: str, address: str, at: int):
+    return RAW_DIR / chain / TXWIN_DIR / f"{address}_{int(at)}.json.gz"
+
+
+def load_txwin(address: str, chain: str, at: int) -> pd.DataFrame | None:
+    """`HISTORY_WINDOW` tx gần nhất trước `at` (lấy riêng khi txlist đã cache bị cắt trước `at`)."""
+    p = txwin_path(chain, address, at)
+    if not p.exists():
+        return None
+    with gzip.open(p, "rt", encoding="utf-8") as f:
+        return txlist_frame(json.load(f)["result"])
 
 
 def load_txlist(address: str, chain: str = "eth") -> pd.DataFrame | None:
@@ -143,13 +159,16 @@ def load_txlist(address: str, chain: str = "eth") -> pd.DataFrame | None:
         return txlist_frame(json.load(f)["result"])
 
 
-def history_features(address: str, txs: pd.DataFrame, at: int | None = None) -> dict:
-    """Đặc trưng lịch sử từ tx thô dạng BigQuery (không có input). Chỉ dùng tx có block_ts < at.
+def history_features(address: str, txs: pd.DataFrame, at: int | None = None, window: int | None = HISTORY_WINDOW) -> dict:
+    """Đặc trưng lịch sử từ tx thô dạng BigQuery (không có input). Chỉ dùng tx có block_ts < at, và chỉ `window` tx
+    gần nhất: cùng một cửa sổ cho dương (lịch sử đầy đủ) và âm hạ tầng (chỉ lấy được 1.000 tx trước `at`).
 
     receipt_gas_used == 21.000 ⇔ không có calldata (với đích không có code), nên `input` được suy ra từ gas
     để chạy lại `rules.find_sweep_pairs` đúng như trên dữ liệu Etherscan."""
     if at is not None:
         txs = txs[txs.block_ts < at]
+    if window is not None and len(txs) > window:
+        txs = txs.sort_values(["block_number", "transaction_index"]).tail(window)
     a = address.lower()
     inc = txs[txs.to_address == a]
     ok_in = inc[inc.receipt_status == 1]
@@ -220,11 +239,16 @@ class FeatureStore:
         for c, a in sorted({k for k in pairs if k[0] in HISTORY_CHAINS and k not in self.txs and k[0] != "eth"}):
             if (tl := load_txlist(a, c)) is not None:
                 self.txs[(c, a)], self.history_source[(c, a)] = tl, "txlist"
+        # ETH: ưu tiên txlist (có input, cùng nguồn với mẫu âm); BigQuery chỉ dùng khi chưa có txlist, để nguồn dữ
+        # liệu không trùng với nhãn (trước đây dương ETH đều lấy từ BigQuery, âm từ Etherscan).
         todo = sorted({a for c, a in pairs if c == "eth" and ("eth", a) not in self.txs})
-        need = [a for a in todo if a in self.bq_covered]
-        for a in set(todo) - set(need):
+        for a in todo:
             if (tl := load_txlist(a)) is not None:
                 self.txs[("eth", a)], self.history_source[("eth", a)] = tl, "txlist"
+                cr = tl.dropna(subset=["receipt_contract_address"])
+                if len(cr) and (cr.receipt_contract_address == a).any():
+                    self.own_create.setdefault(("eth", a), int(cr[cr.receipt_contract_address == a].block_ts.min()))
+        need = [a for a in todo if a in self.bq_covered and ("eth", a) not in self.txs]
         if not need:
             return
         t = pd.DataFrame(columns=TX_COLS)
@@ -309,6 +333,9 @@ class FeatureStore:
             f.delegate_malicious = f.delegate in self.malicious
         f.leaked_key = (chain, a) in self.leaked
         f.osint = self.osint.get((chain, a))
-        if (chain, a) in self.txs:
+        win = load_txwin(a, chain, at) if at is not None and self._load_history else None
+        if win is not None:
+            f.history = history_features(a, win, at)
+        elif (chain, a) in self.txs:
             f.history = history_features(a, self.txs[(chain, a)], at)
         return f

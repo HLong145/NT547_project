@@ -9,6 +9,12 @@
 
 ## 1. Đang làm / bước kế tiếp
 
+- 🔄 **Rà soát quy trình (2026-10-24, FINDINGS_LOG cùng ngày):** sửa 5 lỗi phương pháp của Module 3 (nguồn lịch sử
+  trùng nhãn trên ETH, lịch sử âm bị cắt trước `at`, calldata giả cho dương, học trọng số trên mẫu luật cứng, thêm tập
+  `test_osint`). **Đang chạy:** `prepare contracts` (symexec 727), `prepare windows` (3.010 cửa sổ lịch sử), txlist ETH
+  cho 526 dương. **Xong cả ba thì:** `engine.evaluate` → `engine.metrics` → luật `sweeper` → `wallet.replay` → báo số
+  trước/sau.
+
 - ✅ Symexec tái lập xong: khớp tác giả 100% trên 246 contract chạy trọn vẹn (xem nhật ký). Kết quả ở `data/interim/symexec_repro.parquet`.
 - ✅ Đã chốt (2026-10-20): Module 4 = MetaMask Snap (RPC proxy chỉ để đo độ trễ); nguồn BSC = NodeReal free (Moralis đổi sang bắt gói trả phí $149+).
 - ⏳ `NODEREAL_API_KEY` đã có trong `.env`; chạy `python -X utf8 -m address_misuse.crosschain_matrix timing` (tự resume, dừng khi hết CU/ngày) và `build`.

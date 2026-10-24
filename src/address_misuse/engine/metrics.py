@@ -47,6 +47,10 @@ def fit_nonneg_logistic(X: np.ndarray, y: np.ndarray, l2: float = 1e-3, iters: i
 
 
 def learn_weights(train: pd.DataFrame, comps=COMPS) -> dict[str, float]:
+    """Chỉ học trên mẫu không dính luật cứng (như `pick_thresholds`): mẫu KEY luôn có S_osint = 1 và luôn bị cảnh báo
+    bằng luật cứng, giữ lại thì w_osint bị thổi phồng mà không giúp gì cho phần R."""
+    if "hard" in train:
+        train = train[train.hard.isna()]
     _, b = fit_nonneg_logistic(train[comps].to_numpy(float), train.label.to_numpy(int))
     if b.sum() == 0:
         return {c: 1 / len(comps) for c in comps}
@@ -151,7 +155,10 @@ def run(df: pd.DataFrame, comps=COMPS, boot: int = 1000, seed: int = 0, curves: 
     w = learn_weights(tr, comps)
     tau = pick_thresholds(va, risk(va, w))
     out = {"weights": w, "thresholds": tau, "sets": {}}
-    sets = {"test": df[df.split == "test"], "out_of_time": df[df.out_of_time & (df.split != "excluded")]}
+    # Mọi mẫu dương đều lấy từ danh sách OSINT của tác giả (S_osint > 0), âm thì không: S_osint tách được dương/âm
+    # chỉ vì cách lấy mẫu. `test_osint` chỉ giữ mẫu có trong danh sách OSINT để đo phần còn lại của engine công bằng.
+    sets = {"test": df[df.split == "test"], "out_of_time": df[df.out_of_time & (df.split != "excluded")],
+            "test_osint": df[(df.split == "test") & (df.osint > 0)]}
     for name, d in sets.items():
         r = risk(d, w)
         out["sets"][name] = evaluate_set(d, r, tau, boot, rng)
@@ -190,7 +197,9 @@ def report(res: dict, abl: dict) -> str:
     L += ["", "Ablation (học lại w, chọn lại ngưỡng; F1 / FPR mức warn trên test):"]
     for k, r in abl.items():
         e = r["sets"]["test"]["warn"]["all"]
-        L.append(f"  {k:14s} F1 {e['f1']:.3f}  R {e['recall']:.3f}  FPR {e['fpr']:.3f}  AUC {r['sets']['test']['auc_R']:.3f}")
+        o = r["sets"]["test_osint"]
+        L.append(f"  {k:14s} F1 {e['f1']:.3f}  R {e['recall']:.3f}  FPR {e['fpr']:.3f}  AUC {r['sets']['test']['auc_R']:.3f}"
+                 f"  | test_osint F1 {o['warn']['all']['f1']:.3f}  AUC {o['auc_R']:.3f}")
     return "\n".join(L)
 
 
@@ -207,7 +216,8 @@ def main():
         abl[f"bỏ {c}"] = run(df, [x for x in COMPS if x != c], boot=0, seed=a.seed)
     abl["chỉ cross"] = run(df, ["cross"], boot=0, seed=a.seed)
     OUT.write_text(json.dumps({"main": res, "ablation": {k: {"weights": v["weights"], "thresholds": v["thresholds"],
-                                                             "test_warn": v["sets"]["test"]["warn"]["all"]}
+                                                             "test_warn": v["sets"]["test"]["warn"]["all"],
+                                                             "test_osint_warn": v["sets"]["test_osint"]["warn"]["all"]}
                                                          for k, v in abl.items()}},
                               ensure_ascii=False, indent=1, default=float), encoding="utf-8")
     pd.concat(curves, ignore_index=True).to_csv(ROC, index=False)

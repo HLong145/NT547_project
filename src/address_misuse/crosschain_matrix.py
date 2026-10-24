@@ -455,7 +455,7 @@ def cmd_timing(networks: list[str], workers: int = 8):
         try:
             if chain in NODEREAL_NETS:
                 return k, _nodereal_first_tx(chain, a, nr_key)
-            data = clients[chain].call("account", "txlist", address=a, startblock=0, endblock=99_999_999,
+            data = clients[chain].call("account", "txlist", address=a, startblock=0, endblock=9_999_999_999,
                                        page=1, offset=1, sort="asc")
             r = (data.get("result") or [None])[0]
             return k, ({"ts": int(r["timeStamp"]), "block": int(r["blockNumber"]), "hash": r["hash"]} if r else {})

@@ -158,3 +158,19 @@ def test_assign_split_by_time_without_address_overlap():
     df = pd.DataFrame({"chain": "eth", "address": ["0xa", "0xb", "0xb", "0xc"], "label": [1, 0, 0, 0],
                        "at": [SPLIT_VAL_TS - 1, SPLIT_VAL_TS, SPLIT_TEST_TS + 5, None]})
     assert assign_split(df).split.tolist() == ["train", "val", "excluded", "no_time"]
+
+
+def test_history_uses_only_last_window_before_at():
+    txs = pd.DataFrame([_tx(b, "0x" + "1" * 40, A, 0, gas_used=25_000) for b in range(1, 11)])
+    h = history_features(A, txs, at=9, window=3)                  # tx block 6, 7, 8
+    assert h["n_tx"] == 3 and h["n_in_call"] == 3
+    assert history_features(A, txs, window=None)["n_tx"] == 10
+
+
+def test_pick_event_uses_real_input_when_available():
+    from address_misuse.engine.evaluate import CALL_PLACEHOLDER, pick_event
+    t = dict(_tx(5, "0x" + "1" * 40, A, 0, gas_used=25_000), input="0x48656c6c6f")
+    at, ctx = pick_event(pd.DataFrame([t]), A, "+NCD", None, 0)
+    assert at == 5 and ctx.calldata == "0x48656c6c6f"
+    _, ctx = pick_event(pd.DataFrame([_tx(5, "0x" + "1" * 40, A, 0, gas_used=25_000)]), A, "+NCD", None, 0)
+    assert ctx.calldata == CALL_PLACEHOLDER                        # BigQuery: không có input

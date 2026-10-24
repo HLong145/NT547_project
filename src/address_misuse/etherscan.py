@@ -98,7 +98,7 @@ class Etherscan:
         key = _RECORD_KEY[action]
         records, seen, start_block = [], set(), 0
         while True:
-            data = self.call("account", action, address=address, startblock=start_block, endblock=99_999_999,
+            data = self.call("account", action, address=address, startblock=start_block, endblock=9_999_999_999,
                              page=1, offset=PAGE_SIZE, sort="asc")
             batch = data.get("result") or []
             for r in batch:

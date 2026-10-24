@@ -5,6 +5,7 @@ python -m address_misuse.engine.prepare delegates   # symexec cho delegate EIP-7
 python -m address_misuse.engine.prepare contracts   # symexec cho contract trong mẫu đánh giá chưa có kết quả (chủ yếu âm)
 python -m address_misuse.engine.prepare sample      # mẫu đánh giá cố định (dương theo nhóm × chain, seed 0)
 python -m address_misuse.engine.prepare history     # txlist cho địa chỉ không có trong BigQuery (ETH âm, mọi địa chỉ BSC)
+python -m address_misuse.engine.prepare windows     # 1.000 tx gần nhất trước `at` cho mẫu âm theo tx có txlist bị cắt
 
 Lịch sử: ETH âm N1/N6/N7 từ Etherscan; BSC (dương trong mẫu + âm) và các tập âm mới (N2–N4, N8) từ NodeReal
 `nr_getTransactionByAddress`, đổi sang đúng định dạng txlist Etherscan để dùng chung `txlist_frame`.
@@ -21,8 +22,8 @@ import pandas as pd
 import requests
 
 from address_misuse.config import INTERIM_DIR, SEED_DIR
-from address_misuse.engine.features import (ENGINE_CODE, ENGINE_CREATION, ENGINE_SYMEXEC, MATRIX, load_symexec,
-                                            txlist_path)
+from address_misuse.engine.features import (ENGINE_CODE, ENGINE_CREATION, ENGINE_SYMEXEC, HISTORY_WINDOW, MATRIX,
+                                            load_symexec, txlist_path, txwin_path)
 
 NODEREAL_URL = "https://bsc-mainnet.nodereal.io/v1/{}"
 NODEREAL_CHAIN_URL = "https://{}-mainnet.nodereal.io/v1/{}"
@@ -250,8 +251,11 @@ def cmd_history():
     from address_misuse.reproduce_rules import fetch_txlist
     neg = negative_addresses()
     es = Etherscan("eth")
-    for grp, max_records in (("N1", HISTORY_MAX_RECORDS), ("N6+N7", HISTORY_MAX_RECORDS_INFRA)):
-        addrs = [a for a in neg[(grp, "eth")] if not txlist_path("eth", a).exists()]
+    # dương ETH cũng lấy txlist (trước chỉ có BigQuery, không input): cùng nguồn với âm, chạy được bộ lọc IDM / T3
+    pos_eth = sorted(set(pd.read_parquet(ENGINE_SAMPLE).query("chain == 'eth'").address)) if ENGINE_SAMPLE.exists() else []
+    for grp, addrs, max_records in (("dương", pos_eth, HISTORY_MAX_RECORDS), ("N1", neg[("N1", "eth")], HISTORY_MAX_RECORDS),
+                                    ("N6+N7", neg[("N6+N7", "eth")], HISTORY_MAX_RECORDS_INFRA)):
+        addrs = [a for a in addrs if not txlist_path("eth", a).exists()]
         print(f"txlist Etherscan {grp} eth: {len(addrs)} địa chỉ (tối đa {max_records:,} tx/địa chỉ)", flush=True)
         for i, a in enumerate(addrs, 1):
             fetch_txlist(es, a, max_records=max_records)
@@ -282,14 +286,106 @@ def cmd_history():
                 print(f"  {i}/{len(addrs)}", flush=True)
 
 
+def window_targets() -> pd.DataFrame:
+    """Mẫu âm theo tx (N2, N3, N8) mà txlist đã cache bị cắt (1.000 tx đầu) trước `at`: lịch sử gần `at` bị thiếu."""
+    parts = [pd.read_parquet(INTERIM_DIR / f"{n}.parquet", columns=["chain", "target", "block_number", "block_ts"])
+             for n in ("n2_contract_calls", "n3_text_messages", "n8_normal_txs")]
+    d = pd.concat(parts, ignore_index=True).rename(columns={"target": "address"})
+    d["address"] = d.address.str.lower()
+    last = {}
+    for k in set(zip(d.chain, d.address)):
+        p = txlist_path(*k)
+        if p.exists():
+            with gzip.open(p, "rt", encoding="utf-8") as f:
+                rec = json.load(f)
+            ts = [int(t["timeStamp"]) for t in rec["result"]]
+            last[k] = max(ts) if rec.get("truncated") and ts else None
+    d["cut_ts"] = [last.get(k) for k in zip(d.chain, d.address)]
+    d = d[d.cut_ts.notna() & (d.block_ts > d.cut_ts)]
+    return d.drop_duplicates(["chain", "address", "block_ts"])
+
+
+WINDOW_SPAN_BSC = 99_999          # NodeReal giới hạn khoảng block mỗi lần gọi (BSC chấp nhận ~1e5)
+WINDOW_MAX_CALLS = 30
+
+
+def _window_nodereal(chain: str, address: str, block: int, key: str) -> tuple[list[dict], bool]:
+    """Lùi từng đoạn `WINDOW_SPAN_BSC` block từ `block - 1` tới khi đủ `HISTORY_WINDOW` tx (desc)."""
+    out, hi = [], block - 1
+    for _ in range(WINDOW_MAX_CALLS):
+        lo = max(0, hi - WINDOW_SPAN_BSC)
+        res = nodereal_transfers(chain, key, {"category": ["external"], "address": address, "order": "desc",
+                                              "maxCount": hex(HISTORY_WINDOW - len(out)), "fromBlock": hex(lo),
+                                              "toBlock": hex(hi)})
+        out += res.get("transfers") or []
+        if len(out) >= HISTORY_WINDOW or lo == 0:
+            return out[:HISTORY_WINDOW], True
+        hi = lo - 1
+    return out, False
+
+
+def fetch_window(chain: str, address: str, block: int, at: int, key: str | None, es=None) -> None:
+    """`HISTORY_WINDOW` tx gần nhất trước block `block`: ETH qua Etherscan (một lần gọi desc), BSC qua NodeReal."""
+    p = txwin_path(chain, address, at)
+    if p.exists():
+        return
+    if chain == "eth":
+        data = es.call("account", "txlist", address=address, startblock=0, endblock=block - 1, page=1,
+                       offset=HISTORY_WINDOW, sort="desc")
+        recs, complete, source = list(reversed(data.get("result") or [])), True, "etherscan"
+    else:
+        out, complete = _window_nodereal(chain, address, block, key)
+        recs, prev, idx = [], None, 0
+        for t in reversed(out):                                   # về thứ tự tăng dần để đánh transactionIndex
+            idx = idx + 1 if t["blockNum"] == prev else 0
+            prev = t["blockNum"]
+            recs.append(_nodereal_record(t, idx, chain))
+        source = "nodereal"
+    rec = {"address": address, "chain": chain, "source": source, "to_block": block - 1, "at": at, "complete": complete,
+           "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "result": recs}
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    with gzip.open(tmp, "wt", encoding="utf-8") as f:
+        json.dump(rec, f)
+    tmp.replace(p)
+
+
+def cmd_windows(workers: int = 4):
+    from concurrent.futures import ThreadPoolExecutor
+    from address_misuse.etherscan import Etherscan
+    key = os.environ.get("NODEREAL_API_KEY")
+    es = Etherscan("eth")
+    d = window_targets()
+    if not key:
+        print("thiếu NODEREAL_API_KEY: chỉ lấy ETH", flush=True)
+        d = d[d.chain == "eth"]
+    todo = [r for r in d.itertuples() if not txwin_path(r.chain, r.address, r.block_ts).exists()]
+    print(f"cửa sổ lịch sử: {len(d)} mẫu có txlist bị cắt trước at, còn {len(todo)} cần lấy", flush=True)
+
+    def job(r):
+        try:
+            fetch_window(r.chain, r.address, int(r.block_number), int(r.block_ts), key, es)
+            return None
+        except Exception as e:                                     # lần chạy sau thử lại
+            return str(e)[:120]
+
+    err = 0
+    with ThreadPoolExecutor(workers) as ex:
+        for i, e in enumerate(ex.map(job, todo), 1):
+            err += e is not None
+            if i % 100 == 0 or i == len(todo):
+                print(f"  {i}/{len(todo)} (lỗi {err})", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["creation", "delegates", "contracts", "sample", "history"])
+    ap.add_argument("step", choices=["creation", "delegates", "contracts", "sample", "history", "windows"])
+    ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--timeout", type=float, default=120, help="giây symexec mỗi delegate")
     a = ap.parse_args()
     {"creation": cmd_creation, "delegates": lambda: cmd_delegates(a.timeout), "contracts": lambda: cmd_contracts(a.timeout),
      "sample": cmd_sample,
-     "history": cmd_history}[a.step]()
+     "history": cmd_history, "windows": lambda: cmd_windows(a.workers)}[a.step]()
 
 
 if __name__ == "__main__":

@@ -6,8 +6,10 @@ Cùng một quy trình cho mẫu dương và âm (tránh lệch giữa hai nhóm
 - mẫu theo địa chỉ (dương trong `engine_eval_sample`, N1, N4, N6, N7): chọn ngẫu nhiên một tx đi vào địa chỉ làm
   thời điểm xét `at` và ngữ cảnh; chỉ dùng dữ liệu trước `at`. Với NCD chỉ chọn tx gọi hàm (tx misuse), với PCD chỉ
   chọn tx sau khi contract được tạo trên chính chain (trước đó địa chỉ chưa phải PCD). Không có lịch sử → at = hôm nay.
-  BigQuery không có input, nên ngữ cảnh chỉ biết "có calldata" (gas dùng > 21.000), không chạy được bộ lọc IDM / T3;
-- mẫu theo tx (N2, N3, N8): `at` = thời điểm block, ngữ cảnh = value + input thật.
+  Lịch sử từ txlist (Etherscan / NodeReal) có input thật; chỉ khi phải dùng BigQuery (không input) ngữ cảnh mới là
+  "có calldata" (gas dùng > 21.000) và không chạy được bộ lọc IDM / T3;
+- mẫu theo tx (N2, N3, N8): `at` = thời điểm block, ngữ cảnh = value + input thật; lịch sử là 1.000 tx gần nhất trước
+  `at` (`prepare windows` khi txlist đã cache bị cắt trước `at`).
 
 Chia tập (D8): `split` theo `at` (train / val / test, mốc ở `config`); một địa chỉ chỉ thuộc một tập — tập của mẫu
 sớm nhất, các mẫu khác của nó ở tập sau bị bỏ (`split = "excluded"`); mẫu không có `at` không thuộc tập nào
@@ -74,7 +76,10 @@ def pick_event(txs: pd.DataFrame | None, address: str, grp: str, own_create_ts: 
         return None
     rng = np.random.default_rng(seed + zlib.crc32(address.encode()))
     t = inc.iloc[int(rng.integers(len(inc)))]
-    call = CALL_PLACEHOLDER if t.receipt_gas_used > 21_000 else "0x"
+    if isinstance(t.get("input"), str):                  # txlist: input thật (chạy được bộ lọc IDM / T3 như mẫu âm)
+        call = t.input
+    else:
+        call = CALL_PLACEHOLDER if t.receipt_gas_used > 21_000 else "0x"
     return int(t.block_ts), TxContext(int(t.value), call)
 
 
