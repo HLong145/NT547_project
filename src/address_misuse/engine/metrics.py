@@ -8,7 +8,8 @@ Nhãn hiện là **nhãn theo luật của tác giả** (dương) + tập âm N1
 lại khi có nhãn vàng. Quy trình không đổi:
 1. Học `w` trên train: logistic regression hệ số không âm trên 4 thành phần S, `w = β / Σβ` → R ∈ [0, 100].
 2. Ngưỡng trên val: `τ_warn` = nhỏ nhất sao cho FPR ≤ 1% trên lưu lượng bình thường (N2 + N3 + N8, ~190 mẫu thay vì
-   chỉ 75 mẫu N8); `τ_block` = nhỏ nhất sao cho precision ≥ 0,95 và FPR ≤ 0,1% trên mọi âm val. Độ biến thiên của τ
+   chỉ 75 mẫu N8); `τ_block` = nhỏ nhất sao cho precision ≥ 0,95 và không báo nhầm âm val nào (với ~290 âm, FPR ≤ 0,1% chính là 0
+   báo nhầm, nên τ_block do âm có R lớn nhất quyết định). Độ biến thiên của τ
    báo bằng bootstrap val theo địa chỉ (`threshold_boot`).
 3. Trên test và ngoài thời gian: cảnh báo = luật cứng HOẶC R ≥ τ. Báo cáo riêng phần do luật cứng và phần do R.
    P/R/F1/FPR tổng, theo chain, recall theo loại dương (tách phần do luật cứng và phần do R), FPR theo nhóm âm;
@@ -100,7 +101,7 @@ def resample(clusters: list[np.ndarray], rng) -> np.ndarray:
 
 def threshold_boot(val: pd.DataFrame, r: pd.Series, n: int, rng) -> dict:
     """Độ biến thiên của τ khi lấy mẫu lại val theo địa chỉ: τ dựa trên ít mẫu âm thì dao động mạnh."""
-    if not n:
+    if not n or not len(val):
         return {}
     cl = cluster_index(val)
     taus = [pick_thresholds(val.iloc[i], r.iloc[i]) for i in (resample(cl, rng) for _ in range(n))]
@@ -203,12 +204,18 @@ def goplus_baseline(d: pd.DataFrame, r: pd.Series, tau: dict) -> dict:
     eng = d.hard.notna().to_numpy() | (r.to_numpy() >= tau["warn"])
     return {"coverage": float(m.mean()), "goplus": confusion(y, pred), "engine_same_samples": confusion(y, eng),
             "goplus_or_engine": confusion(y, pred | eng),
+            # GoPlus không có luật cứng; so cả trên mẫu không dính luật cứng để không thiên về engine
+            "goplus_on_soft": confusion(y[~d.hard.notna().to_numpy()], pred[~d.hard.notna().to_numpy()]),
+            "engine_R_only_on_soft": confusion(y[~d.hard.notna().to_numpy()],
+                                               (r.to_numpy() >= tau["warn"])[~d.hard.notna().to_numpy()]),
             "recall_by_group": {g: float(pred[(d.grp == g).to_numpy()].mean()) for g in sorted(d[d.label == 1].grp.unique())},
             "fpr_by_group": {g: float(pred[(d.grp == g).to_numpy()].mean()) for g in sorted(d[d.label == 0].grp.unique())}}
 
 
 def run(df: pd.DataFrame, comps=COMPS, boot: int = 1000, seed: int = 0, curves: list | None = None) -> dict:
     rng = np.random.default_rng(seed)
+    if "history" not in comps and "hard" in df:      # không có lịch sử thì cũng không có luật `sweeper` (cần lịch sử)
+        df = df.assign(hard=df.hard.where(df.hard != "sweeper"))
     tr, va = df[df.split == "train"], df[df.split == "val"]
     w = learn_weights(tr, comps)
     tau = pick_thresholds(va, risk(va, w))
@@ -282,6 +289,8 @@ def report(res: dict, abl: dict) -> str:
             L.append(f"  baseline GoPlus (tra được {g['coverage']:.0%} mẫu): {_fmt(g['goplus'])}")
             L.append(f"        engine trên cùng mẫu:   {_fmt(g['engine_same_samples'])}")
             L.append(f"        GoPlus HOẶC engine:     {_fmt(g['goplus_or_engine'])}")
+            L.append(f"        mẫu không dính luật cứng: GoPlus {_fmt(g['goplus_on_soft'])}")
+            L.append(f"                                  engine chỉ R {_fmt(g['engine_R_only_on_soft'])}")
             L.append("        GoPlus recall theo loại: " + ", ".join(f"{k} {v:.2f}" for k, v in g["recall_by_group"].items()))
             L.append("        GoPlus FPR theo nhóm âm: " + ", ".join(f"{k} {v:.3f}" for k, v in g["fpr_by_group"].items()))
     L += ["", "Ablation (học lại w, chọn lại ngưỡng; F1 / FPR mức warn trên test):"]

@@ -29,7 +29,6 @@ from address_misuse.engine.features import FeatureStore, txlist_path
 from address_misuse.engine.score import TxContext, score_features
 from address_misuse.reproduce_rules import author_balances
 from address_misuse.rules import detect_ca_misuse, detect_eoa_addr, detect_eoa_key
-from address_misuse.selectors import function_name
 from address_misuse.wallet.online import learned_config
 
 EVAL = INTERIM_DIR / "engine_eval.parquet"
@@ -45,7 +44,7 @@ def _raw(chain: str, address: str) -> list[dict] | None:
     for t in txs:                                       # NodeReal: thiếu methodId / functionName
         inp = t.get("input") or "0x"
         t.setdefault("methodId", inp[:10] if len(inp) >= 10 else "0x")
-        t.setdefault("functionName", function_name(inp))     # ước lượng theo selector, không phải "?" cho mọi input
+        t.setdefault("functionName", "?" if len(inp) >= 10 else "")   # cận trên của NCD (selectors: FINDINGS 2026-10-24)
     return txs
 
 
@@ -67,7 +66,7 @@ def flagged_txs(grp: str, chain: str, address: str, txs: list[dict], fs: Feature
 def misuse_rows(fs: FeatureStore, cfg: dict) -> list[dict]:
     ev = pd.read_parquet(EVAL)
     pos = ev[(ev.label == 1) & (ev.split == "test")].drop_duplicates(["chain", "address"])
-    rows, skipped = [], {}
+    rows, skipped, noflag = [], {}, {}
     for chain in ("eth", "bsc"):
         p = pos[pos.chain == chain]
         bal = author_balances(chain, p.address[p.grp == "+ADDR"])
@@ -77,13 +76,16 @@ def misuse_rows(fs: FeatureStore, cfg: dict) -> list[dict]:
             if txs is None:
                 skipped[chain] = skipped.get(chain, 0) + 1
                 continue
-            for t in flagged_txs(r.grp, chain, r.address, txs, fs, bal):
+            flagged = [t for t in flagged_txs(r.grp, chain, r.address, txs, fs, bal) if int(t["timeStamp"]) >= SPLIT_TEST_TS]
+            if not flagged:                              # luật tác giả không gắn cờ tx nào ≥ mốc test: bỏ, nhưng đếm
+                noflag[chain] = noflag.get(chain, 0) + 1
+            for t in flagged:
                 ts = int(t["timeStamp"])
-                if ts < SPLIT_TEST_TS:
-                    continue
                 rows += _score(fs, cfg, r.grp, chain, r.address, ts, int(t["value"]),
                                int(t["gasUsed"]) * int(t["gasPrice"]), t.get("input") or "0x", 1)
     print("địa chỉ dương test không có txlist (bỏ): " + ", ".join(f"{c} {n}" for c, n in skipped.items()), flush=True)
+    print("địa chỉ dương test không có tx nào bị luật gắn cờ sau mốc test (bỏ): "
+          + ", ".join(f"{c} {n}" for c, n in noflag.items()), flush=True)
     return rows
 
 

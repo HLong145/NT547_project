@@ -1,7 +1,9 @@
 """D5 — lấy mẫu gán nhãn vàng (pilot 50 mẫu) kèm bằng chứng điền sẵn, và tính Cohen's κ.
 
 python -X utf8 -m address_misuse.sample_gold pilot [--seed 0]
+python -X utf8 -m address_misuse.sample_gold main [--seed 0] [--double 200]   → mẫu vàng chính từ dataset_v2 (sau freeze)
 python -X utf8 -m address_misuse.sample_gold sheet B      → data/gold/annotator_B.xlsx (file Excel để gán)
+python -X utf8 -m address_misuse.sample_gold sheet B --set main [--only-double]   → annotator_main_B.xlsx
 python -X utf8 -m address_misuse.sample_gold check data/gold/annotator_B.xlsx   (kiểm tra hình thức trước khi tính κ)
 python -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_A.csv data/gold/annotator_B.csv
 
@@ -321,6 +323,83 @@ def cmd_pilot(seed: int = 0) -> pd.DataFrame:
     return items
 
 
+# ---------------------------------------------------------------- mẫu vàng chính (từ dataset_v2)
+
+# Số mẫu mỗi tầng; None = lấy hết. Tầng "+D6" = dương mới D6 (label_source == d6_rule). Kéo từ test ∪ out_of_time của
+# dataset_v2 (không lấy train/val/excluded/no_time): nhãn vàng dùng để chấm engine nên phải ở tập đánh giá. PLAN_V2 cũ ghi
+# "~1.000 dương mới", nhưng dataset_v2 chỉ có 42 dương mới và ~450 dương test, nên mẫu chính là ~600 (xem FINDINGS_LOG).
+MAIN_PLAN = {"+ADDR": 60, "+KEY": 60, "+NCD": 80, "+PCD": 50, "+D6": None, "-N1": 40, "-N2": 60, "-N3": 40, "-N4": 30,
+             "-N5": None, "-N6": None, "-N7": None, "-N8": 80}
+
+
+def draw_main(ds: pd.DataFrame, seed: int = 0, n_double: int = 200) -> pd.DataFrame:
+    """Rút mẫu phân tầng từ dataset_v2. `weight` = số mẫu của tầng trong tập đánh giá / số mẫu rút (để ước lượng precision,
+    recall không lệch khi tầng bị lấy mẫu con). Mỗi (chain, address) tối đa một mẫu."""
+    rng = np.random.default_rng(seed)
+    pool = ds[(ds.split == "test") | ds.out_of_time].copy()
+    pool = pool[pool.split != "excluded"]
+    pool["stratum"] = np.where(pool.label_source == "d6_rule", "+D6", pool.grp)
+    pool = pool.sample(frac=1, random_state=int(rng.integers(2**31)))        # xáo trước khi bỏ trùng
+    picked, taken = [], set()
+    for stratum, n in MAIN_PLAN.items():
+        d = pool[pool.stratum == stratum].drop_duplicates(["chain", "address"])
+        d = d[np.array([k not in taken for k in zip(d.chain, d.address)], dtype=bool)]   # np: list rỗng sẽ chọn 0 cột
+        if n is None or len(d) <= n:
+            got = d
+        else:                                              # chia đều giữa eth và bsc khi đủ mẫu
+            half = {"eth": n - n // 2, "bsc": n // 2}
+            got = pd.concat([d[d.chain == c].head(k) for c, k in half.items()])
+            if len(got) < n:
+                got = pd.concat([got, d.drop(got.index).head(n - len(got))])
+        if n is not None and len(got) < n:
+            print(f"  cảnh báo: tầng {stratum} chỉ có {len(got)}/{n} mẫu")
+        taken |= set(zip(got.chain, got.address))
+        picked.append(got.assign(weight=len(d) / max(len(got), 1)))
+    out = pd.concat(picked)
+    out = out.iloc[np.random.default_rng(seed + 1).permutation(len(out))].reset_index(drop=True)
+    out["double"] = False
+    out.loc[out.sample(min(n_double, len(out)), random_state=int(rng.integers(2**31))).index, "double"] = True
+    out.insert(0, "item_id", [f"G{i + 1:03d}" for i in range(len(out))])
+    return out
+
+
+def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Bằng chứng theo địa chỉ (`add_evidence`) + bằng chứng THEO THỜI ĐIỂM `at` của mẫu: ngày xét, trạng thái code lúc đó
+    (một PCD chưa có contract lúc `at` thì trạng thái là none), ngày tạo contract, tx (hash, selector, value) nếu là mẫu
+    theo tx. Không đưa nhãn, tầng, điểm R hay số liệu của tác giả cho người gán."""
+    from address_misuse.engine.features import FeatureStore
+    ev = add_evidence(sample[["chain", "address"]].drop_duplicates(), s)
+    fs = FeatureStore(load_history=False)
+    rows = []
+    for r in sample.itertuples():
+        f = fs.features(r.address, r.chain, int(r.at))
+        cts = fs.own_create.get((r.chain, r.address))
+        rows.append({"item_id": r.item_id, "at_date": _date(r.at), "code_at_event": f.state() or "-",
+                     "own_create_date": _date(cts) if cts else None,
+                     "tx_hash": r.tx_hash if isinstance(r.tx_hash, str) else None, "selector": r.selector,
+                     "value_native": None if pd.isna(r.value_wei) else int(r.value_wei) / 1e18})
+    items = sample[["item_id", "chain", "address"]].merge(pd.DataFrame(rows), on="item_id").merge(
+        ev, on=["chain", "address"], how="left")
+    return items.astype(object).where(items.notna() & (items != ""), "-")
+
+
+def cmd_main(seed: int = 0, n_double: int = 200) -> pd.DataFrame:
+    from address_misuse.config import FINAL_DIR
+    p = FINAL_DIR / "dataset_v2.parquet"
+    if not p.exists():
+        raise SystemExit("chưa có dataset_v2.parquet: chạy address_misuse.freeze (sau khi engine.evaluate xong)")
+    sample = draw_main(pd.read_parquet(p), seed, n_double)
+    items = main_evidence(sample, load_sources())
+    GOLD_DIR.mkdir(parents=True, exist_ok=True)
+    items.to_csv(GOLD_DIR / "main_items.csv", index=False, encoding="utf-8")
+    key = sample[["item_id", "sample_id", "stratum", "grp", "chain", "address", "label", "label_source", "split",
+                  "out_of_time", "needs_review", "weight", "double"]]
+    key.to_csv(GOLD_DIR / "main_key.csv", index=False, encoding="utf-8")
+    print(f"Ghi {len(items)} mẫu ({int(sample.double.sum())} gán đôi để tính κ) → {GOLD_DIR / 'main_items.csv'} (+ main_key.csv)")
+    print(sample.groupby("stratum").agg(n=("item_id", "size"), weight=("weight", "first")).round(2).to_string())
+    return items
+
+
 # ---------------------------------------------------------------- file Excel cho người gán
 
 CHOICES = {"is_misuse": ["1", "0", "?"], "type": ["T1", "T2", "T3", "T4", "T5", "T6", "NONE"],
@@ -369,16 +448,27 @@ GUIDE = [
 ]
 
 
-def cmd_sheet(who: str) -> None:
+GUIDE_MAIN = [
+    "MẪU CHÍNH: mỗi dòng là một địa chỉ TẠI THỜI ĐIỂM at_date (không phải trạng thái hôm nay). Nếu có tx_hash, hãy xét đúng tx đó.",
+    "code_at_event = trạng thái code lúc at_date (none / code / 7702); own_create_date = ngày contract được tạo trên chain này.",
+    "Contract tạo SAU at_date nghĩa là lúc đó địa chỉ chưa có code: tx lúc đó là gọi tới địa chỉ trống (CODEBOOK §3).",
+    "",
+]
+
+
+def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False) -> None:
     """File Excel cho người gán `who`: bằng chứng (đã làm mù) + cột nhãn có danh sách chọn + sheet hướng dẫn."""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.datavalidation import DataValidation
-    items = pd.read_csv(GOLD_DIR / "pilot50_items.csv", dtype=str).fillna("-")
+    items = pd.read_csv(GOLD_DIR / ("pilot50_items.csv" if which == "pilot" else "main_items.csv"), dtype=str).fillna("-")
+    if only_double:                                      # người gán thứ hai chỉ làm tập gán đôi (để tính κ)
+        key = pd.read_csv(GOLD_DIR / "main_key.csv", dtype=str)
+        items = items[items.item_id.isin(key[key.double == "True"].item_id)].reset_index(drop=True)
     evidence = [c for c in items.columns if c not in ("item_id", "chain", "address")]
     cols = ["item_id", "chain", "address", *LABEL_COLS, *evidence]
-    out = GOLD_DIR / f"annotator_{who}.xlsx"
+    out = GOLD_DIR / (f"annotator_{who}.xlsx" if which == "pilot" else f"annotator_main_{who}.xlsx")
     if out.exists():
         raise SystemExit(f"{out} đã có, không ghi đè (có thể đã có nhãn). Xoá/đổi tên trước nếu muốn tạo lại.")
     wb = Workbook()
@@ -409,7 +499,7 @@ def cmd_sheet(who: str) -> None:
         ws.add_data_validation(dv)
     ws.freeze_panes = "D2"                                      # giữ dòng tiêu đề + mã, chain, địa chỉ
     g = wb.create_sheet("Huong_dan")
-    for line in GUIDE:
+    for line in (GUIDE_MAIN if which == "main" else []) + GUIDE:
         g.append([line])
     g["A1"].font = bold
     g.column_dimensions["A"].width = 140
@@ -513,6 +603,11 @@ def main():
     c.add_argument("path")
     sh = sub.add_parser("sheet")
     sh.add_argument("who", nargs="?", default="B")
+    sh.add_argument("--set", choices=["pilot", "main"], default="pilot")
+    sh.add_argument("--only-double", action="store_true")
+    mn = sub.add_parser("main")
+    mn.add_argument("--seed", type=int, default=0)
+    mn.add_argument("--double", type=int, default=200)
     k = sub.add_parser("kappa")
     k.add_argument("a")
     k.add_argument("b")
@@ -521,8 +616,10 @@ def main():
         cmd_pilot(args.seed)
     elif args.cmd == "check":
         cmd_check(args.path)
+    elif args.cmd == "main":
+        cmd_main(args.seed, args.double)
     elif args.cmd == "sheet":
-        cmd_sheet(args.who)
+        cmd_sheet(args.who, args.set, args.only_double)
     else:
         cmd_kappa(args.a, args.b)
 

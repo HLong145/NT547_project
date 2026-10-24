@@ -92,8 +92,41 @@ def test_recall_split_between_hard_rule_and_R():
     assert e["fp_by_hard_rule"] == {"sweeper": 1}
 
 
-def test_function_name_from_known_selectors(monkeypatch):
-    from address_misuse import selectors
-    monkeypatch.setattr(selectors, "known", lambda: {"0xa9059cbb": "transfer(address,uint256)"})
-    assert selectors.function_name("0xa9059cbb" + "00" * 64) == "transfer(address,uint256)"
-    assert selectors.function_name("0xdeadbeef00") == "" and selectors.function_name("0x") == ""
+def test_block_threshold_requires_no_false_positive_even_when_precision_is_high():
+    val = pd.DataFrame({"label": [1] * 30 + [0], "grp": ["+NCD"] * 30 + ["-N8"], "hard": None})
+    r = pd.Series([90.0] * 30 + [95.0])               # precision tại t ≤ 95 là 30/31 ≥ 0,95, nhưng có 1 âm ở 95
+    t = pick_thresholds(val, r)
+    assert t["block"] > 95.0                          # chỉ precision thì block = 90; FPR_BLOCK đẩy lên trên âm
+
+
+def test_ablation_without_history_drops_sweeper_rule():
+    from address_misuse.engine.metrics import run
+    df = pd.DataFrame({"label": [1, 1, 0, 0] * 4, "grp": ["+ADDR", "+ADDR", "-N8", "-N8"] * 4,
+                       "split": ["train"] * 4 + ["val"] * 4 + ["test"] * 4 + ["test"] * 4, "out_of_time": False,
+                       "chain": "eth", "address": [f"0x{i}" for i in range(16)], "state": "none", "types": "",
+                       "bytecode": [1.0, 1.0, 0.0, 0.0] * 4, "cross": 0.0, "osint": 0.0, "history": 0.0,
+                       "hard": ["sweeper", None, None, None] * 4})
+    full = run(df, ["bytecode", "cross", "osint", "history"], boot=0)
+    no_hist = run(df, ["bytecode", "cross", "osint"], boot=0)
+    assert full["sets"]["test"]["warn"]["hard_only"]["tp"] == 2
+    assert no_hist["sets"]["test"]["warn"]["hard_only"]["tp"] == 0
+
+
+def test_draw_main_uses_eval_split_weights_and_unique_addresses():
+    from address_misuse import sample_gold as sg
+    rows = []
+    for i in range(300):
+        rows.append({"chain": "eth" if i % 2 else "bsc", "address": f"0x{i % 150:03d}", "grp": "+NCD",
+                     "label_source": "author", "split": "test" if i < 250 else "train", "out_of_time": False})
+    rows += [{"chain": "eth", "address": "0xex", "grp": "+NCD", "label_source": "author", "split": "excluded",
+              "out_of_time": False}]
+    rows += [{"chain": "eth", "address": f"0xd{i}", "grp": "+KEY", "label_source": "d6_rule", "split": "test",
+              "out_of_time": True} for i in range(5)]
+    ds = pd.DataFrame(rows)
+    out = sg.draw_main(ds, seed=1, n_double=10)
+    assert not out.duplicated(["chain", "address"]).any()
+    assert "0xex" not in set(out.address) and (out.split != "train").all()
+    assert set(out.loc[out.stratum == "+D6", "address"]) == {f"0xd{i}" for i in range(5)}   # d6_rule thành tầng riêng
+    assert out.double.sum() == 10 and out.item_id.is_unique
+    ncd = out[out.stratum == "+NCD"]
+    assert abs(ncd.weight.iloc[0] * len(ncd) - 150) < 1e-9          # 150 địa chỉ test duy nhất ở tầng +NCD (không tính excluded)

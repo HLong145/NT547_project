@@ -336,7 +336,8 @@ class FeatureStore:
             # Xét theo thời gian: delegate lúc tác giả thu thập gần thời điểm `at` hơn delegate hôm nay
             # (sweeper đổi delegate liên tục — FINDINGS_LOG 2026-10-22).
             f.delegate = (recorded or current) if at is not None else (current or recorded)
-            f.delegate_src = "recorded" if f.delegate and f.delegate == recorded else "current" if f.delegate else None
+            f.delegate_src = ("recorded" if at is not None and f.delegate and f.delegate == recorded
+                              else "current" if f.delegate else None)
         if (chain, a) in self.matrix.index:
             row = self.matrix.loc[(chain, a)]
             f.first_create_ts = None if pd.isna(row.first_create_ts) else int(row.first_create_ts)

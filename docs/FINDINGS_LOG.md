@@ -121,18 +121,24 @@ Mỗi mục là một hạn chế trong mục trước; **số liệu Module 3�
   Luật vẫn ≈ định nghĩa nhãn ADDR (không thể dựng danh sách đen chỉ từ train: EIP-7702 kích hoạt 2025-05) → luôn báo
   kèm "chỉ R".
 - **Ngưỡng τ**: τ_warn chọn trên FPR ≤ 1% của lưu lượng bình thường N2+N3+N8 (~190 mẫu val, trước đây 75 mẫu N8);
-  τ_block = precision ≥ 0,95 VÀ FPR ≤ 0,1% trên mọi âm val (trước đây trùng τ_warn nên vô nghĩa). Độ biến thiên τ báo bằng
+  τ_block = precision ≥ 0,95 VÀ không báo nhầm âm val nào (trước đây trùng τ_warn nên vô nghĩa). Độ biến thiên τ báo bằng
   bootstrap val theo địa chỉ (`threshold_boot`: p5/p50/p95).
 - **Bootstrap theo địa chỉ** (cluster) thay cho theo dòng: mọi dòng cùng (chain, address) được chọn cùng nhau. CI rộng hơn,
   đúng hơn vì mẫu tx của cùng contract không độc lập.
 - **Recall theo loại tách luật cứng và R**: `recall_by_group_hard`, `recall_by_group_R_only_on_soft` (kèm n mẫu mềm),
   `fp_by_hard_rule` (báo nhầm do `sweeper` / `malicious_delegate` / `leaked_key`).
 - **Âm bị `excluded`**: báo FPR riêng trên chúng và trên âm test giữ lại (`excluded_neg`) để thấy mức lạc quan.
-- **functionName** ở NodeReal (replay BSC) và Blockscout (OP): thay "?" bằng ánh xạ selector → tên học từ 5.401 txlist ETH
-  của Etherscan (`selectors.py`, 13.212 selector có tên). Kiểm giữ lại một nửa địa chỉ: độ chính xác 0,70
-  (precision 0,73, recall 0,74) so với 0,57 nếu gán "?" cho mọi input. Chỉ là xấp xỉ vì Etherscan còn dựa vào ABI của
-  contract → số liệu NCD ở replay BSC / OP là ước lượng. Arbitrum / Polygon lấy từ Etherscan nên đã có functionName thật,
-  không đổi.
+- **functionName** ở NodeReal (replay BSC) và Blockscout (OP): đã thử thay "?" bằng ánh xạ selector → tên học từ txlist
+  ETH, rồi **bỏ**. Kiểm lại đúng tập liên quan (tx giống NCD: gas ≤ 30.000, thành công, input không phải văn bản): "?"
+  cho mọi input đúng 94,3% còn ánh xạ chỉ 89,7% (kiểm chung 0,70 / 0,57 trước đó là trên mọi tx, không đúng quần thể NCD).
+  Giữ "?" nên số liệu NCD ở replay BSC / OP là **cận trên** (gắn cờ hơi nhiều hơn tác giả); Arbitrum / Polygon lấy từ
+  Etherscan nên có functionName thật.
+- **Rà soát lượt hai (advisor)**: (1) ablation "bỏ history" nay cũng bỏ luật cứng `sweeper` (cần lịch sử), trước đây
+  vẫn bật nên số "online" lạc quan; (2) `τ_block` thực chất là "0 báo nhầm trong âm val" (với ~290 âm, FPR ≤ 0,1% = 0 báo
+  nhầm), chưa phải ngưỡng có ý nghĩa thống kê; (3) báo thêm GoPlus và engine-chỉ-R trên mẫu không dính luật cứng để so
+  công bằng; (4) blacklist delegate thống nhất không gắn thời gian nên có thể gắn `malicious_delegate` cho vài âm N8 ETH ở
+  test (xem `fp_by_hard_rule`); (5) replay đếm địa chỉ dương NCD/PCD không có tx nào bị luật gắn cờ sau mốc test;
+  (6) `delegate_src = recorded` chỉ khi có `at`.
 - **S_cross thiếu mốc thời gian**: đo lại, chỉ 32/700 mẫu có T4 (15 NCD + 14 PCD tác giả, 2 D6 NCD, 1 N1) thiếu
   `first_create_ts`; nhỏ, không sửa.
 - **Test và out_of_time giao nhau**: `freeze` xuất thêm `splits_v2/test_in_time.csv` (không trùng); DATASHEET §8 ghi rõ.
@@ -760,3 +766,16 @@ Top 100 địa chỉ NCD theo thiệt hại mỗi chain, `eth_getCode` (block m�
 | N1 | rule NCD | dựa vào `functionName` của Etherscan → dữ liệu BigQuery/RPC không có, cần nguồn chữ ký hàm | ghi chú |
 | N2 | rule PCD | loại địa chỉ nếu nó từng gửi tx — sai với EOA đã ủy quyền EIP-7702 | ghi chú |
 | N3 | paper vs code | paper: `tx.gas < 30000`; code: `gasUsed <= 30000` | theo code |
+
+## 2026-10-24 — D5: mẫu vàng chính phải lấy từ dataset_v2 (rà soát)
+
+- **Đơn vị mẫu**: pilot lấy theo địa chỉ, nhưng engine chấm theo mẫu (địa chỉ, `at`) và trạng thái code thay đổi theo thời
+  gian (PCD chưa có contract lúc `at`; 7702 uỷ quyền sau `at`). Người gán phải thấy bằng chứng tại `at`: `at_date`,
+  `code_at_event`, `own_create_date`, `tx_hash`, selector, value.
+- **Cỡ mẫu**: PLAN_V2 ghi ~1.000 dương mới, nhưng dataset_v2 chỉ có 42 dương mới (D6) và ~450 dương test → mẫu chính ~600
+  (`MAIN_PLAN` trong `sample_gold.py`), tầng nhỏ lấy hết. Cần `weight` = cỡ tầng / số rút khi tính precision, recall từ
+  mẫu vàng; không có thì tầng bị lấy mẫu con làm lệch số.
+- **Gán đôi**: 200 mẫu được gán bởi cả hai người để tính κ; người gán không thấy nhãn, tầng, điểm R (file `main_key.csv`
+  giữ riêng).
+- **Lỗi bắt được khi viết test**: `d[[...]]` với list rỗng chọn 0 cột (tầng rỗng làm `draw_main` sập); nay dùng mảng bool.
+- Tái tạo: `python -X utf8 -m address_misuse.sample_gold main --seed 0 --double 200` (sau `freeze`).

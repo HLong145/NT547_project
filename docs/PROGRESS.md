@@ -76,6 +76,11 @@
   - ✅ N4: người gửi tới 6 ví nóng sàn, chỉ giữ 83/400 có hành vi địa chỉ nạp — `negatives.py n4`, `n4-verify`.
   - ⬜ Mở rộng N7 từ dữ liệu. ✅ N5.
 - 🔄 **D5** Nhãn vàng ~2.000 mẫu, κ; case study 50–100 ca.
+  - 2026-10-24 rà soát D5: mẫu vàng chính phải lấy từ `dataset_v2` SAU khi freeze (đơn vị là mẫu (địa chỉ, `at`), không phải
+    địa chỉ). ✅ `sample_gold main` (code + test, chưa chạy): ~600 mẫu phân tầng từ test ∪ out_of_time, có `weight`
+    (= cỡ tầng / số rút) để ước lượng precision/recall không lệch, 200 mẫu gán đôi tính κ, bằng chứng theo thời điểm `at`;
+    `sheet B --set main [--only-double]`. Cỡ ~600 (không phải ~2.000) vì dataset_v2 chỉ có 42 dương mới và ~450 dương test.
+    Chạy sau khi freeze xong; chờ annotator_A (pilot) trước khi giao khối lượng lớn.
   - ✅ Codebook v0.3, script lấy mẫu pilot 50 + tính κ; file mẫu đã làm mù (bằng chứng tra cùng một cách cho mọi tầng).
   - ⬜ Pilot 50 mẫu với 2 người gán → chỉnh codebook → gán ~2.000 mẫu (cần D4 xong).
 - 🔄 **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6. ✅ Bước 1: thống kê tx từ 2025-09 của 4,99M ứng viên ETH (BigQuery 118,7 GB).
