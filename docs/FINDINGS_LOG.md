@@ -8,13 +8,13 @@ Tái tạo: `python -X utf8 -m address_misuse.l2_misuse state|txlist|rules --cha
 → `data/interim/l2_misuse_arb.parquet` (cột `author_ca`, `xc`, `n_misuse_tx_nogas`, `cost_native_nogas`).
 
 - Tập xét: key lộ + dương CA của tác giả (ETH/BSC) có tx đến thành công trên Arbitrum: 14.763 địa chỉ. Trạng thái code
-  trên arb: NCD 6.933 (4.737 có code ở mạng khác = Type 4), PCD 1.925, KEY 3.536, 7702 174, UNKNOWN 2.195 (getCode lỗi do
-  chạy song song với job op — chạy lại `state` sau).
-- Luật tác giả nguyên bản: **NCD 951 dương (12,9 ETH), PCD 136 dương (60,4 ETH)**; 81% loss PCD+NCD nằm ở 5 địa chỉ
+  trên arb (sau khi chạy lại getCode lỗi): NCD 8.590 (5.898 có code ở mạng khác = Type 4), PCD 2.415, KEY 3.536,
+  7702 222.
+- Luật tác giả nguyên bản: **NCD 1.161 dương (13,5 ETH), PCD 155 dương (57,6 ETH)**; phần lớn loss nằm ở vài địa chỉ
   (lớn nhất 36,2 ETH). Năm misuse đầu: 2024 311, 2025 508, 2026 111.
 - **Điều kiện gas của NCD không dùng được trên Arbitrum**: `gasUsed` gồm phần phí L1, chỉ 17,5% tx gọi hàm tới NCD có
   gasUsed ≤ 30.000 (trung vị 229k). Địa chỉ không có code thì gas thực thi L2 chỉ là phần nội tại, nên biến thể bỏ điều
-  kiện gas hợp lý hơn: **NCD 4.720 dương (104,4 ETH)**, trong đó 3.997 là Type 4 (contract có ở mạng khác, gọi nhầm trên
+  kiện gas hợp lý hơn: **NCD 5.857 dương (130,0 ETH)**, trong đó 4.969 là Type 4 (contract có ở mạng khác, gọi nhầm trên
   arb). Cần kiểm mẫu (D5) vì có thể lẫn địa chỉ từng có code (self-destruct) hoặc EOA 7702.
 - → Paper: (1) misuse không dừng ở chain gốc — hàng nghìn địa chỉ tác giả đã báo trên ETH/BSC vẫn nhận tx lỗi trên L2;
   (2) ngưỡng gas của luật NCD phụ thuộc mô hình phí của chain, phải hiệu chỉnh theo chain (Arbitrum: trừ phần L1).
