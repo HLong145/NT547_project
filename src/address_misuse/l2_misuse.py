@@ -182,7 +182,7 @@ def load_creations(chain: str) -> dict:
 ETHERSCAN_FREE = {"arb", "polygon"}
 
 
-def cmd_txlist(chain: str, kinds: list[str], focus: str = "all"):
+def cmd_txlist(chain: str, kinds: list[str], focus: str = "all", max_records: int = MAX_RECORDS):
     c = candidates(chain, focus)
     c = c[c.kind.isin(kinds)]
     print(f"{chain}: ứng viên {c.kind.value_counts().to_dict()}", flush=True)
@@ -192,7 +192,7 @@ def cmd_txlist(chain: str, kinds: list[str], focus: str = "all"):
         from address_misuse import reproduce_rules as rr
         es = Etherscan(chain)
         rr.fetch_creations(es, pcd)
-        get = lambda a: rr.fetch_txlist(es, a, max_records=MAX_RECORDS)         # noqa: E731
+        get = lambda a: rr.fetch_txlist(es, a, max_records=max_records)         # noqa: E731
     else:
         fetch_creations(chain, pcd)
         get = lambda a: fetch_txlist(chain, a)                                   # noqa: E731
@@ -349,6 +349,8 @@ def main():
     ap.add_argument("--chain", choices=["arb", "op", "polygon"], required=True)
     ap.add_argument("--kinds", nargs="+", default=["KEY", "NCD", "PCD"])
     ap.add_argument("--timeout", type=float, default=300)
+    ap.add_argument("--max-records", type=int, default=MAX_RECORDS,
+                    help="txlist tối đa mỗi địa chỉ (lượt đầu 1000 cho nhanh; địa chỉ bị cắt có cờ `truncated`)")
     ap.add_argument("--focus", choices=["all", "author"], default="all",
                     help="author: chỉ key lộ + dương CA của tác giả trên ETH/BSC")
     ap.add_argument("--workers", type=int, default=3)
@@ -356,7 +358,7 @@ def main():
     if a.step == "state":
         cmd_state(a.chain, a.focus)
     elif a.step == "txlist":
-        cmd_txlist(a.chain, a.kinds, a.focus)
+        cmd_txlist(a.chain, a.kinds, a.focus, a.max_records)
     elif a.step == "rules":
         cmd_rules(a.chain, a.focus)
     elif a.step == "delegates":
