@@ -25,12 +25,12 @@ import requests
 from address_misuse.config import INTERIM_DIR, SEED_DIR, rpc_url
 from address_misuse.crosschain import dispatcher_selectors
 from address_misuse.crosschain_matrix import _code_record
-from address_misuse.engine.features import MATRIX, NETS, Features, benign_delegates, load_symexec
+from address_misuse.engine.features import (MATRIX, NETS, Features, benign_delegates, default_malicious_delegates,
+                                           load_symexec)
 from address_misuse.engine.score import DEFAULT_WEIGHTS, TxContext, score_features
 
 OSINT_CACHE = INTERIM_DIR / "wallet_osint_{}.npy"
 METRICS = INTERIM_DIR / "engine_metrics.json"
-D6_DELEGATES = INTERIM_DIR / "d6_delegates.parquet"
 DEFAULT_TAU = {"warn": 40.0, "block": 70.0}
 REQUEST_TIMEOUT = 5.0           # một request getCode; còn `timeout` của OnlineStore là thời gian ví chịu chờ
 
@@ -72,10 +72,7 @@ class OnlineStore:
         self.symexec = load_symexec()
         self.proxy = {(r.chain, r.proxy): r.logic for r in pd.read_parquet(SEED_DIR / "proxy_map.parquet").itertuples()}
         self.benign = benign_delegates()
-        self.malicious = set()
-        if D6_DELEGATES.exists():                          # điều kiện của tác giả: delegate có đường chuyển tiền
-            d = pd.read_parquet(D6_DELEGATES)
-            self.malicious = set(d[(d.author_rule == True) & d.known_wallet.isna()].delegate)    # noqa: E712
+        self.malicious = default_malicious_delegates(self.benign)     # cùng danh sách đen với engine.evaluate
         m = pd.read_parquet(MATRIX, columns=["chain", "address", "first_create_ts", "redeploy"])
         m = m[m.first_create_ts.notna() | m.redeploy.notna()]
         self.xc = {(c, a): (None if pd.isna(t) else int(t), r if isinstance(r, str) else None)

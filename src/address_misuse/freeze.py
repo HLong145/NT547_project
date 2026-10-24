@@ -255,6 +255,9 @@ def write(df: pd.DataFrame, info: dict):
     p = SPLITS / "out_of_time.csv"
     df[df.out_of_time & (df.split != "excluded")][keep].to_csv(p, index=False, lineterminator="\n")
     files.append(p)
+    p = SPLITS / "test_in_time.csv"               # test không trùng out_of_time (`test.csv` chứa cả mẫu ≥ 2025-09)
+    df[(df.split == "test") & ~df.out_of_time][keep].to_csv(p, index=False, lineterminator="\n")
+    files.append(p)
     MANIFEST.write_text(json.dumps(manifest(df, info, files), ensure_ascii=False, indent=1) + "\n", encoding="utf-8",
                         newline="\n")
 

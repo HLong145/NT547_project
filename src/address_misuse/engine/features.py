@@ -57,6 +57,7 @@ class Features:
     delegate_symexec: dict | None = None
     delegate_benign: bool = False
     delegate_malicious: bool = False
+    delegate_src: str | None = None                     # "recorded" (dữ liệu tác giả, gần `at`) hoặc "current" (getCode hôm nay)
     leaked_key: bool = False
     osint: bool | None = None                           # None = chưa tra
     history: dict | None = None                         # None = không có tx thô cho chain này
@@ -117,12 +118,18 @@ def benign_delegates() -> set[str]:
 
 
 def default_malicious_delegates(benign: set[str]) -> set[str]:
-    """Danh sách đen tạm: delegate trong dữ liệu tác giả có đường chuyển tiền (flag 1), trừ ví hợp lệ N6.
-
-    Dữ liệu tác giả chỉ chứa delegate của EOA KEY/ADDR nên đây là xấp xỉ, và **được dựng từ chính tập dương**:
-    khi đánh giá phải dựng lại chỉ từ tập train (FINDINGS_LOG 2026-10-19: `flag` = symexec, không phải nhãn độc)."""
+    """Danh sách đen: delegate có đường chuyển tiền trong dữ liệu tác giả (`flag` = symexec, FINDINGS_LOG 2026-10-19)
+    HỢP delegate của EOA 7702 mới (D6) thoả điều kiện ADDR của tác giả (`d6_delegates.author_rule`), trừ ví hợp lệ N6.
+    Hai nguồn cùng một định nghĩa với nhãn ADDR, nên engine dùng chung một danh sách (cả `wallet.online`) thay vì mỗi
+    nơi một nguồn. Danh sách **không có mốc thời gian** và dựng từ chính các delegate đã thấy ở dương (không dựng được
+    chỉ từ train: EIP-7702 kích hoạt 2025-05), nên luật cứng `malicious_delegate` ≈ định nghĩa nhãn ADDR."""
     st = pd.read_parquet(SEED_DIR / "eip7702_delegate_stats.parquet")
-    return set(st[st.flag == 1].delegate.str.lower()) - benign
+    bad = set(st[st.flag == 1].delegate.str.lower())
+    p = INTERIM_DIR / "d6_delegates.parquet"
+    if p.exists():
+        d = pd.read_parquet(p)
+        bad |= set(d[(d.author_rule == True) & d.known_wallet.isna()].delegate.str.lower())    # noqa: E712
+    return bad - benign
 
 
 def txlist_frame(txs: list[dict]) -> pd.DataFrame:
@@ -329,6 +336,7 @@ class FeatureStore:
             # Xét theo thời gian: delegate lúc tác giả thu thập gần thời điểm `at` hơn delegate hôm nay
             # (sweeper đổi delegate liên tục — FINDINGS_LOG 2026-10-22).
             f.delegate = (recorded or current) if at is not None else (current or recorded)
+            f.delegate_src = "recorded" if f.delegate and f.delegate == recorded else "current" if f.delegate else None
         if (chain, a) in self.matrix.index:
             row = self.matrix.loc[(chain, a)]
             f.first_create_ts = None if pd.isna(row.first_create_ts) else int(row.first_create_ts)

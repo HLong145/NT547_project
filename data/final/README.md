@@ -29,6 +29,7 @@ Datasheet đầy đủ (mục đích, cách thu thập, hạn chế, đạo đ�
 | `dataset_v1.parquet` | 6.429 mẫu, 4.477 địa chỉ (ETH + BSC), mọi cột bên dưới |
 | `splits/train.csv`, `val.csv`, `test.csv` | Mẫu của từng tập (cột rút gọn) |
 | `splits/out_of_time.csv` | Mẫu có `at` ≥ 2025-09-01 (tập test thứ hai) |
+| `splits_v2/test_in_time.csv` | `test` trừ mẫu `out_of_time` (hai tập test không trùng nhau; chỉ v2) |
 | `MANIFEST.json` | Mốc chia tập, số mẫu theo tập/chain/nhóm, kết quả QA, sha256 từng file |
 
 ## Cột

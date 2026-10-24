@@ -156,7 +156,7 @@ def _row(r, fs: FeatureStore, at, ctx) -> dict:
     f = fs.features(r.address, r.chain, at)
     res = score_features(f, ctx)
     return {"grp": r.grp, "chain": r.chain, "address": r.address, "label": r.label, "src": r.src, "at": at,
-            "has_ctx": ctx is not None, "has_call": bool(ctx and ctx.has_call), "state": f.state(), "R": res.score, **res.components,
+            "has_ctx": ctx is not None, "has_call": bool(ctx and ctx.has_call), "state": f.state(), "delegate_src": f.delegate_src, "R": res.score, **res.components,
             "hard": res.hard_rule, "types": ",".join(res.types),
             "hist": fs.history_source.get((r.chain, r.address)), "n_tx_before": (f.history or {}).get("n_tx")}
 

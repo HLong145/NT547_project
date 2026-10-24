@@ -110,6 +110,39 @@ Mọi mục đã kiểm lại trên code trước khi sửa. **Số liệu Modul
   sau `at` (3 ADDR theo ước lượng thô). Cách sửa: lấy thời điểm tx loại 4.
 - DATASHEET §3 và §5 cũ (lịch sử ETH nay đều từ txlist có input, IDM/T3 áp dụng cho cả ETH).
 
+## 2026-10-24 — Xử lý các hạn chế của lượt rà soát độc lập
+
+Mỗi mục là một hạn chế trong mục trước; **số liệu Module 3–4 sẽ chạy lại sau khi symexec xong** (còn ~400 contract).
+
+- **Danh sách đen delegate thống nhất** (`default_malicious_delegates`): seed `flag == 1` HỢP delegate D6 thoả điều kiện
+  ADDR của tác giả (`author_rule`), trừ ví hợp lệ N6 (386 delegate). `wallet.online` dùng chung hàm này (trước đây chỉ D6),
+  nên engine, replay và ví thật cùng một định nghĩa. Thêm cột `delegate_src` (`recorded` = snapshot tác giả gần `at`,
+  chỉ có ở dương; `current` = getCode hôm nay) và báo `by_delegate_src` trong metrics để thấy phần lệch nguồn.
+  Luật vẫn ≈ định nghĩa nhãn ADDR (không thể dựng danh sách đen chỉ từ train: EIP-7702 kích hoạt 2025-05) → luôn báo
+  kèm "chỉ R".
+- **Ngưỡng τ**: τ_warn chọn trên FPR ≤ 1% của lưu lượng bình thường N2+N3+N8 (~190 mẫu val, trước đây 75 mẫu N8);
+  τ_block = precision ≥ 0,95 VÀ FPR ≤ 0,1% trên mọi âm val (trước đây trùng τ_warn nên vô nghĩa). Độ biến thiên τ báo bằng
+  bootstrap val theo địa chỉ (`threshold_boot`: p5/p50/p95).
+- **Bootstrap theo địa chỉ** (cluster) thay cho theo dòng: mọi dòng cùng (chain, address) được chọn cùng nhau. CI rộng hơn,
+  đúng hơn vì mẫu tx của cùng contract không độc lập.
+- **Recall theo loại tách luật cứng và R**: `recall_by_group_hard`, `recall_by_group_R_only_on_soft` (kèm n mẫu mềm),
+  `fp_by_hard_rule` (báo nhầm do `sweeper` / `malicious_delegate` / `leaked_key`).
+- **Âm bị `excluded`**: báo FPR riêng trên chúng và trên âm test giữ lại (`excluded_neg`) để thấy mức lạc quan.
+- **functionName** ở NodeReal (replay BSC) và Blockscout (OP): thay "?" bằng ánh xạ selector → tên học từ 5.401 txlist ETH
+  của Etherscan (`selectors.py`, 13.212 selector có tên). Kiểm giữ lại một nửa địa chỉ: độ chính xác 0,70
+  (precision 0,73, recall 0,74) so với 0,57 nếu gán "?" cho mọi input. Chỉ là xấp xỉ vì Etherscan còn dựa vào ABI của
+  contract → số liệu NCD ở replay BSC / OP là ước lượng. Arbitrum / Polygon lấy từ Etherscan nên đã có functionName thật,
+  không đổi.
+- **S_cross thiếu mốc thời gian**: đo lại, chỉ 32/700 mẫu có T4 (15 NCD + 14 PCD tác giả, 2 D6 NCD, 1 N1) thiếu
+  `first_create_ts`; nhỏ, không sửa.
+- **Test và out_of_time giao nhau**: `freeze` xuất thêm `splits_v2/test_in_time.csv` (không trùng); DATASHEET §8 ghi rõ.
+- **Chưa giải quyết được: thời điểm uỷ quyền EIP-7702.** Trạng thái 7702 dùng getCode hôm nay; xác định lúc uỷ quyền cần
+  archive node (RPC công khai trả lỗi "Archive requests require a personal token"; txlist chỉ thấy tx của chính EOA,
+  tx loại 4 do bên khác gửi không có ở đó). Với dương ADDR, tx `at` do luật tác giả gắn cờ là lệnh sweep sau khi đã uỷ quyền
+  nên không ảnh hưởng; ảnh hưởng chỉ ở 12 âm 7702 (N1 2, N8 10). Cần ghi trong paper; sửa nếu có token archive.
+- **`sweeper` bật cho 2 N8 ETH ở test**: giữ luật (ngưỡng chọn trên train+val, 0 báo nhầm ở đó); báo nhầm do luật cứng
+  nay xuất hiện riêng trong metrics.
+
 ## 2026-10-24 — Dataset v2 (chạy thử): contract recovery N5 là âm khó nhất
 
 - v2 = 1.558 dương luật tác giả + 42 dương mới D6 (ETH, `at` ≥ 2025-09-01, đều ở test) + 4.947 âm (thêm N5: 118

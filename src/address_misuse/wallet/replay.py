@@ -29,6 +29,7 @@ from address_misuse.engine.features import FeatureStore, txlist_path
 from address_misuse.engine.score import TxContext, score_features
 from address_misuse.reproduce_rules import author_balances
 from address_misuse.rules import detect_ca_misuse, detect_eoa_addr, detect_eoa_key
+from address_misuse.selectors import function_name
 from address_misuse.wallet.online import learned_config
 
 EVAL = INTERIM_DIR / "engine_eval.parquet"
@@ -44,7 +45,7 @@ def _raw(chain: str, address: str) -> list[dict] | None:
     for t in txs:                                       # NodeReal: thiếu methodId / functionName
         inp = t.get("input") or "0x"
         t.setdefault("methodId", inp[:10] if len(inp) >= 10 else "0x")
-        t.setdefault("functionName", "?" if len(inp) >= 10 else "")
+        t.setdefault("functionName", function_name(inp))     # ước lượng theo selector, không phải "?" cho mọi input
     return txs
 
 

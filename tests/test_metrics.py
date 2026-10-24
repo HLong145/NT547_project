@@ -59,3 +59,41 @@ def test_goplus_flag_and_baseline_only_on_looked_up_samples():
     assert g["coverage"] == 0.75
     assert (g["goplus"]["tp"], g["goplus"]["fp"], g["goplus"]["fn"]) == (1, 1, 0)   # mẫu chưa tra (+NCD) bị bỏ
     assert g["engine_same_samples"]["tp"] == 0
+
+
+def test_threshold_pools_normal_traffic_and_block_is_stricter():
+    from address_misuse.engine.metrics import NORMAL_GRPS
+    assert set(NORMAL_GRPS) == {"-N2", "-N3", "-N8"}
+    val = pd.DataFrame({"label": [1] * 5 + [0] * 4, "grp": ["+NCD"] * 5 + ["-N2", "-N3", "-N8", "-N1"], "hard": None})
+    r = pd.Series([95.0, 90.0, 85.0, 80.0, 75.0, 60.0, 40.0, 20.0, 99.0])    # N1 không thuộc lưu lượng bình thường
+    t = pick_thresholds(val, r)
+    assert t["warn"] == pytest.approx(75.0)        # FPR ≤ 1% trên N2+N3+N8: cao hơn 60 nhỏ nhất
+    assert t["block"] >= t["warn"]
+    assert t["block"] > 99.0                       # block phải loại cả âm N1 (R = 99): FPR ≤ 0,1% trên mọi âm
+
+
+def test_cluster_bootstrap_resamples_whole_addresses():
+    from address_misuse.engine.metrics import cluster_index, resample
+    d = pd.DataFrame({"chain": "eth", "address": ["0xa", "0xb", "0xa", "0xc", "0xb"]})
+    cl = cluster_index(d)
+    assert sorted(len(c) for c in cl) == [1, 2, 2]
+    i = resample(cl, np.random.default_rng(0))
+    for a in set(d.address.iloc[i]):               # địa chỉ nào được chọn thì mọi dòng của nó đều có mặt
+        assert (d.address.iloc[i] == a).sum() % (d.address == a).sum() == 0
+
+
+def test_recall_split_between_hard_rule_and_R():
+    from address_misuse.engine.metrics import evaluate_set
+    d = pd.DataFrame({"label": [1, 1, 1, 0], "grp": ["+KEY", "+ADDR", "+ADDR", "-N8"], "chain": "eth",
+                      "address": ["0x1", "0x2", "0x3", "0x4"], "hard": ["leaked_key", None, None, "sweeper"]})
+    e = evaluate_set(d, pd.Series([0.0, 80.0, 10.0, 5.0]), {"warn": 50.0, "block": 50.0}, 0, np.random.default_rng(0))["warn"]
+    assert e["recall_by_group_hard"] == {"+ADDR": 0.0, "+KEY": 1.0}
+    assert e["recall_by_group_R_only_on_soft"]["+ADDR"] == 0.5 and e["recall_by_group_R_only_on_soft"]["+KEY"] is None
+    assert e["fp_by_hard_rule"] == {"sweeper": 1}
+
+
+def test_function_name_from_known_selectors(monkeypatch):
+    from address_misuse import selectors
+    monkeypatch.setattr(selectors, "known", lambda: {"0xa9059cbb": "transfer(address,uint256)"})
+    assert selectors.function_name("0xa9059cbb" + "00" * 64) == "transfer(address,uint256)"
+    assert selectors.function_name("0xdeadbeef00") == "" and selectors.function_name("0x") == ""

@@ -101,7 +101,9 @@ Dựng bằng `python -X utf8 -m address_misuse.freeze` → `data/final/dataset_
   - QA ghi số này (`n5_flagged_by_author`) thay vì báo lỗi.
   - 14 mẫu chỉ dựa vào tên → `needs_review`.
 - **Dương mới D6:** ETH, phát hiện bằng luật của nhóm trên dữ liệu từ 2025-09 (ADDR 38 qua EIP-7702, NCD 3, PCD 1).
-  - `at` chỉ chọn trong tx từ 2025-09-01, nên chỉ thuộc tập ngoài thời gian.
+  - `at` chỉ chọn trong tx từ 2025-09-01, nên thuộc tập ngoài thời gian. Trong cột `split` các mẫu này vẫn mang giá trị
+    `test` (vì `at` ≥ 2023-10-05), tức `test` và `out_of_time` giao nhau. Báo kết quả theo `test_in_time`
+    (`splits_v2/test_in_time.csv`, không trùng) và `out_of_time`, không báo `test` gộp.
   - Loss là phần misuse mới (`cost_wei_new`).
   - Tất cả có `needs_review`: luật của nhóm, chưa có nhãn vàng.
 - **`key_value0`:** mẫu KEY mà tác giả không thấy đồng nào được gửi tới, chỉ có tx value 0.

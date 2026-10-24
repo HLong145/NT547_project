@@ -29,6 +29,7 @@ from address_misuse.config import INTERIM_DIR, NETWORKS, RAW_DIR, SEED_DIR
 from address_misuse.crosschain_matrix import XC_DIR, load_code, probe_network, rpc_batch
 from address_misuse.engine.features import txlist_path
 from address_misuse.rules import detect_ca_misuse, detect_eoa_key
+from address_misuse.selectors import function_name
 
 BLOCKSCOUT_API = {"op": "https://optimism.blockscout.com/api"}
 MAX_RECORDS = 10_000
@@ -216,7 +217,7 @@ def _load(chain: str, address: str) -> tuple[list[dict], bool] | None:
     txs = d["result"]
     for t in txs:                                           # Blockscout: có methodId, không có functionName
         t["methodId"] = t.get("methodId") or ((t.get("input") or "0x")[:10] if len(t.get("input") or "") >= 10 else "0x")
-        t.setdefault("functionName", "?" if len(t.get("input") or "") >= 10 else "")
+        t.setdefault("functionName", function_name(t.get("input")))   # ước lượng theo selector (selectors.py)
         t["to"] = (t.get("to") or "").lower()
         t["from"] = (t.get("from") or "").lower()
     return txs, bool(d.get("truncated"))
