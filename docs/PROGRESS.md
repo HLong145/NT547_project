@@ -82,7 +82,9 @@
     địa chỉ). ✅ `sample_gold main` (code + test, chưa chạy): ~600 mẫu phân tầng từ test ∪ out_of_time, có `weight`
     (= cỡ tầng / số rút) để ước lượng precision/recall không lệch, 200 mẫu gán đôi tính κ, bằng chứng theo thời điểm `at`;
     `sheet B --set main [--only-double]`. Cỡ ~600 (không phải ~2.000) vì dataset_v2 chỉ có 42 dương mới và ~450 dương test.
-    Chạy sau khi freeze xong; chờ annotator_A (pilot) trước khi giao khối lượng lớn.
+    ✅ Đã chạy (2026-10-25, seed 0): 605 mẫu (D6 42, ADDR 60, KEY 60, NCD 80, PCD 50, N1 40, N2 60, N3 40, N4 30, N5 39, N6 5, N7 19, N8 80),
+    200 gán đôi → `data/gold/main_items.csv` (đưa người gán) + `main_key.csv` (nhãn, KHÔNG commit, đã gitignore). Sinh file Excel:
+    `sample_gold sheet B --set main`. Chờ annotator_A (pilot, κ) trước khi giao khối lượng lớn.
   - ✅ Codebook v0.3, script lấy mẫu pilot 50 + tính κ; file mẫu đã làm mù (bằng chứng tra cùng một cách cho mọi tầng).
   - ⬜ Pilot 50 mẫu với 2 người gán → chỉnh codebook → gán ~2.000 mẫu (cần D4 xong).
 - 🔄 **D6** Cập nhật 2026, EIP-7702 mới, Type 2/3/6. ✅ Bước 1: thống kê tx từ 2025-09 của 4,99M ứng viên ETH (BigQuery 118,7 GB).
