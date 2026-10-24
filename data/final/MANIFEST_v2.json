@@ -1,0 +1,153 @@
+{
+ "version": "v2",
+ "created_utc": "2026-10-24 16:08:02",
+ "script": "python -X utf8 -m address_misuse.freeze",
+ "split_boundaries_utc": {
+  "val_from": "2023-02-10",
+  "test_from": "2023-10-05",
+  "out_of_time_from": "2025-09-01",
+  "val_ts": 1675987200,
+  "test_ts": 1696464000,
+  "out_of_time_ts": 1756684800
+ },
+ "n_samples": 6547,
+ "n_addresses": 4595,
+ "counts": {
+  "excluded/bsc/-N2": 215,
+  "excluded/bsc/-N3": 14,
+  "excluded/bsc/-N8": 76,
+  "excluded/eth/-N2": 263,
+  "excluded/eth/-N3": 2,
+  "excluded/eth/-N8": 111,
+  "no_time/bsc/+KEY": 67,
+  "no_time/bsc/-N1": 5,
+  "no_time/bsc/-N5": 10,
+  "no_time/bsc/-N7": 1,
+  "no_time/eth/+KEY": 7,
+  "no_time/eth/-N1": 6,
+  "no_time/eth/-N5": 6,
+  "test/bsc/+ADDR": 59,
+  "test/bsc/+KEY": 72,
+  "test/bsc/+NCD": 54,
+  "test/bsc/+PCD": 22,
+  "test/bsc/-N1": 46,
+  "test/bsc/-N2": 148,
+  "test/bsc/-N3": 222,
+  "test/bsc/-N4": 46,
+  "test/bsc/-N5": 11,
+  "test/bsc/-N7": 9,
+  "test/bsc/-N8": 297,
+  "test/eth/+ADDR": 89,
+  "test/eth/+KEY": 41,
+  "test/eth/+NCD": 76,
+  "test/eth/+PCD": 29,
+  "test/eth/-N1": 48,
+  "test/eth/-N2": 105,
+  "test/eth/-N3": 337,
+  "test/eth/-N4": 35,
+  "test/eth/-N5": 28,
+  "test/eth/-N6": 5,
+  "test/eth/-N7": 10,
+  "test/eth/-N8": 221,
+  "train/bsc/+ADDR": 76,
+  "train/bsc/+KEY": 11,
+  "train/bsc/+NCD": 217,
+  "train/bsc/+PCD": 142,
+  "train/bsc/-N1": 88,
+  "train/bsc/-N2": 409,
+  "train/bsc/-N3": 44,
+  "train/bsc/-N5": 28,
+  "train/bsc/-N7": 4,
+  "train/bsc/-N8": 592,
+  "train/eth/+ADDR": 86,
+  "train/eth/+KEY": 94,
+  "train/eth/+NCD": 182,
+  "train/eth/+PCD": 114,
+  "train/eth/-N1": 132,
+  "train/eth/-N2": 410,
+  "train/eth/-N3": 56,
+  "train/eth/-N5": 17,
+  "train/eth/-N7": 5,
+  "train/eth/-N8": 597,
+  "val/bsc/+ADDR": 15,
+  "val/bsc/+NCD": 29,
+  "val/bsc/+PCD": 21,
+  "val/bsc/-N1": 61,
+  "val/bsc/-N2": 28,
+  "val/bsc/-N5": 11,
+  "val/bsc/-N7": 4,
+  "val/bsc/-N8": 20,
+  "val/eth/+ADDR": 13,
+  "val/eth/+KEY": 8,
+  "val/eth/+NCD": 45,
+  "val/eth/+PCD": 31,
+  "val/eth/-N1": 14,
+  "val/eth/-N2": 22,
+  "val/eth/-N3": 61,
+  "val/eth/-N4": 2,
+  "val/eth/-N5": 7,
+  "val/eth/-N7": 3,
+  "val/eth/-N8": 55
+ },
+ "negative_groups": {
+  "-N1": "địa chỉ ứng viên ngẫu nhiên tác giả không gắn cờ",
+  "-N2": "tx gọi contract bình thường (có calldata)",
+  "-N3": "tx gửi văn bản (input là chữ đọc được) tới EOA",
+  "-N4": "địa chỉ nạp tiền sàn giao dịch",
+  "-N5": "contract recovery chính thức tại địa chỉ PCD (tác giả gắn cờ nhầm)",
+  "-N6": "delegate EIP-7702 của ví hợp lệ",
+  "-N7": "contract đa chuỗi hợp lệ (cùng địa chỉ trên nhiều chain)",
+  "-N8": "tx ngẫu nhiên trong block (nền bình thường)"
+ },
+ "qa": {
+  "seed_mixed_case_addresses": 0,
+  "seed_bad_checksum": 0,
+  "n5_flagged_by_author": 118,
+  "author_loss_native_total": {
+   "bsc/ADDR": 419.475,
+   "bsc/KEY": 8644.455,
+   "bsc/NCD": 7514.315,
+   "bsc/PCD": 1167.091,
+   "eth/ADDR": 1627.42,
+   "eth/KEY": 103711.28,
+   "eth/NCD": 19238.408,
+   "eth/PCD": 3500.006
+  },
+  "sample_loss_native_total": {
+   "bsc/ADDR": 5.102,
+   "bsc/KEY": 87.962,
+   "bsc/NCD": 75.457,
+   "bsc/PCD": 267.003,
+   "eth/ADDR": 9.138,
+   "eth/KEY": 223.301,
+   "eth/NCD": 152.828,
+   "eth/PCD": 3050.608
+  }
+ },
+ "files": {
+  "dataset_v2.parquet": {
+   "sha256": "c62930bfc2255bf9c0a89d1e94025a9ecc1261836d80bd3c6ed655969dff9f15",
+   "bytes": 883811
+  },
+  "splits_v2/train.csv": {
+   "sha256": "3f79f3e33d8b498996e11c98d21c315090957d8518152af0c77d6ea961213614",
+   "bytes": 400650
+  },
+  "splits_v2/val.csv": {
+   "sha256": "71b68e7458abe646e739883a4112d507b780561a5dad0a7c4770e14220c0aecf",
+   "bytes": 48486
+  },
+  "splits_v2/test.csv": {
+   "sha256": "a6f9c2b3614b6a2c35b3a34487f0b29c97be44dcaef397669543e46c60cf882c",
+   "bytes": 246590
+  },
+  "splits_v2/out_of_time.csv": {
+   "sha256": "58b5490eb18865f6dc40d181c3b917bcdb06f05f5194d9a840fc24ed7bc2237c",
+   "bytes": 100481
+  },
+  "splits_v2/test_in_time.csv": {
+   "sha256": "82b9cdad3893308139dc5500046645ab2348d960cb29b89f6a3083486d00f265",
+   "bytes": 146159
+  }
+ }
+}

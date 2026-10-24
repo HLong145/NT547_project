@@ -255,7 +255,7 @@ def report(res: dict, abl: dict) -> str:
     L = ["Nhãn: luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn vàng D5).",
          "Trọng số học trên train: " + ", ".join(f"{k} {v:.3f}" for k, v in res["weights"].items()),
          f"Ngưỡng chọn trên val: τ_warn {res['thresholds']['warn']:.2f} (FPR ≤ 1% trên {res['n_val_normal']} mẫu "
-         f"N2+N3+N8), τ_block {res['thresholds']['block']:.2f} (precision ≥ 0,95 và FPR ≤ 0,1% trên mọi âm val)"]
+         f"N2+N3+N8), τ_block {res['thresholds']['block']:.2f} (precision ≥ 0,95 và 0 báo nhầm trong âm val)"]
     for k, v in res.get("threshold_boot", {}).items():
         L.append(f"  τ_{k} bootstrap val theo địa chỉ: p5 {v['p05']:.1f} · p50 {v['p50']:.1f} · p95 {v['p95']:.1f}")
     x = res.get("excluded_neg")

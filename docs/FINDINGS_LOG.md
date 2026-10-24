@@ -779,3 +779,36 @@ Top 100 địa chỉ NCD theo thiệt hại mỗi chain, `eth_getCode` (block m�
   giữ riêng).
 - **Lỗi bắt được khi viết test**: `d[[...]]` với list rỗng chọn 0 cột (tầng rỗng làm `draw_main` sập); nay dùng mảng bool.
 - Tái tạo: `python -X utf8 -m address_misuse.sample_gold main --seed 0 --double 200` (sau `freeze`).
+
+## 2026-10-24 — Số liệu engine sau lượt sửa (chạy lại toàn chuỗi)
+
+Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn vàng D5). Tái tạo: `engine.prepare contracts` → `engine.evaluate`
+→ `engine.metrics` → `wallet.replay` → `freeze` (log ở `data/interim/*.log`). Mức cảnh báo (τ_warn = 63,0; τ_block = 65,7).
+
+| Tập | Dương / âm | P | R | F1 | FPR | AUC |
+|---|---|---|---|---|---|---|
+| test | 442 / 1.568 | 0,985 | 0,873 | 0,926 | 0,004 | 0,976 |
+| test_in_time (không trùng out_of_time) | 266 / 927 | 0,991 | 0,808 | 0,890 | 0,002 | 0,957 |
+| out_of_time (≥ 2025-09) | 176 / 641 | 0,977 | 0,972 | 0,974 | 0,006 | 0,997 |
+
+- **Phải đọc kèm "chỉ R"** (mẫu không dính luật cứng): test P 0,980 · R 0,728 · F1 0,836; out_of_time R 0,688 (chỉ 16 mẫu mềm).
+  Luật cứng một mình: R 0,534 (test), 0,909 (out_of_time). Recall theo loại ở test: ADDR 0,82 (toàn do luật cứng; trên mẫu
+  mềm 0/26), KEY 1,00 (luật cứng `leaked_key`), NCD 0,81 (hầu hết do R, luật cứng 0,01), PCD 0,90 (do R). Nghĩa là NCD/PCD
+  là phần engine "học" được; ADDR/KEY gần như đồng nghĩa nhãn.
+- **test_in_time thấp hơn test** (F1 0,890 vs 0,926; ADDR 0,63 vs 0,82): phần cao của test nhờ mẫu ≥ 2025-09 (ADDR/delegate 7702
+  mới) mà luật cứng bắt dễ. Số đưa vào paper nên là `test_in_time` và `out_of_time` tách riêng, không dùng `test` gộp.
+- **GoPlus** (trạng thái hiện tại, có lợi thế hindsight): test P 0,29 · R 0,020 · F1 0,038; trên mẫu mềm R 0,039. Engine
+  trên cùng mẫu F1 0,925; GoPlus HOẶC engine không tốt hơn engine một mình (FPR 0,018 vs 0,004). Baseline `getCode==0x ∧ calldata`:
+  P 0,24, FPR 0,36 → luật đơn giản không đủ.
+- **Ablation (F1 warn, test)**: đủ 4 = 0,926; bỏ bytecode 0,905; bỏ cross 0,822 (nặng nhất, R 0,706); bỏ osint 0,925 (AUC
+  0,976 → 0,934); bỏ history 0,874 (nay đã bỏ cả luật `sweeper`); chỉ cross 0,873 nhưng AUC 0,641. S_osint gần như không
+  đổi F1 vì dương lẫn N1 đều từ candidate_addresses (RISK_SCORE §2.3) → chờ D7.
+- **τ không ổn định**: τ_warn bootstrap theo địa chỉ p5 25,9 · p50 63,0 · p95 65,7 (val chỉ 186 âm bình thường) — ngưỡng cần
+  ghi kèm khoảng, hoặc dùng nhiều âm hơn. τ_block bootstrap 65,7 cố định.
+- **FPR theo nhóm âm** (test): N7 0,053 (hợp lệ nhiều chain, hash/selector khác), N5 0,026, N1 0,011; báo nhầm do luật cứng:
+  `sweeper` 2, `malicious_delegate` 1 (ETH). Âm `excluded` (681) FPR 0,012 vs 0,004 ở âm giữ lại → số FPR hơi lạc quan.
+- **Ví thật (replay)**: offline, ETH misuse cảnh báo 94,9% tx / 98,2% giá trị; BSC 74,6% tx / 99,9% giá trị; FPR N8 ETH 0,98%, BSC
+  1,64% (online, không history: ETH 0,33%, BSC 0%). Online bắt ADDR chỉ 26,7% tx ETH (thiếu history/luật `sweeper`). Địa chỉ dương
+  test bị bỏ vì không có tx nào bị luật tác giả gắn cờ sau mốc test: ETH 42, BSC 20.
+- **dataset_v2** đóng băng: 6.547 mẫu (1.600 dương, 4.947 âm), QA đạt (checksum 0 sai). Số liệu GoPlus: tra được 99% mẫu.
+
