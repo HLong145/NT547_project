@@ -28,9 +28,13 @@ from address_misuse.config import INTERIM_DIR, OUT_OF_TIME_TS, SPLIT_TEST_TS, SP
 from address_misuse.engine.features import FeatureStore
 from address_misuse.engine.prepare import ENGINE_SAMPLE
 from address_misuse.engine.score import TxContext, score_features
+from address_misuse.rules import is_hex_readable
 
 OUT = INTERIM_DIR / "engine_eval.parquet"
 CALL_PLACEHOLDER = "0xffffffff"                   # có calldata nhưng không biết nội dung (BigQuery)
+
+
+NCD_MAX_GAS = 30_000                                     # rules.py: gasUsed <= 30000
 
 
 def address_samples() -> pd.DataFrame:
@@ -90,6 +94,10 @@ def pick_event(txs: pd.DataFrame | None, address: str, grp: str, own_create_ts: 
         inc = inc[inc.block_ts >= min_ts]
     if grp in ("+NCD", "+PCD"):
         inc = inc[inc.receipt_gas_used > 21_000]
+    if grp == "+NCD":                                    # luật NCD của tác giả: gasUsed ≤ 30.000, thành công, không phải văn bản
+        inc = inc[(inc.receipt_gas_used <= NCD_MAX_GAS) & (inc.receipt_status == 1)]
+        if "input" in inc and inc.input.map(lambda x: isinstance(x, str)).all():
+            inc = inc[~inc.input.map(lambda x: x != "0x" and is_hex_readable(x))]
     if grp == "+PCD" and own_create_ts is not None:
         inc = inc[inc.block_ts < own_create_ts]
     elif grp == "-N5" and own_create_ts is not None:
@@ -148,7 +156,7 @@ def _row(r, fs: FeatureStore, at, ctx) -> dict:
     f = fs.features(r.address, r.chain, at)
     res = score_features(f, ctx)
     return {"grp": r.grp, "chain": r.chain, "address": r.address, "label": r.label, "src": r.src, "at": at,
-            "has_ctx": ctx is not None, "state": f.state(), "R": res.score, **res.components,
+            "has_ctx": ctx is not None, "has_call": bool(ctx and ctx.has_call), "state": f.state(), "R": res.score, **res.components,
             "hard": res.hard_rule, "types": ",".join(res.types),
             "hist": fs.history_source.get((r.chain, r.address)), "n_tx_before": (f.history or {}).get("n_tx")}
 

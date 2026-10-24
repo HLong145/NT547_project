@@ -76,6 +76,8 @@ def s_bytecode(f: Features, ctx: TxContext | None = None) -> tuple[float, list, 
         if sx is None:
             return UNKNOWN_CODE, [], ["contract chưa phân tích symexec"]
         if not sx["transfer"] and not sx["delegatecall"] and not sx["selfdestruct"]:
+            if ctx is not None and ctx.value_wei <= 0:       # gọi token/router không gửi coin: không mất gì (RISK_SCORE §2.1)
+                return 0.0, [], ["contract không có đường rút coin nhưng tx không gửi coin"]
             return 1.0, ["T2"], ["contract không có đường rút coin (hố đen)"]
         return 0.0, [], []
     # 7702

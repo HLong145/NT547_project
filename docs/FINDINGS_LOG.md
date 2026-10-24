@@ -68,6 +68,48 @@ thấp). Sửa: tra theo lô 100 (`PROBE_CHUNK`), in lỗi RPC, `evaluate` cản
 mẫu state NaN (trước: 1.659/6.429). Phải symexec lại ~940 contract mới (trước đó coi là chưa phân tích, điểm 0,3) rồi chạy
 lại metrics / replay / freeze; **mọi số liệu Module 3–4 và dataset_v2 trước mục này là tạm, chưa dùng trong paper.**
 
+**Hạn chế bổ sung (rà soát tiếp):** 67/150 mẫu KEY BSC (45%) và 7/150 KEY ETH không có tx đi vào nào trong txlist (chỉ
+có tx đi ra, trung bình 7 tx) → `no_time`, bị loại khỏi đánh giá; recall KEY BSC (1,00) chỉ trên 83 mẫu còn lại, tức
+nhóm KEY kiểu "chỉ thấy tx đi ra" chưa được đo. Cần nêu trong paper; chưa rõ nguyên nhân (nghi tx loại 4 mà `to` là
+bên khác, hoặc nguồn NodeReal thiếu tx nội bộ).
+
+## 2026-10-24 — Rà soát độc lập (advisor Opus, chỉ đọc) sau lần 2: 4 lỗi sửa, 8 hạn chế ghi nhận
+
+Mọi mục đã kiểm lại trên code trước khi sửa. **Số liệu Module 3–4 và dataset_v2 trước mục này là tạm.**
+
+**Đã sửa (chạy lại evaluate → metrics → replay → freeze):**
+1. *T2 "hố đen" bật cho mọi contract không có đường rút coin, kể cả khi tx không gửi coin* (ERC-20, router): 48% đích
+   N2/N8 là T2, 903 dòng train đều là âm, 0 dương. Trọng số học được bị chi phối bởi lỗi này (advisor học lại với T2
+   tắt: bytecode 0,06 → 0,50, history 0,16 → 0,02). RISK_SCORE §2.1 yêu cầu "contract nhận coin". Nay có ctx thì chỉ
+   T2 khi `value > 0`.
+2. *Sự kiện dương NCD không phải lúc nào cũng là tx misuse theo luật tác giả* (34/600 = 5,7% không thoả: 10 là văn bản
+   IDM, 12 thiếu functionName, 9 gas > 30k, 2 thất bại). Nay `pick_event` NCD lọc gas ≤ 30.000, thành công, input
+   không phải văn bản (functionName không kiểm được: chỉ có cho tx có tên hàm Etherscan).
+3. *Baseline getCode*: docstring nói dùng `has_call` nhưng `_row` không ghi cột này → luôn rơi về T1 (có bộ lọc IDM). Nay
+   ghi `has_call`.
+4. *`test` lẫn `out_of_time`*: 822/2.018 mẫu test (41%) cũng ≥ 2025-09-01, gồm cả 42 dương D6 (DATASHEET §8 nói D6 chỉ
+   thuộc out_of_time). Thêm tập `test_in_time` (test, không out_of_time) vào `engine.metrics`; số liệu chính của paper
+   nên báo `test_in_time` và `out_of_time` riêng.
+
+**Hạn chế ghi nhận (chưa sửa, cần nêu trong paper hoặc làm sau):**
+- *Nguồn delegate chỉ có ở dương*: delegate "lúc tác giả thu thập" (sau `at`) chỉ ghi cho EOA KEY/ADDR của tác giả; âm
+  dùng delegate hôm nay. Danh sách đen của engine (`flag == 1`) khác danh sách định nghĩa nhãn ADDR D6 → 0/38 ADDR D6 trúng
+  `malicious_delegate`. (Mục "Lỗi 6" ở trên gán một phần cho `probe`; phần còn lại là chênh danh sách.) Luật cứng này
+  vẫn ≈ định nghĩa nhãn ADDR, nên recall ADDR phải báo cùng phần "chỉ R".
+- *τ dựa trên 75 mẫu N8 ở val* (ETH 55, BSC 20): FPR ≤ 1% nghĩa là 0 báo nhầm → τ do một mẫu quyết định. Cần pool âm val
+  lớn hơn hoặc bootstrap độ biến thiên của τ; `τ_block = τ_warn`.
+- *Recall theo nhóm tính cả luật cứng*: KEY 300/300 là `leaked_key`; ADDR dính `malicious_delegate`/`sweeper`. Báo riêng
+  "chỉ luật cứng" và "chỉ R" theo nhóm.
+- *S_cross thiếu mốc thời gian cho âm và D6* (chỉ có cho CA của tác giả): hệ số cố định 0,7, tác động nhỏ hiện tại.
+- *functionName "?"* cho mọi input ≥ 10 ký tự ở replay BSC và L2 (`l2_misuse`): NCD gắn cờ nhiều hơn tác giả (chỉ chữ ký
+  đã biết) → số liệu NCD BSC replay / L2 là cận trên.
+- *`excluded`* bỏ 422 N2 + 154 N8 khỏi test (contract phổ biến); FPR trên N8 bị loại 1,3% vs 0,4% → hơi lạc quan.
+  Bootstrap resample theo dòng, không theo địa chỉ (cluster bootstrap).
+- *`sweeper` bật cho 2 N8 ETH ở test*: "0 báo nhầm" chỉ đúng với train/val.
+- *Nghi ngờ*: trạng thái 7702 dùng getCode hôm nay cho mọi `at` ≥ kích hoạt, không có mốc uỷ quyền; ủy quyền có thể xảy ra
+  sau `at` (3 ADDR theo ước lượng thô). Cách sửa: lấy thời điểm tx loại 4.
+- DATASHEET §3 và §5 cũ (lịch sử ETH nay đều từ txlist có input, IDM/T3 áp dụng cho cả ETH).
+
 ## 2026-10-24 — Dataset v2 (chạy thử): contract recovery N5 là âm khó nhất
 
 - v2 = 1.558 dương luật tác giả + 42 dương mới D6 (ETH, `at` ≥ 2025-09-01, đều ở test) + 4.947 âm (thêm N5: 118

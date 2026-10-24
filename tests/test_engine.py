@@ -24,6 +24,8 @@ def test_bytecode_none_depends_on_calldata():
 def test_bytecode_code_black_hole_vs_withdrawable():
     hole = {"transfer": False, "delegatecall": False, "selfdestruct": False}
     assert s_bytecode(feat(code={"bsc": "code"}, symexec=hole))[:2] == (1.0, ["T2"])
+    assert s_bytecode(feat(code={"bsc": "code"}, symexec=hole), TxContext(10**18, "0x"))[:2] == (1.0, ["T2"])
+    assert s_bytecode(feat(code={"bsc": "code"}, symexec=hole), TxContext(0, "0xa9059cbb" + "00" * 64))[:2] == (0.0, [])
     assert s_bytecode(feat(code={"bsc": "code"}, symexec={**hole, "transfer": True}))[0] == 0.0
 
 
@@ -143,7 +145,7 @@ def test_nodereal_record_converts_to_txlist_format():
 
 def test_pick_event_uses_misuse_txs_only():
     from address_misuse.engine.evaluate import CALL_PLACEHOLDER, pick_event
-    txs = pd.DataFrame([_tx(1, "0x" + "1" * 40, A, 5), _tx(2, "0x" + "2" * 40, A, 0, gas_used=40_000),
+    txs = pd.DataFrame([_tx(1, "0x" + "1" * 40, A, 5), _tx(2, "0x" + "2" * 40, A, 0, gas_used=25_000),
                         _tx(3, A, "0x" + "3" * 40, 1)])
     at, ctx = pick_event(txs, A, "+NCD", None, seed=0)
     assert (at, ctx.calldata) == (2, CALL_PLACEHOLDER)                 # NCD: chỉ tx gọi hàm
@@ -171,11 +173,14 @@ def test_history_uses_only_last_window_before_at():
 
 def test_pick_event_uses_real_input_when_available():
     from address_misuse.engine.evaluate import CALL_PLACEHOLDER, pick_event
-    t = dict(_tx(5, "0x" + "1" * 40, A, 0, gas_used=25_000), input="0x48656c6c6f")
+    t = dict(_tx(5, "0x" + "1" * 40, A, 0, gas_used=25_000), input="0xa9059cbb")
     at, ctx = pick_event(pd.DataFrame([t]), A, "+NCD", None, 0)
-    assert at == 5 and ctx.calldata == "0x48656c6c6f"
+    assert at == 5 and ctx.calldata == "0xa9059cbb"
     _, ctx = pick_event(pd.DataFrame([_tx(5, "0x" + "1" * 40, A, 0, gas_used=25_000)]), A, "+NCD", None, 0)
     assert ctx.calldata == CALL_PLACEHOLDER                        # BigQuery: không có input
+    text = dict(_tx(5, "0x" + "1" * 40, A, 0, gas_used=25_000), input="0x48656c6c6f")
+    assert pick_event(pd.DataFrame([text]), A, "+NCD", None, 0) is None   # tin nhắn văn bản: bộ lọc IDM của tác giả
+    assert pick_event(pd.DataFrame([_tx(5, "0x" + "1" * 40, A, 0, gas_used=40_000)]), A, "+NCD", None, 0) is None  # gas > 30k
 
 
 def test_sweeper_hard_rule():

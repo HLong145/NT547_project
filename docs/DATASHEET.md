@@ -38,7 +38,7 @@ Phiên bản: v1, đóng băng 2026-10-23 (`data/final/MANIFEST.json` ghi sha256
 | Phần | Nguồn | Ghi chú |
 |---|---|---|
 | Dương, loss | Dữ liệu Zenodo của tác giả → `seed/` | Lấy max giữa nguồn github/stackexchange như paper |
-| Lịch sử tx ETH | BigQuery `crypto_ethereum` | Không có input → ngữ cảnh chỉ biết "có calldata" |
+| Lịch sử tx ETH | v1: BigQuery `crypto_ethereum` (không có input). v2: txlist Etherscan cho mọi mẫu (có input) | Cửa sổ 1.000 tx trước `at` |
 | Lịch sử tx BSC, quét block | NodeReal, Etherscan | Có input |
 | Code, ngày tạo contract | `eth_getCode` 8 mạng, Etherscan `getcontractcreation` | Có cache trong `data/raw/` |
 | Âm N2, N3, N8 | Quét block ngẫu nhiên 2020–2026 | 1 tx ngẫu nhiên mỗi block cho N8 |
@@ -70,7 +70,7 @@ Phiên bản: v1, đóng băng 2026-10-23 (`data/final/MANIFEST.json` ghi sha256
   - ước lượng tỉ lệ misuse ngoài thực tế, vì dương và âm được lấy mẫu theo nhóm chứ không theo tỉ lệ tự nhiên;
   - quy kết lỗi cho chủ ví cụ thể.
 - **Lệch đã biết:**
-  - ETH thiếu input (BigQuery), nên bộ lọc IDM / T3 chỉ áp dụng được trên BSC;
+  - v1: ETH thiếu input (BigQuery) nên IDM / T3 chỉ áp dụng trên BSC; v2 dùng txlist có input cho cả hai chain;
   - val nhỏ (75 tx N8), nên ngưỡng chọn trên val còn thô;
   - danh sách key lộ và OSINT không có mốc thời gian, nên coi như đã biết trước `at`.
 

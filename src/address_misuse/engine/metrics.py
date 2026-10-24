@@ -172,7 +172,9 @@ def run(df: pd.DataFrame, comps=COMPS, boot: int = 1000, seed: int = 0, curves: 
     # Mọi mẫu dương đều lấy từ danh sách OSINT của tác giả (S_osint > 0), âm thì không: S_osint tách được dương/âm
     # chỉ vì cách lấy mẫu. `test_osint` chỉ giữ mẫu có trong danh sách OSINT để đo phần còn lại của engine công bằng.
     sets = {"test": df[df.split == "test"], "out_of_time": df[df.out_of_time & (df.split != "excluded")],
-            "test_osint": df[(df.split == "test") & (df.osint > 0)]}
+            "test_osint": df[(df.split == "test") & (df.osint > 0)],
+            # `test` gồm cả mẫu ≥ 2025-09 (cũng nằm trong out_of_time, gồm toàn bộ dương D6): test_in_time không trùng
+            "test_in_time": df[(df.split == "test") & ~df.out_of_time]}
     for name, d in sets.items():
         r = risk(d, w)
         out["sets"][name] = evaluate_set(d, r, tau, boot, rng)
