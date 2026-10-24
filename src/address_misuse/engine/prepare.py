@@ -1,6 +1,7 @@
 """Dữ liệu bổ sung cho engine (RISK_SCORE.md §6). Mỗi bước có cache, chạy lại chỉ làm phần còn thiếu.
 
-python -m address_misuse.engine.prepare creation    # thời điểm tạo contract trên chính chain (NCD về sau có code)
+python -m address_misuse.engine.prepare creation    # thời điểm tạo contract trên chính chain (NCD về sau có code,
+                                                    # PCD của mẫu đánh giá, N5)
 python -m address_misuse.engine.prepare delegates   # symexec cho delegate EIP-7702 chưa có kết quả
 python -m address_misuse.engine.prepare contracts   # symexec cho contract trong mẫu đánh giá chưa có kết quả (chủ yếu âm)
 python -m address_misuse.engine.prepare sample      # mẫu đánh giá cố định (dương theo nhóm × chain, seed 0)
@@ -45,6 +46,11 @@ def _nodereal_creation(address: str, key: str) -> dict | None:
 def cmd_creation():
     m = pd.read_parquet(MATRIX)
     todo = m[(m.misuse_chain_state == "code") & (m.subtype == "NCD")][["chain", "address"]]
+    # PCD + N5: cần thời điểm tạo để chọn tx trước (PCD, Rule 2) / sau (N5) khi tạo (engine.evaluate.pick_event)
+    s = pd.read_parquet(ENGINE_SAMPLE).query("subtype == 'PCD'")[["chain", "address"]]
+    n5 = INTERIM_DIR / "n5_recovery_contracts.parquet"
+    n5 = pd.read_parquet(n5).query("kept")[["chain", "address"]] if n5.exists() else s.iloc[:0]
+    todo = pd.concat([todo, s, n5]).assign(address=lambda d: d.address.str.lower()).drop_duplicates()
     old = pd.read_parquet(ENGINE_CREATION) if ENGINE_CREATION.exists() else pd.DataFrame(
         columns=["chain", "address", "create_ts", "create_block", "source"])
     done = set(zip(old.chain, old.address))
