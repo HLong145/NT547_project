@@ -48,8 +48,13 @@ def done() -> set[str]:
 
 def search(address: str, token: str) -> dict:
     h = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
-    for attempt in range(8):
-        r = requests.get("https://api.github.com/search/code", params={"q": f'"{address}"', "per_page": 100}, headers=h, timeout=60)
+    for attempt in range(10):
+        try:
+            r = requests.get("https://api.github.com/search/code", params={"q": f'"{address}"', "per_page": 100}, headers=h, timeout=60)
+        except requests.RequestException as e:             # mạng chập chờn: chờ rồi thử lại, không làm sập cả lượt chạy
+            print(f"  lỗi mạng ({type(e).__name__}), thử lại sau {30 * (attempt + 1)}s", flush=True)
+            time.sleep(30 * (attempt + 1))
+            continue
         if r.status_code == 200:
             j = r.json()
             items = j.get("items") or []
@@ -70,7 +75,7 @@ def search(address: str, token: str) -> dict:
         if r.status_code == 422:                          # truy vấn không hợp lệ: ghi nhận, không thử lại
             return {"address": address, "total_count": None, "error": "422", "ts": int(time.time())}
         time.sleep(5 * (attempt + 1))
-    raise RuntimeError(f"GitHub search {address}: không có kết quả sau 8 lần thử")
+    raise RuntimeError(f"GitHub search {address}: không có kết quả sau 10 lần thử")
 
 
 def run(limit: int | None = None) -> None:
