@@ -1,4 +1,4 @@
-# Datasheet — Address Misuse Dataset v1
+# Datasheet — Address Misuse Dataset v1 / v2
 
 Theo khung *Datasheets for Datasets* (Gebru et al., 2021). File và cột: [data/final/README.md](../data/final/README.md).
 Phiên bản: v1, đóng băng 2026-10-23 (`data/final/MANIFEST.json` ghi sha256 từng file).
@@ -87,3 +87,24 @@ Phiên bản: v1, đóng băng 2026-10-23 (`data/final/MANIFEST.json` ghi sha256
   - thêm nhãn vàng D5;
   - thêm đặc trưng OSINT từ D7;
   - lấy txlist ETH có input cho dương test.
+
+## 8. Dataset v2 (khác v1)
+
+Dựng bằng `python -X utf8 -m address_misuse.freeze` → `data/final/dataset_v2.parquet`, `splits_v2/`,
+`MANIFEST_v2.json`. Cùng mốc chia tập, cùng QA, cộng các kiểm tra mới bên dưới.
+
+- **Âm N5:** 118 contract recovery tại địa chỉ PCD (ETH 58, BSC 60). Chọn theo nhãn thủ công của tác giả (benign) hoặc
+  theo tên đã verify, và loại trường hợp người deploy có key lộ.
+  - 42 địa chỉ trong số này nằm trong mẫu dương PCD của v1 → chuyển sang âm N5. Đây là lỗi gắn cờ của tool tác giả.
+  - QA ghi số này (`n5_flagged_by_author`) thay vì báo lỗi.
+  - 14 mẫu chỉ dựa vào tên → `needs_review`.
+- **Dương mới D6:** ETH, phát hiện bằng luật của nhóm trên dữ liệu từ 2025-09 (ADDR 38 qua EIP-7702, NCD 3, PCD 1).
+  - `at` chỉ chọn trong tx từ 2025-09-01, nên chỉ thuộc tập ngoài thời gian.
+  - Loss là phần misuse mới (`cost_wei_new`).
+  - Tất cả có `needs_review`: luật của nhóm, chưa có nhãn vàng.
+- **`key_value0`:** mẫu KEY mà tác giả không thấy đồng nào được gửi tới, chỉ có tx value 0.
+  - Ở v1 có 140/163 KEY BSC và 18/159 KEY ETH như vậy, gần như tất cả sau EIP-7702.
+  - Nên báo kết quả KEY cả có và không có nhóm này.
+- **Lịch sử tx cho engine (không phải cột của dataset, nhưng ảnh hưởng số đánh giá):**
+  - dương và âm cùng nguồn (txlist có input);
+  - mọi mẫu chỉ xét 1.000 tx gần nhất trước `at`.

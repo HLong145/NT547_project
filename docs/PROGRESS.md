@@ -14,6 +14,10 @@
   `test_osint`). **Đang chạy:** `prepare contracts` (symexec 727), `prepare windows` (3.010 cửa sổ lịch sử), txlist ETH
   cho 526 dương. **Xong cả ba thì:** `engine.evaluate` → `engine.metrics` → luật `sweeper` → `wallet.replay` → báo số
   trước/sau.
+- 🔄 **Dataset v2 (2026-10-24, DATASHEET §8):** code xong (`freeze --version v2`, `engine.evaluate` thêm N5 + dương
+  D6, luật cứng `sweeper`), 74 test qua. v2 = v1 + N5 (118; 42 contract recovery bị tác giả gắn cờ PCD chuyển sang
+  âm) + 42 dương mới D6 (ETH, sau 2025-09) + cột `label_source`, `needs_review`, `key_value0`. **Chờ:** lịch sử tx
+  cho N5 → `prepare contracts` cho contract N5 → dựng lại v2 lần cuối sau khi các job dữ liệu ở trên xong.
 
 - ✅ Symexec tái lập xong: khớp tác giả 100% trên 246 contract chạy trọn vẹn (xem nhật ký). Kết quả ở `data/interim/symexec_repro.parquet`.
 - ✅ Đã chốt (2026-10-20): Module 4 = MetaMask Snap (RPC proxy chỉ để đo độ trễ); nguồn BSC = NodeReal free (Moralis đổi sang bắt gói trả phí $149+).

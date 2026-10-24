@@ -2,6 +2,17 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-24 — Dataset v2 (chạy thử): contract recovery N5 là âm khó nhất
+
+- v2 = 1.558 dương luật tác giả + 42 dương mới D6 (ETH, `at` ≥ 2025-09-01, đều ở test) + 4.947 âm (thêm N5: 118
+  contract recovery tại địa chỉ PCD). 42 contract N5 trước đây nằm trong mẫu dương PCD của tác giả → chuyển sang âm
+  (tác giả gắn cờ PCD cả contract recovery hợp lệ). 56 mẫu `needs_review` (42 D6 + 14 N5 chỉ dựa vào tên) chờ D5.
+- KEY của tác giả trong mẫu: 149/300 có mọi tx misuse value 0 (`key_value0`) → cần báo riêng khi so sánh loss.
+- AUC dương vs N5 thấp: ETH 0,368, BSC 0,587 (các nhóm âm khác 0,69–1,00). Engine coi contract recovery giống PCD
+  vì cùng dấu hiệu (code xuất hiện sau khi nhận tiền, có ở chain khác). **Tạm thời:** contract N5 chưa có symexec
+  (S_bytecode = 0,3 mặc định); chạy lại sau `prepare contracts` cho N5.
+- Tái tạo: `python -m address_misuse.engine.evaluate` → `python -m address_misuse.freeze --version v2`.
+
 ## 2026-10-24 — Rà soát toàn bộ quy trình đánh giá (Module 3) và D3b
 
 Tái tạo: `engine_eval.parquet` + cache `data/raw/<chain>/txlist/*.json.gz` (cờ `truncated`), `seed/eoa_misuse.parquet`.

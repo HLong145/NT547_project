@@ -159,6 +159,11 @@ def negative_addresses() -> dict[tuple[str, str], list[str]]:
     n7 = pd.read_parquet(INTERIM_DIR / "n7_multichain_contracts.parquet").query("kept").address
     out[("N6+N7", "eth")] = sorted(set(pd.concat([n6, n7]).str.lower()))
     out[("N7", "bsc")] = sorted(set(n7.str.lower()))
+    p = INTERIM_DIR / "n5_recovery_contracts.parquet"
+    if p.exists():
+        n5 = pd.read_parquet(p).query("kept")
+        for ch, g in n5.groupby("chain"):
+            out[("N5", ch)] = sorted(set(g.address.str.lower()))
     for name in ("n2_contract_calls", "n3_text_messages", "n4_exchange_deposits", "n8_normal_txs"):
         p = INTERIM_DIR / f"{name}.parquet"
         if p.exists():
@@ -274,6 +279,8 @@ def cmd_history():
     for (grp, ch), addrs in sorted(neg.items()):
         if grp in ("N2", "N3", "N4", "N8"):
             jobs.append((grp, ch, addrs, HISTORY_MAX_RECORDS_INFRA))
+        elif grp == "N5":                                         # contract recovery: ít tx, lấy như dương
+            jobs.append((grp, ch, addrs, HISTORY_MAX_RECORDS))
     for grp, ch, addrs, max_records in jobs:
         addrs = [a for a in addrs if not txlist_path(ch, a).exists()]
         print(f"txlist NodeReal {grp} {ch}: {len(addrs)} địa chỉ (tối đa {max_records:,} tx/địa chỉ)", flush=True)

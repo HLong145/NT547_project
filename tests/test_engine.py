@@ -174,3 +174,18 @@ def test_pick_event_uses_real_input_when_available():
     assert at == 5 and ctx.calldata == "0x48656c6c6f"
     _, ctx = pick_event(pd.DataFrame([_tx(5, "0x" + "1" * 40, A, 0, gas_used=25_000)]), A, "+NCD", None, 0)
     assert ctx.calldata == CALL_PLACEHOLDER                        # BigQuery: không có input
+
+
+def test_sweeper_hard_rule():
+    h = {"n_tx": 60, "n_in": 50, "n_in_fail": 0, "n_in_call": 0, "call_senders": 0, "n_out": 10,
+         "n_plain_in": 50, "n_sweep": 1}
+    assert score_features(Features(A, "eth", code={"eth": "none"}, history=h)).hard_rule == "sweeper"   # 1/50 = 0,02
+    h = dict(h, n_plain_in=100)
+    assert score_features(Features(A, "eth", code={"eth": "none"}, history=h)).hard_rule is None        # 0,01
+
+
+def test_pick_event_min_ts_for_new_positives():
+    from address_misuse.engine.evaluate import pick_event
+    txs = pd.DataFrame([_tx(b, "0x" + "1" * 40, A, 0, gas_used=25_000) for b in (5, 50)])
+    assert pick_event(txs, A, "+NCD", None, 0, min_ts=10)[0] == 50
+    assert pick_event(txs, A, "+NCD", None, 0, min_ts=100) is None

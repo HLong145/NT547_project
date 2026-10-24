@@ -1,4 +1,17 @@
-# Dataset v1 — Address Misuse (đóng băng D8)
+# Dataset — Address Misuse (v1 đóng băng D8, v2 đang dựng)
+
+> **v2** (`dataset_v2.parquet`, `splits_v2/`, `MANIFEST_v2.json`; `python -X utf8 -m address_misuse.freeze`) khác v1:
+> - thêm âm **N5**: contract recovery chính thức tại địa chỉ PCD; những địa chỉ này bị bỏ khỏi dương PCD của tác giả,
+>   vì tool tác giả gắn cờ nhầm;
+> - thêm dương mới **D6**: ETH, luật của nhóm, `at` ≥ 2025-09-01;
+> - thêm cột `label_source` (`author_rule` / `d6_rule` / `negative_group`);
+> - thêm cột `key_value0`: KEY mà không có đồng nào được gửi tới, chỉ tx value 0;
+> - thêm cột `needs_review`: dương D6 và N5 chỉ dựa vào tên, cần nhãn vàng D5;
+> - lịch sử tx của engine: cùng nguồn cho dương và âm, 1.000 tx gần nhất trước `at`.
+>
+> `sample_id` của v2 là `v2-…`, không so khớp với v1. Phần dưới mô tả v1; v1 vẫn kiểm được bằng
+> `python -X utf8 -m address_misuse.freeze qa --version v1`.
+
 
 Bộ mẫu dùng để học trọng số, chọn ngưỡng và đánh giá engine cảnh báo (Module 2–4). Tạo lại và kiểm tra:
 
@@ -62,7 +75,7 @@ phân vị 70/85% thời điểm tx đầu tiên của 34.480 dương CA. Một 
 | N7 | Contract đa chuỗi hợp lệ |
 | N8 | Tx ngẫu nhiên trong block (nền bình thường, dùng đo báo nhầm) |
 
-N5 (chưa có) — xem datasheet.
+N5: contract recovery chính thức (PancakeSwap Recovery…) tại địa chỉ PCD. Chỉ có ở v2.
 
 ## QA tự động (lần chạy gần nhất: ĐẠT)
 

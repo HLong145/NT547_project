@@ -32,21 +32,35 @@ CALL_PLACEHOLDER = "0xffffffff"                   # có calldata nhưng không b
 
 
 def address_samples() -> pd.DataFrame:
-    s = pd.read_parquet(ENGINE_SAMPLE).assign(label=1)
+    cols = ["grp", "chain", "address", "label", "src"]
+    s = pd.read_parquet(ENGINE_SAMPLE).assign(label=1, src="author")
     s["grp"] = "+" + s.subtype
-    parts = [s[["grp", "chain", "address", "label"]]]
+    parts = [s[cols]]
+    p = INTERIM_DIR / "d6_new_positives.parquet"
+    if p.exists():                                       # dương mới D6 (luật của nhóm, ETH, sau 2025-09)
+        d6 = pd.read_parquet(p).query("is_new_positive")
+        parts.append(pd.DataFrame({"grp": "+" + d6.subtype, "chain": "eth", "address": d6.address, "label": 1,
+                                   "src": "d6"}))
     n1 = pd.read_parquet(INTERIM_DIR / "n1_random_unflagged.parquet")
-    parts.append(n1.assign(grp="-N1", label=0)[["grp", "chain", "address", "label"]])
+    parts.append(n1.assign(grp="-N1", label=0, src="neg")[cols])
     p = INTERIM_DIR / "n4_exchange_deposits.parquet"
     if p.exists():
         n4 = pd.read_parquet(p)
         n4 = n4[n4.kept.fillna(False).astype(bool)] if "kept" in n4 else n4
-        parts.append(n4.assign(grp="-N4", label=0)[["grp", "chain", "address", "label"]])
+        parts.append(n4.assign(grp="-N4", label=0, src="neg")[cols])
+    p = INTERIM_DIR / "n5_recovery_contracts.parquet"
+    if p.exists():
+        n5 = pd.read_parquet(p).query("kept")
+        n5["address"] = n5.address.str.lower()
+        parts.append(n5.assign(grp="-N5", label=0, src="neg")[cols])
+        # contract recovery tác giả gắn cờ PCD nhầm: bỏ khỏi dương, chỉ giữ ở N5
+        n5_keys = set(zip(n5.chain, n5.address))
+        parts[0] = parts[0][[k not in n5_keys for k in zip(parts[0].chain, parts[0].address.str.lower())]]
     n6 = pd.read_parquet(INTERIM_DIR / "n6_benign_7702_delegates.parquet").query("kept")
-    parts.append(pd.DataFrame({"grp": "-N6", "chain": "eth", "address": n6.address, "label": 0}))
+    parts.append(pd.DataFrame({"grp": "-N6", "chain": "eth", "address": n6.address, "label": 0, "src": "neg"}))
     n7 = pd.read_parquet(INTERIM_DIR / "n7_multichain_contracts.parquet").query("kept")
     for ch in ("eth", "bsc"):
-        parts.append(pd.DataFrame({"grp": "-N7", "chain": ch, "address": n7.address, "label": 0}))
+        parts.append(pd.DataFrame({"grp": "-N7", "chain": ch, "address": n7.address, "label": 0, "src": "neg"}))
     df = pd.concat(parts, ignore_index=True)
     df["address"] = df.address.str.lower()
     return df
@@ -58,16 +72,20 @@ def tx_samples() -> pd.DataFrame:
         p = INTERIM_DIR / f"{name}.parquet"
         if p.exists():
             d = pd.read_parquet(p)
-            parts.append(pd.DataFrame({"grp": grp, "chain": d.chain, "address": d.target.str.lower(), "label": 0,
+            parts.append(pd.DataFrame({"grp": grp, "chain": d.chain, "address": d.target.str.lower(), "label": 0, "src": "neg",
                                        "at": d.block_ts, "value_wei": d.value_wei, "calldata": d.input}))
     return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
 
 
-def pick_event(txs: pd.DataFrame | None, address: str, grp: str, own_create_ts: int | None, seed: int):
-    """(at, TxContext) từ một tx đi vào chọn ngẫu nhiên (tái lập được theo địa chỉ); None nếu không có."""
+def pick_event(txs: pd.DataFrame | None, address: str, grp: str, own_create_ts: int | None, seed: int,
+               min_ts: int | None = None):
+    """(at, TxContext) từ một tx đi vào chọn ngẫu nhiên (tái lập được theo địa chỉ); None nếu không có.
+    `min_ts`: chỉ chọn tx từ thời điểm này (dương D6 chỉ là misuse từ 2025-09)."""
     if txs is None or not len(txs):
         return None
     inc = txs[txs.to_address == address]
+    if min_ts is not None:
+        inc = inc[inc.block_ts >= min_ts]
     if grp == "+NCD":
         inc = inc[inc.receipt_gas_used > 21_000]
     elif grp == "+PCD" and own_create_ts is not None:
@@ -92,7 +110,8 @@ def evaluate(seed: int = 0) -> pd.DataFrame:
     rows = []
     for r in adr.itertuples():
         own = fs.own_create.get((r.chain, r.address))
-        ev = pick_event(fs.txs.get((r.chain, r.address)), r.address, r.grp, own, seed)
+        ev = pick_event(fs.txs.get((r.chain, r.address)), r.address, r.grp, own, seed,
+                        OUT_OF_TIME_TS if r.src == "d6" else None)
         at, ctx = ev if ev else (None, None)
         rows.append(_row(r, fs, at, ctx))
     for r in txs.itertuples():
@@ -122,7 +141,7 @@ def assign_split(df: pd.DataFrame) -> pd.DataFrame:
 def _row(r, fs: FeatureStore, at, ctx) -> dict:
     f = fs.features(r.address, r.chain, at)
     res = score_features(f, ctx)
-    return {"grp": r.grp, "chain": r.chain, "address": r.address, "label": r.label, "at": at,
+    return {"grp": r.grp, "chain": r.chain, "address": r.address, "label": r.label, "src": r.src, "at": at,
             "has_ctx": ctx is not None, "state": f.state(), "R": res.score, **res.components,
             "hard": res.hard_rule, "types": ",".join(res.types),
             "hist": fs.history_source.get((r.chain, r.address)), "n_tx_before": (f.history or {}).get("n_tx")}

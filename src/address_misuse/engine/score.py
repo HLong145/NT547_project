@@ -28,6 +28,8 @@ REDEPLOY_BONUS = 0.1
 OSINT_K = 3.0
 REVERT_MIN_TX = 5
 MISUSE_MIN_SENDERS = 2
+SWEEPER_MIN_RATIO = 0.02     # luật cứng `sweeper`: n_sweep / n_plain_in ≥ ngưỡng (chọn trên train + val,
+                             # FINDINGS 2026-10-24: âm train/val có tỉ lệ ≤ 0,011)
 TRANSFER_SELECTOR = "0xa9059cbb"
 
 
@@ -151,6 +153,12 @@ def s_history(f: Features) -> tuple[float, list, list]:
     return s, types, reasons
 
 
+def is_sweeper(f: Features) -> bool:
+    """Trước `at`, tiền nạp vào địa chỉ bị rút sạch ngay đủ thường xuyên: dấu hiệu EOA đã bị sweeper chiếm (ADDR)."""
+    h = f.history
+    return bool(h and h["n_plain_in"] and h["n_sweep"] / h["n_plain_in"] >= SWEEPER_MIN_RATIO)
+
+
 COMPONENTS = {"bytecode": s_bytecode, "cross": s_cross, "osint": lambda f, ctx: s_osint(f),
               "history": lambda f, ctx: s_history(f)}
 
@@ -163,7 +171,7 @@ def score_features(f: Features, ctx: TxContext | None = None, weights: dict = DE
     order = sorted(parts, key=lambda k: -weights[k] * comps[k])
     reasons = [r for k in order for r in parts[k][2]]
     hard = "leaked_key" if f.leaked_key else "malicious_delegate" if f.state() == "7702" and f.delegate_malicious \
-        else None
+        else "sweeper" if is_sweeper(f) else None
     return RiskResult(round(total, 2), comps, types, reasons, hard)
 
 
