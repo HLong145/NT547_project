@@ -12,9 +12,11 @@
 - 🔄 **Rà soát quy trình 2 lượt (2026-10-24, FINDINGS_LOG cùng ngày):** lượt 1 sửa 5 lỗi Module 3; lượt 2 (mọi module)
   sửa PCD chọn tx sau khi tạo contract (sai Rule 2), contract tự huỷ, loss D6 thiếu gas, ví online dùng w/τ có
   history. ✅ symexec 727 + 77 contract, cửa sổ lịch sử 3.010, txlist ETH dương, thời điểm tạo PCD/N5 (476),
-  `engine.evaluate` chạy lại; luật `sweeper` vẫn 0 báo nhầm trên âm train/val (33 ADDR). **Đang chạy:** tra GoPlus
-  (`engine.goplus fetch`, 4.595 địa chỉ). **Xong thì:** tra lại lỗi GoPlus → `engine.metrics` → `wallet.replay` →
-  `freeze` (v2 bản cuối) → báo số trước/sau.
+  `engine.evaluate` chạy lại; luật `sweeper` vẫn 0 báo nhầm trên âm train/val (33 ADDR). ✅ GoPlus tra xong (99,3%):
+  F1 0,04 so với engine 0,86. Lỗi 6 (FINDINGS_LOG cùng ngày): `probe` nuốt timeout RPC → 1.939 địa chỉ (42 dương D6, nhiều
+  âm) không có code, đã sửa. **Đang chạy (nền):** `prepare contracts` (symexec ~940 contract mới, tự tiếp tục) →
+  `evaluate` → `metrics` → `wallet.replay` → `freeze`. **Xong thì:** đọc số mới, ghi FINDINGS, commit kết quả
+  (`engine_eval`, `engine_metrics`, `engine_roc`, `wallet_replay`, `engine_symexec`, `dataset_v2`, `splits_v2`, `MANIFEST_v2`).
 - 🔄 **Dataset v2 (DATASHEET §8):** code xong, chạy thử QA đạt. v2 = v1 + N5 (118; 42 contract recovery bị tác giả
   gắn cờ PCD chuyển sang âm) + 42 dương mới D6 + cột `label_source`, `needs_review`, `key_value0`. Dựng bản cuối sau
   bước trên.

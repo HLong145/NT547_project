@@ -111,6 +111,8 @@ def evaluate(seed: int = 0) -> pd.DataFrame:
     allp = pd.concat([adr, txs])
     fs.prepare(list(zip(allp.chain, allp.address)))
     fs.probe(allp.address.unique())
+    if miss := fs.missing_code(allp.address.unique()):  # state None → S_bytecode 0: lệch theo nhãn (FINDINGS 2026-10-24)
+        print(f"CẢNH BÁO: {len(miss)} địa chỉ chưa có getCode đủ 8 mạng, chạy lại để tra tiếp", flush=True)
     rows = []
     for r in adr.itertuples():
         own = fs.own_create.get((r.chain, r.address))

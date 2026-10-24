@@ -54,7 +54,19 @@ Tái tạo: `python -X utf8 -m address_misuse.l2_misuse txlist --chain polygon -
 
 **Baseline GoPlus** (`engine.goplus`, Address Security API, miễn phí): cờ độc hại bất kỳ trên địa chỉ đích, trạng thái
 lúc tra (2026-10) — GoPlus được lợi vì biết sau sự việc. Gắn vào `engine.metrics` (chỉ trên mẫu tra được, so cùng mẫu
-với engine và "GoPlus HOẶC engine"). Số liệu: sau khi tra xong.
+với engine và "GoPlus HOẶC engine"). Tra xong 99,3% địa chỉ (27 lỗi quá giới hạn tốc độ). Kết quả (bản trước khi sửa
+lỗi probe bên dưới, GoPlus không đổi): trên test GoPlus recall 2,2%, precision 0,31, F1 0,04, báo nhầm 1,4% (21% trên
+N7 contract đa chuỗi hợp lệ); engine cùng mẫu F1 0,86; "GoPlus HOẶC engine" F1 0,84 (kém engine một mình vì thêm báo
+nhầm). Ngoài thời gian: GoPlus F1 0,03. GoPlus chỉ gắn cờ 0–5% dương → phần lớn misuse (nhất là NCD/PCD/ADDR) chưa có
+trong danh sách đen, đúng luận điểm của đề tài.
+
+**Lỗi 6 (phát hiện sau, nghiêm trọng): `FeatureStore.probe` nuốt lỗi RPC.** Một lô getCode ~1.900 địa chỉ luôn timeout ở
+RPC công khai; `except Exception` bỏ qua, địa chỉ không có code → `state()` = None → S_bytecode = 0 và không có luật
+delegate. Ảnh hưởng 1.939 địa chỉ: 42 dương D6 (23 ADDR D6 không dính luật `malicious_delegate`, tức recall ADDR ngoài
+thời gian bị đánh giá thấp) và phần lớn âm N2/N3/N8 (điểm bytecode bằng 0 thay vì điểm thật, tức báo nhầm bị đánh giá
+thấp). Sửa: tra theo lô 100 (`PROBE_CHUNK`), in lỗi RPC, `evaluate` cảnh báo nếu còn địa chỉ thiếu code. Sau sửa: 0
+mẫu state NaN (trước: 1.659/6.429). Phải symexec lại ~940 contract mới (trước đó coi là chưa phân tích, điểm 0,3) rồi chạy
+lại metrics / replay / freeze; **mọi số liệu Module 3–4 và dataset_v2 trước mục này là tạm, chưa dùng trong paper.**
 
 ## 2026-10-24 — Dataset v2 (chạy thử): contract recovery N5 là âm khó nhất
 

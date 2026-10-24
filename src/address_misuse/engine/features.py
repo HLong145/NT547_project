@@ -29,6 +29,7 @@ from address_misuse.rules import find_sweep_pairs
 NETS = tuple(NETWORKS)
 MATRIX = INTERIM_DIR / "crosschain_matrix.parquet"
 XC_CODE_DIR = INTERIM_DIR / "xc_code"
+PROBE_CHUNK = 100
 ENGINE_CODE = INTERIM_DIR / "engine_code.parquet"           # getCode bổ sung cho địa chỉ ngoài ma trận
 ENGINE_CREATION = INTERIM_DIR / "engine_creation.parquet"   # thời điểm tạo contract trên chính chain
 ENGINE_SYMEXEC = INTERIM_DIR / "engine_symexec.jsonl"       # symexec bổ sung (delegate 7702 mới, ...)
@@ -283,10 +284,14 @@ class FeatureStore:
             return
 
         def one(net):
-            try:
-                codes = rpc_batch(net, [("eth_getCode", [a, "latest"]) for a in todo])
-            except Exception:
-                codes = [None] * len(todo)
+            codes = []
+            for i in range(0, len(todo), PROBE_CHUNK):   # một lô lớn (~2.000 getCode) luôn timeout ở RPC công khai
+                part = todo[i:i + PROBE_CHUNK]
+                try:
+                    codes += rpc_batch(net, [("eth_getCode", [a, "latest"]) for a in part])
+                except Exception as e:                   # không im lặng: địa chỉ thiếu code → state None
+                    print(f"probe {net}: lỗi RPC ({e!r:.120}), {len(part)} địa chỉ chưa có code", flush=True)
+                    codes += [None] * len(part)
             rows = []
             for a, c in zip(todo, codes):
                 r = _code_record(a, c)
