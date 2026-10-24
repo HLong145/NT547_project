@@ -4,6 +4,7 @@ python -X utf8 -m address_misuse.d6_new state      → data/interim/d6_state.par
 python -X utf8 -m address_misuse.d6_new created    → data/raw/eth/creation.jsonl     (getcontractcreation, Etherscan)
 python -X utf8 -m address_misuse.d6_new delegates  → data/interim/d6_delegates.parquet (symexec delegate 7702 mới)
 python -X utf8 -m address_misuse.d6_new rules [--per-type 400] [--only ADDR] → data/interim/d6_new_positives.parquet
+python -X utf8 -m address_misuse.d6_new recost     → tính lại số tx / loss mới từ txlist đã cache (không gọi mạng)
 
 Đầu vào: `data/raw/eth/bq_new_activity.parquet` (`bq_fetch new-fetch`, một dòng thống kê mỗi ứng viên có tx từ 2025-09-01).
 Lọc theo đúng luật của tác giả (`rules.py`), chỉ thêm bước sàng rẻ ở đầu:
@@ -16,6 +17,8 @@ Lọc theo đúng luật của tác giả (`rules.py`), chỉ thêm bước sàn
 - KEY: chưa làm (địa chỉ lộ key gần như không nằm trong `candidate_addresses`, cần truy vấn riêng).
 Mỗi loại lấy mẫu ngẫu nhiên `--per-type` địa chỉ (seed cố định), tải txlist Etherscan (≤ 10k tx), chạy luật; dương mới
 = có ít nhất một tx bị gắn cờ từ 2025-09-01. Đây là nhãn theo luật, vẫn cần nhãn vàng (D5).
+Loss mới (`cost_wei_new`) = value + phí gas các tx bị gắn cờ từ 2025-09-01, cùng định nghĩa `cost_wei` của tác giả;
+`value_wei_new` = chỉ phần value.
 """
 
 import argparse
@@ -204,7 +207,6 @@ def candidates() -> pd.DataFrame:
 def cmd_rules(per_type: int, seed: int, only: str | None = None, no_wallets: bool = False):
     from address_misuse.etherscan import Etherscan
     from address_misuse.reproduce_rules import fetch_txlist
-    from address_misuse.rules import detect_ca_misuse, detect_eoa_addr
     c = candidates()
     if only:
         c = c[c.rule == only]
@@ -220,17 +222,8 @@ def cmd_rules(per_type: int, seed: int, only: str | None = None, no_wallets: boo
     rows = []
     for i, r in enumerate(pick.itertuples(), 1):
         rec = fetch_txlist(es, r.address, max_records=MAX_RECORDS)
-        txs = rec["result"]
-        if r.rule == "ADDR":
-            res = detect_eoa_addr(r.address, txs, balance_wei=bal.get(r.address, 0), eip7702_delegate_malicious=True)
-        else:
-            res = detect_ca_misuse(r.address, txs, "eth", creation=cr.get(r.address) or None)
-        new = [f for f in res.flagged if _ts(txs, f) >= OUT_OF_TIME_TS]
-        rows.append({"address": r.address, "rule": r.rule, "subtype": res.subtype, "n_tx": len(txs),
-                     "truncated": rec["truncated"], "n_misuse_tx": res.n_misuse_tx, "n_misuse_new": len(new),
-                     "first_misuse_new_ts": min((_ts(txs, f) for f in new), default=None),
-                     "cost_wei_new": str(sum(f.get("value_wei", 0) for f in new)), "delegate": r.delegate,
-                     "is_new_positive": bool(new)})
+        rows.append({"address": r.address, "rule": r.rule, "n_tx": len(rec["result"]), "truncated": rec["truncated"],
+                     **apply_rule(r.rule, r.address, rec["result"], bal.get(r.address, 0), cr), "delegate": r.delegate})
         if i % 50 == 0 or i == len(pick):
             print(f"  {i}/{len(pick)}", flush=True)
     out = pd.DataFrame(rows)
@@ -240,6 +233,40 @@ def cmd_rules(per_type: int, seed: int, only: str | None = None, no_wallets: boo
     print(out.groupby("rule").agg(n=("address", "size"), new_pos=("is_new_positive", "sum"),
                                   any_misuse=("n_misuse_tx", lambda x: int((x > 0).sum())),
                                   truncated=("truncated", "sum")).to_string())
+
+
+def apply_rule(rule: str, address: str, txs: list[dict], balance_wei: int, cr: dict) -> dict:
+    from address_misuse.rules import detect_ca_misuse, detect_eoa_addr
+    if rule == "ADDR":
+        res = detect_eoa_addr(address, txs, balance_wei=balance_wei, eip7702_delegate_malicious=True)
+    else:
+        res = detect_ca_misuse(address, txs, "eth", creation=cr.get(address) or None)
+    new = [f for f in res.flagged if _ts(txs, f) >= OUT_OF_TIME_TS]
+    return {"subtype": res.subtype, "n_misuse_tx": res.n_misuse_tx, "n_misuse_new": len(new),
+            "first_misuse_new_ts": min((_ts(txs, f) for f in new), default=None),
+            "cost_wei_new": str(sum(f["value_wei"] + f["gas_wei"] for f in new)),
+            "value_wei_new": str(sum(f["value_wei"] for f in new)), "is_new_positive": bool(new)}
+
+
+def cmd_recost():
+    """Chạy lại luật trên txlist đã cache cho các dòng đã có (không gọi mạng). ADDR: dòng đã có tx bị gắn cờ thì số
+    dư lúc tải đã ≤ dust (điều kiện của luật), nên dùng 0; dòng ADDR không bị gắn cờ giữ nguyên."""
+    from address_misuse.reproduce_rules import load_txlist
+    out = pd.read_parquet(OUT)
+    cr = load_creations("eth")
+    rows = []
+    for r in out.to_dict("records"):
+        rec = load_txlist("eth", r["address"])
+        if rec is None or (r["rule"] == "ADDR" and not r["n_misuse_tx"]):
+            rows.append(r)
+            continue
+        rows.append({**r, **apply_rule(r["rule"], r["address"], rec["result"], 0, cr)})
+    new = pd.DataFrame(rows)
+    changed = int((new.is_new_positive != out.is_new_positive).sum())
+    new.to_parquet(OUT, index=False)
+    print(f"tính lại {len(new)} dòng; đổi nhãn dương mới: {changed}; loss mới (value + gas) "
+          f"{sum(int(x) for x in new.cost_wei_new[new.is_new_positive]) / 1e18:.4f} ETH, chỉ value "
+          f"{sum(int(x) for x in new.value_wei_new[new.is_new_positive]) / 1e18:.4f} ETH")
 
 
 def _ts(txs: list[dict], flagged: dict) -> int:
@@ -252,7 +279,7 @@ def _ts(txs: list[dict], flagged: dict) -> int:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["state", "created", "delegates", "rules"])
+    ap.add_argument("step", choices=["state", "created", "delegates", "rules", "recost"])
     ap.add_argument("--per-type", type=int, default=400)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--only", choices=["NCD", "PCD", "ADDR"])
@@ -266,6 +293,8 @@ def main():
         cmd_created()
     elif a.step == "delegates":
         cmd_delegates(a.timeout, a.workers)
+    elif a.step == "recost":
+        cmd_recost()
     else:
         cmd_rules(a.per_type, a.seed, a.only, a.no_wallets)
 

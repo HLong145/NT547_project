@@ -235,6 +235,8 @@ def cmd_rules(chain: str, focus: str = "all"):
             res = detect_eoa_key(r.address, txs)
         elif r.kind in ("NCD", "PCD"):
             creation = cre.get(r.address) or None if r.kind == "PCD" else None
+            if r.kind == "PCD" and creation is None and not any(t["to"] == "" for t in txs):
+                continue        # có code nhưng không biết lúc tạo: luật tác giả sẽ coi là NCD → bỏ, không đoán
             res = detect_ca_misuse(r.address, txs, chain, creation=creation)
         else:
             continue

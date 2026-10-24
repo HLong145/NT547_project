@@ -45,7 +45,7 @@ class MisuseResult:
         self.value_wei += value
         self.gas_wei += gas
         self.cost_wei += value + gas
-        self.flagged.append(record)
+        self.flagged.append({**record, "gas_wei": gas})
 
 
 def _lc(x) -> str:

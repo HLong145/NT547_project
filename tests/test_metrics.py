@@ -44,3 +44,18 @@ def test_learn_weights_ignores_hard_rule_samples():
     key = pd.DataFrame({"a": 0.0, "b": 1.0, "label": 1, "hard": "leaked_key"}, index=range(300, 600))
     w = learn_weights(pd.concat([soft, key]), ["a", "b"])
     assert w["a"] > 0.9                                            # mẫu KEY (b = 1) không kéo trọng số về b
+
+
+def test_goplus_flag_and_baseline_only_on_looked_up_samples():
+    from address_misuse.engine.goplus import flagged
+    from address_misuse.engine.metrics import goplus_baseline
+    assert flagged({"stealing_attack": "1", "contract_address": "0"}) is True
+    assert flagged({"contract_address": "1", "number_of_malicious_contracts_created": "0"}) is False
+    assert flagged({"number_of_malicious_contracts_created": "2"}) is True
+    assert flagged(None) is None
+    d = pd.DataFrame({"label": [1, 1, 0, 0], "grp": ["+ADDR", "+NCD", "-N1", "-N8"], "hard": None,
+                      "goplus_flag": [True, None, False, True]})
+    g = goplus_baseline(d, pd.Series([0.0, 99.0, 0.0, 0.0]), {"warn": 50.0})
+    assert g["coverage"] == 0.75
+    assert (g["goplus"]["tp"], g["goplus"]["fp"], g["goplus"]["fn"]) == (1, 1, 0)   # mẫu chưa tra (+NCD) bị bỏ
+    assert g["engine_same_samples"]["tp"] == 0

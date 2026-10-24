@@ -147,7 +147,9 @@ def test_pick_event_uses_misuse_txs_only():
                         _tx(3, A, "0x" + "3" * 40, 1)])
     at, ctx = pick_event(txs, A, "+NCD", None, seed=0)
     assert (at, ctx.calldata) == (2, CALL_PLACEHOLDER)                 # NCD: chỉ tx gọi hàm
-    assert pick_event(txs, A, "+PCD", 5, seed=0) is None                # PCD: chỉ tx sau khi contract được tạo
+    assert pick_event(txs, A, "+PCD", 5, seed=0)[0] == 2                # PCD: tx gọi hàm TRƯỚC khi contract được tạo
+    assert pick_event(txs, A, "+PCD", 2, seed=0) is None
+    assert pick_event(txs, A, "-N5", 2, seed=0)[0] == 2                 # N5: chỉ tx sau khi contract được tạo
     assert pick_event(txs, A, "-N1", None, seed=0)[0] in (1, 2)
     assert pick_event(None, A, "-N1", None, seed=0) is None
 
@@ -189,3 +191,10 @@ def test_pick_event_min_ts_for_new_positives():
     txs = pd.DataFrame([_tx(b, "0x" + "1" * 40, A, 0, gas_used=25_000) for b in (5, 50)])
     assert pick_event(txs, A, "+NCD", None, 0, min_ts=10)[0] == 50
     assert pick_event(txs, A, "+NCD", None, 0, min_ts=100) is None
+
+
+def test_state_follows_creation_and_selfdestruct():
+    assert feat(code={"bsc": "code"}, at=5, own_create_ts=9).state() == "none"     # tạo sau `at`
+    assert feat(code={"bsc": "none"}, at=5, own_create_ts=3).state() == "code"     # tạo trước `at`, nay đã tự huỷ
+    assert feat(code={"bsc": "none"}, at=5).state() == "none"
+    assert s_bytecode(feat(code={"bsc": "none"}, at=5, own_create_ts=3), TxContext(calldata="0x7ff36ab5"))[1] == []

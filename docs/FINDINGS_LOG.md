@@ -2,6 +2,38 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-24 — Rà soát lần 2 (mọi module) + baseline GoPlus
+
+**Lỗi đã sửa:**
+1. *Mẫu dương PCD chọn sai tx (Module 3, nghiêm trọng).* `pick_event` chọn tx SAU khi contract được tạo, trong khi
+   Rule 2 của tác giả gắn cờ tx gọi hàm TRƯỚC khi tạo (`block < creation`); sau khi tạo là gọi contract bình thường.
+   Lần sửa 2026-10-23 (#4) đã hiểu ngược. Nay: +PCD = tx gọi hàm (gas > 21.000) trước khi tạo; −N5 (contract
+   recovery) = tx sau khi tạo (câu hỏi là có báo nhầm contract hợp lệ không).
+2. *Contract tự huỷ bị coi là địa chỉ trống.* `Features.state()` dùng getCode hôm nay; contract đã tạo trước `at`
+   rồi selfdestruct (vd. Dice2Win trong N8) bị chấm như NCD (T1 = 1). Nay coi là có code (symexec không có → 0,3).
+3. *Loss dương mới D6 thiếu phí gas.* `cost_wei_new` chỉ cộng value, còn loss tác giả = value + gas. `d6_new recost`
+   tính lại từ cache: 0,0857 → 0,0868 ETH, không đổi nhãn nào; thêm cột `value_wei_new`.
+4. *Ví online dùng trọng số/ngưỡng học có S_history* nhưng online không có lịch sử (S_history = 0, không có luật
+   `sweeper`) → R bị kéo thấp mà τ không đổi. Nay online dùng cấu hình học lại không có history (ablation "bỏ history":
+   w = bytecode 0,28 / cross 0,16 / osint 0,56, τ 43,7). `wallet.replay` báo hai chế độ: `online` (đúng như ví chạy
+   thật) và `offline` (có lịch sử, cận trên); KEY báo riêng tx value > 0.
+5. *L2 / replay: PCD không biết lúc tạo* thì luật tác giả chạy như NCD trên một contract → nay bỏ, không đoán
+   (arb: 7 địa chỉ, không ca nào bị gắn cờ, số liệu D3b không đổi).
+
+**Hạn chế cần nêu trong paper (không sửa được):**
+- *Luật cứng `malicious_delegate` ≈ định nghĩa nhãn ADDR* (ADDR của tác giả bắt buộc delegate có đường chuyển tiền):
+  58/58 ADDR test dính luật này. Recall ADDR do luật cứng là đúng theo định nghĩa, không chứng minh khả năng phát hiện;
+  báo riêng phần "chỉ R". Không dựng được danh sách đen chỉ từ train vì EIP-7702 kích hoạt 2025-05 (mọi mẫu 7702 ở test).
+  Âm 7702 phần lớn đã có symexec delegate (N1 2/2, N8 5/6) nên không lệch kiểu "chỉ dương có symexec".
+- *Âm theo tx không kiểm tay:* N8 có 2 tx ETH gửi calldata tới địa chỉ không code (có thể là NCD chưa ai gắn cờ);
+  N2/N8 ETH: 0/1.235 đích được tạo sau tx (không có PCD lẫn vào); BSC không có thời điểm tạo để kiểm.
+- *D5:* pilot 50 mẫu lấy từ dữ liệu tác giả; mẫu chính (~2.000) phải lấy từ `dataset_v2` (test + ngoài thời gian +
+  `needs_review`) thì nhãn vàng mới dùng để chấm engine được.
+
+**Baseline GoPlus** (`engine.goplus`, Address Security API, miễn phí): cờ độc hại bất kỳ trên địa chỉ đích, trạng thái
+lúc tra (2026-10) — GoPlus được lợi vì biết sau sự việc. Gắn vào `engine.metrics` (chỉ trên mẫu tra được, so cùng mẫu
+với engine và "GoPlus HOẶC engine"). Số liệu: sau khi tra xong.
+
 ## 2026-10-24 — Dataset v2 (chạy thử): contract recovery N5 là âm khó nhất
 
 - v2 = 1.558 dương luật tác giả + 42 dương mới D6 (ETH, `at` ≥ 2025-09-01, đều ở test) + 4.947 âm (thêm N5: 118

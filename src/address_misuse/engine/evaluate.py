@@ -4,8 +4,10 @@ python -m address_misuse.engine.evaluate [--seed 0]   → data/interim/engine_ev
 
 Cùng một quy trình cho mẫu dương và âm (tránh lệch giữa hai nhóm):
 - mẫu theo địa chỉ (dương trong `engine_eval_sample`, N1, N4, N6, N7): chọn ngẫu nhiên một tx đi vào địa chỉ làm
-  thời điểm xét `at` và ngữ cảnh; chỉ dùng dữ liệu trước `at`. Với NCD chỉ chọn tx gọi hàm (tx misuse), với PCD chỉ
-  chọn tx sau khi contract được tạo trên chính chain (trước đó địa chỉ chưa phải PCD). Không có lịch sử → at = hôm nay.
+  thời điểm xét `at` và ngữ cảnh; chỉ dùng dữ liệu trước `at`. Dương chọn trong tx misuse theo đúng luật tác giả:
+  NCD = tx gọi hàm; PCD = tx gọi hàm TRƯỚC khi contract được tạo (Rule 2: `block < creation`; sau khi tạo là gọi
+  contract bình thường). N5 (contract recovery) ngược lại: chỉ tx SAU khi contract được tạo — câu hỏi là engine có
+  báo nhầm contract hợp lệ không. Không có lịch sử → at = hôm nay.
   Lịch sử từ txlist (Etherscan / NodeReal) có input thật; chỉ khi phải dùng BigQuery (không input) ngữ cảnh mới là
   "có calldata" (gas dùng > 21.000) và không chạy được bộ lọc IDM / T3;
 - mẫu theo tx (N2, N3, N8): `at` = thời điểm block, ngữ cảnh = value + input thật; lịch sử là 1.000 tx gần nhất trước
@@ -86,9 +88,11 @@ def pick_event(txs: pd.DataFrame | None, address: str, grp: str, own_create_ts: 
     inc = txs[txs.to_address == address]
     if min_ts is not None:
         inc = inc[inc.block_ts >= min_ts]
-    if grp == "+NCD":
+    if grp in ("+NCD", "+PCD"):
         inc = inc[inc.receipt_gas_used > 21_000]
-    elif grp == "+PCD" and own_create_ts is not None:
+    if grp == "+PCD" and own_create_ts is not None:
+        inc = inc[inc.block_ts < own_create_ts]
+    elif grp == "-N5" and own_create_ts is not None:
         inc = inc[inc.block_ts >= own_create_ts]
     if not len(inc):
         return None

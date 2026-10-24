@@ -7,8 +7,9 @@ python -X utf8 -m address_misuse.wallet.online 0x... [--chain eth] [--data 0x...
 - Tra cục bộ: OSINT (7,6M địa chỉ ứng viên, lưu dạng 8 byte đầu kiểu uint64 đã sắp xếp, ~60 MB), ví lộ key, symexec
   (tác giả + nhóm chạy lại), proxy → logic, delegate 7702 hợp lệ (N6) / có đường chuyển tiền (`d6_delegates`),
   thời điểm deploy ở mạng khác + khả năng deploy lại (ma trận cross-chain).
-- Không có lịch sử giao dịch online (S_history = 0); trọng số học được của S_history nhỏ (FINDINGS_LOG Module 3).
-- Trọng số và ngưỡng lấy từ `engine_metrics.json` (Module 3) nếu có.
+- Không có lịch sử giao dịch online (S_history = 0, không có luật cứng `sweeper`), nên trọng số và ngưỡng lấy từ cấu
+  hình học KHÔNG có S_history (ablation "bỏ history" trong `engine_metrics.json`, Module 3) — dùng `w`/`τ` có
+  history rồi bỏ S_history thì R bị kéo thấp mà ngưỡng không đổi.
 """
 
 import argparse
@@ -49,11 +50,13 @@ def osint_index(chain: str) -> np.ndarray:
     return arr
 
 
-def learned_config() -> tuple[dict, dict]:
+def learned_config(history: bool = True) -> tuple[dict, dict]:
+    """(w, τ) của Module 3: cấu hình đủ 4 thành phần, hoặc cấu hình học lại không có S_history (`history=False`)."""
     if METRICS.exists():
-        m = json.loads(METRICS.read_text(encoding="utf-8"))["main"]
-        w = {k: m["weights"].get(k, 0.0) for k in DEFAULT_WEIGHTS}
-        return w, m["thresholds"]
+        j = json.loads(METRICS.read_text(encoding="utf-8"))
+        m = j["main"] if history else j["ablation"].get("bỏ history")
+        if m:
+            return {k: m["weights"].get(k, 0.0) for k in DEFAULT_WEIGHTS}, m["thresholds"]
     return DEFAULT_WEIGHTS, DEFAULT_TAU
 
 
@@ -77,7 +80,7 @@ class OnlineStore:
         m = m[m.first_create_ts.notna() | m.redeploy.notna()]
         self.xc = {(c, a): (None if pd.isna(t) else int(t), r if isinstance(r, str) else None)
                    for c, a, t, r in zip(m.chain, m.address, m.first_create_ts, m.redeploy)}
-        self.weights, self.tau = learned_config()
+        self.weights, self.tau = learned_config(history=False)
 
     # ------------------------------------------------------------ mạng
 

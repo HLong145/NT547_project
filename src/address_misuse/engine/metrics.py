@@ -10,7 +10,8 @@ lại khi có nhãn vàng. Quy trình không đổi:
 2. Ngưỡng trên val: `τ_warn` = nhỏ nhất sao cho FPR trên N8 ≤ 1%; `τ_block` = nhỏ nhất sao cho precision ≥ 0,95.
 3. Trên test và ngoài thời gian: cảnh báo = luật cứng HOẶC R ≥ τ. Báo cáo riêng phần do luật cứng và phần do R.
    P/R/F1/FPR tổng, theo chain, recall theo loại dương, FPR theo nhóm âm; CI 95% bootstrap theo mẫu.
-4. Baseline: heuristic `getCode == 0x ∧ có calldata` (T1 của S_bytecode, không có bộ lọc văn bản nếu có `has_call`).
+4. Baseline: heuristic `getCode == 0x ∧ có calldata` (T1 của S_bytecode, không có bộ lọc văn bản nếu có `has_call`);
+   GoPlus Address Security (`engine.goplus`, trạng thái lúc tra chứ không phải tại `at`), chỉ trên mẫu đã tra được.
    Rule gốc của Shao et al. không so được vì chính nó sinh nhãn dương.
 5. Ablation: bỏ từng S (học lại `w`, chọn lại ngưỡng).
 """
@@ -22,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from address_misuse.config import INTERIM_DIR
+from address_misuse.engine.goplus import flags_frame
 
 EVAL = INTERIM_DIR / "engine_eval.parquet"
 OUT = INTERIM_DIR / "engine_metrics.json"
@@ -149,6 +151,18 @@ def baseline(d: pd.DataFrame) -> np.ndarray:
     return ((d.state == "none") & d.types.str.contains("T1")).to_numpy()
 
 
+def goplus_baseline(d: pd.DataFrame, r: pd.Series, tau: dict) -> dict:
+    """GoPlus (cờ độc hại bất kỳ) so với engine mức warn trên cùng các mẫu GoPlus tra được."""
+    m = d.goplus_flag.notna()
+    d, r = d[m], r[m]
+    y, pred = d.label.to_numpy(int), d.goplus_flag.astype(bool).to_numpy()
+    eng = d.hard.notna().to_numpy() | (r.to_numpy() >= tau["warn"])
+    return {"coverage": float(m.mean()), "goplus": confusion(y, pred), "engine_same_samples": confusion(y, eng),
+            "goplus_or_engine": confusion(y, pred | eng),
+            "recall_by_group": {g: float(pred[(d.grp == g).to_numpy()].mean()) for g in sorted(d[d.label == 1].grp.unique())},
+            "fpr_by_group": {g: float(pred[(d.grp == g).to_numpy()].mean()) for g in sorted(d[d.label == 0].grp.unique())}}
+
+
 def run(df: pd.DataFrame, comps=COMPS, boot: int = 1000, seed: int = 0, curves: list | None = None) -> dict:
     rng = np.random.default_rng(seed)
     tr, va = df[df.split == "train"], df[df.split == "val"]
@@ -163,6 +177,8 @@ def run(df: pd.DataFrame, comps=COMPS, boot: int = 1000, seed: int = 0, curves: 
         r = risk(d, w)
         out["sets"][name] = evaluate_set(d, r, tau, boot, rng)
         out["sets"][name]["baseline_getcode_calldata"] = confusion(d.label.to_numpy(int), baseline(d))
+        if "goplus_flag" in d:
+            out["sets"][name]["baseline_goplus"] = goplus_baseline(d, risk(d, w), tau)
         if curves is not None:
             for ch in sorted(d.chain.unique()):
                 m = d.chain == ch
@@ -194,6 +210,13 @@ def report(res: dict, abl: dict) -> str:
             L.append("        recall theo loại: " + ", ".join(f"{g} {v:.2f}" for g, v in e["recall_by_group"].items()))
             L.append("        FPR theo nhóm âm: " + ", ".join(f"{g} {v:.3f}" for g, v in e["fpr_by_group"].items()))
         L.append(f"  baseline getCode==0x ∧ calldata: {_fmt(s['baseline_getcode_calldata'])}")
+        if "baseline_goplus" in s:
+            g = s["baseline_goplus"]
+            L.append(f"  baseline GoPlus (tra được {g['coverage']:.0%} mẫu): {_fmt(g['goplus'])}")
+            L.append(f"        engine trên cùng mẫu:   {_fmt(g['engine_same_samples'])}")
+            L.append(f"        GoPlus HOẶC engine:     {_fmt(g['goplus_or_engine'])}")
+            L.append("        GoPlus recall theo loại: " + ", ".join(f"{k} {v:.2f}" for k, v in g["recall_by_group"].items()))
+            L.append("        GoPlus FPR theo nhóm âm: " + ", ".join(f"{k} {v:.3f}" for k, v in g["fpr_by_group"].items()))
     L += ["", "Ablation (học lại w, chọn lại ngưỡng; F1 / FPR mức warn trên test):"]
     for k, r in abl.items():
         e = r["sets"]["test"]["warn"]["all"]
@@ -209,6 +232,9 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     df = pd.read_parquet(EVAL)
+    gp = flags_frame()
+    if len(gp):
+        df = df.merge(gp[["chain", "address", "goplus_flag"]], on=["chain", "address"], how="left")
     curves = []
     res = run(df, boot=a.boot, seed=a.seed, curves=curves)
     abl = {"đủ 4": res}

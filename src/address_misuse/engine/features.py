@@ -61,15 +61,18 @@ class Features:
     history: dict | None = None                         # None = không có tx thô cho chain này
 
     def state(self, net: str | None = None) -> str | None:
-        """Trạng thái code tại `at`. Trên chính `chain`: contract tạo sau `at` coi như chưa có; trên mọi mạng:
+        """Trạng thái code tại `at`. Trên chính `chain`: contract tạo sau `at` coi như chưa có, contract đã tạo trước `at`
+        mà nay không còn code là đã tự huỷ (coi như có code); trên mọi mạng:
         trước khi EIP-7702 kích hoạt, EOA đang ủy quyền hôm nay khi đó vẫn là EOA thường."""
         net = net or self.chain
         s = self.code.get(net)
         if s == "7702" and self.at is not None and self.at < EIP7702_ACTIVATION_TS.get(net, 0):
             return "none"
-        if (net == self.chain and s == "code" and self.at is not None and self.own_create_ts is not None
-                and self.own_create_ts > self.at):
-            return "none"
+        if net == self.chain and self.at is not None and self.own_create_ts is not None:
+            if s == "code" and self.own_create_ts > self.at:
+                return "none"
+            if s == "none" and self.own_create_ts <= self.at:
+                return "code"                   # contract đã tự huỷ sau `at` (getCode hôm nay rỗng, symexec không có)
         return s
 
 

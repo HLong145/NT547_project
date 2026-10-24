@@ -12,10 +12,15 @@ python -X utf8 -m address_misuse.wallet.replay   → data/interim/wallet_replay.
   Hạn chế: tập lộ key / OSINT không có mốc thời gian nên coi như đã biết từ trước.
 - Tx bình thường: N8 (1 tx ngẫu nhiên mỗi block), cùng cách chấm; thêm N2 (gọi contract) và N3 (văn bản tới EOA).
 - Cửa sổ: test (≥ 2023-10-05) và ngoài thời gian (≥ 2025-09-01).
+- Hai chế độ (`mode`): `online` = đúng như ví chạy thật (`wallet.online`: không có lịch sử tx → S_history = 0, không có
+  luật cứng `sweeper`, `w`/`τ` học không có S_history); `offline` = có lịch sử trước ts, `w`/`τ` đủ 4 thành phần
+  (cận trên nếu ví tra được lịch sử).
+- KEY: báo riêng tx có value > 0 (phần lớn tx KEY value 0 là lệnh của kẻ chiếm ví sau EIP-7702, FINDINGS 2026-10-24).
 """
 
 import gzip
 import json
+from dataclasses import replace
 
 import pandas as pd
 
@@ -52,11 +57,13 @@ def flagged_txs(grp: str, chain: str, address: str, txs: list[dict], fs: Feature
         ts = fs.own_create.get((chain, address))
         creation = {"blockNumber": 10 ** 12, "timestamp": ts} if ts else None
         res = detect_ca_misuse(address, txs, chain, creation=creation)
+        if grp == "+PCD" and res.subtype != "PCD":
+            return []           # không biết lúc tạo contract: luật sẽ chạy như NCD, sai với nhãn → bỏ
     by_hash = {t["hash"]: t for t in txs}
     return [by_hash[f["hash"]] for f in res.flagged if f["hash"] in by_hash]
 
 
-def misuse_rows(fs: FeatureStore, w: dict, tau: dict) -> list[dict]:
+def misuse_rows(fs: FeatureStore, cfg: dict) -> list[dict]:
     ev = pd.read_parquet(EVAL)
     pos = ev[(ev.label == 1) & (ev.split == "test")].drop_duplicates(["chain", "address"])
     rows, skipped = [], {}
@@ -73,36 +80,45 @@ def misuse_rows(fs: FeatureStore, w: dict, tau: dict) -> list[dict]:
                 ts = int(t["timeStamp"])
                 if ts < SPLIT_TEST_TS:
                     continue
-                rows.append(_score(fs, w, tau, r.grp, chain, r.address, ts, int(t["value"]),
-                                   int(t["gasUsed"]) * int(t["gasPrice"]), t.get("input") or "0x", 1))
+                rows += _score(fs, cfg, r.grp, chain, r.address, ts, int(t["value"]),
+                               int(t["gasUsed"]) * int(t["gasPrice"]), t.get("input") or "0x", 1)
     print("địa chỉ dương test không có txlist (bỏ): " + ", ".join(f"{c} {n}" for c, n in skipped.items()), flush=True)
     return rows
 
 
-def normal_rows(fs: FeatureStore, w: dict, tau: dict) -> list[dict]:
+def normal_rows(fs: FeatureStore, cfg: dict) -> list[dict]:
     rows = []
     for grp, name in (("-N8", "n8_normal_txs"), ("-N2", "n2_contract_calls"), ("-N3", "n3_text_messages")):
         d = pd.read_parquet(INTERIM_DIR / f"{name}.parquet")
         d = d[d.block_ts >= SPLIT_TEST_TS]
         fs.prepare(list(zip(d.chain, d.target.str.lower())))
         for r in d.itertuples():
-            rows.append(_score(fs, w, tau, grp, r.chain, r.target.lower(), int(r.block_ts), int(r.value_wei), 0,
-                               r.input or "0x", 0))
+            rows += _score(fs, cfg, grp, r.chain, r.target.lower(), int(r.block_ts), int(r.value_wei), 0,
+                           r.input or "0x", 0)
     return rows
 
 
-def _score(fs, w, tau, grp, chain, address, ts, value, gas, data, label) -> dict:
-    res = score_features(fs.features(address, chain, ts), TxContext(value, data), w)
-    warn = bool(res.hard_rule) or res.score >= tau["warn"]
-    return {"grp": grp, "chain": chain, "address": address, "ts": ts, "label": label, "value_wei": str(value),
-            "gas_wei": str(gas), "R": res.score, "hard": res.hard_rule, "warn": warn,
-            "block": bool(res.hard_rule) or res.score >= tau["block"], "types": ",".join(res.types)}
+def _score(fs, cfg, grp, chain, address, ts, value, gas, data, label) -> list[dict]:
+    """Hai dòng: `offline` (có lịch sử trước ts) và `online` (bỏ lịch sử, như `wallet.online`)."""
+    f = fs.features(address, chain, ts)
+    out = []
+    for mode, feats in (("offline", f), ("online", replace(f, history=None))):
+        w, tau = cfg[mode]
+        res = score_features(feats, TxContext(value, data), w)
+        out.append({"mode": mode, "grp": grp, "chain": chain, "address": address, "ts": ts, "label": label,
+                    "value_wei": str(value), "gas_wei": str(gas), "R": res.score, "hard": res.hard_rule,
+                    "warn": bool(res.hard_rule) or res.score >= tau["warn"],
+                    "block": bool(res.hard_rule) or res.score >= tau["block"], "types": ",".join(res.types)})
+    return out
 
 
 def summary(df: pd.DataFrame) -> str:
     L = []
-    for win, m in (("test (≥ 2023-10-05)", df.ts >= SPLIT_TEST_TS), ("ngoài thời gian (≥ 2025-09-01)", df.ts >= OUT_OF_TIME_TS)):
-        L.append(f"== {win}")
+    for (mode, win), m in ((k, df.ts >= t) for k, t in (
+            (("online", "test (≥ 2023-10-05)"), SPLIT_TEST_TS), (("online", "ngoài thời gian (≥ 2025-09-01)"), OUT_OF_TIME_TS),
+            (("offline", "test (≥ 2023-10-05)"), SPLIT_TEST_TS))):
+        m = m & (df["mode"] == mode)
+        L.append(f"== {mode}, {win}")
         for chain in ("eth", "bsc"):
             d = df[m & (df.chain == chain)]
             mis, nor = d[d.label == 1], d[d.label == 0]
@@ -120,6 +136,9 @@ def summary(df: pd.DataFrame) -> str:
                     xv = x.value_wei.map(int).astype(object) + x.gas_wei.map(int).astype(object)
                     L.append(f"      {g}: {len(x):,} tx, cảnh báo {x.warn.mean():.1%} tx / "
                              f"{xv[x.warn].sum() / max(xv.sum(), 1):.1%} giá trị")
+                    if g == "+KEY":
+                        x = x[x.value_wei.map(int) > 0]
+                        L.append(f"        trong đó value > 0: {len(x):,} tx, cảnh báo {x.warn.mean():.1%} tx")
             for g, x in nor.groupby("grp"):
                 L.append(f"  {chain} {g}: {len(x):,} tx bình thường, báo nhầm {x.warn.mean():.2%} "
                          f"(mức chặn {x.block.mean():.2%})")
@@ -127,10 +146,11 @@ def summary(df: pd.DataFrame) -> str:
 
 
 def main():
-    w, tau = learned_config()
-    print(f"trọng số {w}, ngưỡng {tau}", flush=True)
+    cfg = {"offline": learned_config(), "online": learned_config(history=False)}
+    for mode, (w, tau) in cfg.items():
+        print(f"{mode}: trọng số {w}, ngưỡng {tau}", flush=True)
     fs = FeatureStore()
-    df = pd.DataFrame(misuse_rows(fs, w, tau) + normal_rows(fs, w, tau))
+    df = pd.DataFrame(misuse_rows(fs, cfg) + normal_rows(fs, cfg))
     df.to_parquet(OUT, index=False)
     print(summary(df))
     print(f"ghi {OUT}")

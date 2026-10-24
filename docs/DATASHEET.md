@@ -52,7 +52,9 @@ Phiên bản: v1, đóng băng 2026-10-23 (`data/final/MANIFEST.json` ghi sha256
 - **wei:** lưu dạng chuỗi.
 - **Thời điểm `at`:**
   - NCD: chỉ chọn tx gọi hàm;
-  - PCD: chỉ chọn tx sau khi contract được tạo trên chính chain;
+  - PCD: v1 chọn tx sau khi contract được tạo (sai, xem FINDINGS 2026-10-24 rà soát lần 2); v2 chọn tx gọi hàm
+    TRƯỚC khi contract được tạo, đúng Rule 2 của tác giả;
+  - N5 (v2): chỉ chọn tx sau khi contract recovery được tạo;
   - không có tx nào → `no_time`.
 - **Lỗi đã biết trong loss của tác giả** (giữ nguyên số liệu tác giả, ghi chú riêng):
   - KEY trên ETH tính cả phân bổ genesis vào loss (cột `key_genesis_wei`);
