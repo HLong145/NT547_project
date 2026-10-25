@@ -1,6 +1,6 @@
 # Codebook gán nhãn vàng (D5)
 
-Bản nháp v0.3 (2026-10-19), sẽ chỉnh sau pilot 50 mẫu. Dùng cho 2 người gán nhãn độc lập. Mục tiêu: Cohen's κ ≥ 0,8.
+Bản v0.4 (2026-10-25), sửa sau pilot 50 mẫu (κ(is_misuse) = 0,615, chưa đạt). **Chưa dùng cho lô lớn** cho tới khi pilot 2 (khoảng 30 mẫu mới) đạt κ ≥ 0,8. Dùng cho 2 người gán nhãn độc lập. Mục tiêu: Cohen's κ ≥ 0,8.
 
 Taxonomy theo [requirements.md](requirements.md) §3.1 và [PLAN_V2.md](PLAN_V2.md) §1. Kế hoạch mẫu theo PLAN_V2 D5.
 
@@ -22,7 +22,7 @@ Taxonomy theo [requirements.md](requirements.md) §3.1 và [PLAN_V2.md](PLAN_V2.
 | `type` | `T1` … `T6` / `NONE` | **Một** type chính (thứ tự ưu tiên ở §4). `NONE` khi `is_misuse = 0` |
 | `subtype` | `NCD` / `PCD` / `KEY` / `ADDR` / `7702` / `-` | Theo định nghĩa của Shao et al. (§3), giúp đối chiếu với tác giả |
 | `xc_chain` | tên chain / `-` | Chỉ dùng với T4: chain nơi contract gốc tồn tại |
-| `malicious` | `1` / `0` / `-` | Có bên thứ ba chủ động khai thác không (sweeper, planted contract, delegate độc) |
+| `malicious` | `1` / `0` / `?` / `-` | Tiền có về tay bên thứ ba không (sweeper, contract cài sẵn, delegate độc). `1` = đã thấy tiền về ví bên thứ ba; `0` = đã kiểm tra và không có (ví dụ hố đen, tiền nằm yên); `?` = chưa thấy nhưng có dấu hiệu; `-` = mẫu âm |
 | `confidence` | `high` / `medium` / `low` | Mức chắc chắn của chính người gán |
 | `evidence` | danh sách ngắn | Bằng chứng đã dùng, ví dụ `code, timing, tx, symexec, label` |
 | `note` | văn bản | Bắt buộc khi `confidence = low`, `is_misuse = ?`, hoặc mẫu rơi vào ca khó ở §5 |
@@ -38,7 +38,7 @@ Taxonomy theo [requirements.md](requirements.md) §3.1 và [PLAN_V2.md](PLAN_V2.
 
 ### EOA Misuse: người dùng gửi tài sản tới ví mà họ không kiểm soát được an toàn
 
-- **KEY:** ví có private key **đã lộ công khai** (GitHub/StackExchange). Bot sweeper rút tiền ngay khi tiền tới.
+- **KEY:** ví có private key **đã lộ công khai** (GitHub/StackExchange) và có tx tới **sau ngày lộ**. Gán dương khi ví nằm trong danh sách lộ key (ghi `leaklist` vào `evidence`); `malicious = 1` nếu thấy tiền bị rút trong vòng 10 phút về một ví lạ (không phải người gửi, không phải ví sàn hay router), `?` nếu chưa thấy rút. Không biết ngày lộ thì vẫn gán nhưng `confidence` tối đa `medium`.
 - **ADDR:** người dùng gửi tới một địa chỉ ví công khai (ví dụ trong tài liệu hay code mẫu) **không phải của họ**.
 - **7702:** EOA đã ủy quyền EIP-7702 (code bắt đầu `0xef0100…`) tới một delegate. Tiền gửi tới bị delegate xử lý, thường là delegate sweeper.
 
@@ -47,7 +47,7 @@ Taxonomy theo [requirements.md](requirements.md) §3.1 và [PLAN_V2.md](PLAN_V2.
 | Type | Tên | Điều kiện cần (đều phải thỏa) |
 |---|---|---|
 | **T1** | Gọi hàm tới địa chỉ không có code | NCD; **không** có bằng chứng contract cùng địa chỉ ở chain khác tồn tại **trước** tx |
-| **T2** | Contract "hố đen" | Địa chỉ có code, nhận native coin, **không có đường rút** (symexec không thấy `transfer_*`/`delegatecall` ra ngoài, không có hàm withdraw) |
+| **T2** | PCD: contract người dùng không định gọi | Tại thời điểm `at` địa chỉ **có code**, và có tx **thành công** (`isError = 0`) gửi coin/token vào contract không nhận hoặc gọi hàm không tồn tại, nên tiền bị giữ lại hoặc chuyển đi. Hố đen: `malicious = 0`. Contract cài sẵn rút về ví kẻ cài: `malicious = 1` (chưa thấy rút nhưng code có đường rút: `?`). Cờ symexec ("không có đường rút", `transfer_all_eth`) **chỉ là gợi ý, không đủ để gán**. Contract được gọi đúng hàm (token, proxy, LP) là **âm** |
 | **T3** | Gửi token vào chính contract token | `tokentx` có `to == contractAddress` của chính token đó |
 | **T4** | Cross-chain misalignment | NCD trên chain này **và** cùng địa chỉ có code ở chain khác, deploy **trước** tx đầu tiên tới địa chỉ trên chain này (`deployed_before`) |
 | **T5** | Key lộ / sweeper / EIP-7702 độc | KEY hoặc 7702 với delegate độc. ADDR cũng gán T5 nếu tiền bị sweeper rút |
@@ -68,7 +68,7 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`) gồm:
    ├─ Không (NCD) ──► 2
    └─ Có ──► 4
 2. Tx có calldata gọi hàm / hành vi chỉ hợp lý với contract?
-   ├─ Không: tx chuyển tiền thường tới EOA ──► 5 (xét EOA misuse)
+   ├─ Không: tx chuyển tiền thường tới EOA, hoặc calldata chỉ là event topic / văn bản (§5 ca 10) ──► 5 (xét EOA misuse)
    └─ Có ──► 3
 3. Cùng địa chỉ có code ở chain khác, deploy TRƯỚC tx đầu tiên trên chain này?
    ├─ Có ──► T4 (ghi xc_chain)
@@ -77,11 +77,11 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`) gồm:
 4. Code trên chain này có phải là contract người dùng định gọi?
    ├─ Có, và tx gọi đúng hàm ──► NONE (âm)
    ├─ Là EIP-7702 delegation (0xef0100…) ──► 5
-   └─ Không (PCD) ──► còn đường rút tiền?
-        ├─ Không ──► T2
-        └─ Có, nhưng là contract cài sẵn để chiếm tiền ──► T2, malicious = 1
-5. EOA: key lộ công khai / delegate độc / tiền bị rút gần như ngay lập tức?
-   ├─ Có ──► T5 (subtype KEY / ADDR / 7702)
+   └─ Không (PCD): tx tại `at` thành công và tiền bị giữ/chuyển đi? (tx lỗi `isError = 1` thì không mất tiền)
+        ├─ Có ──► T2 (malicious = 0 hố đen / 1 rút về ví kẻ cài / ? chưa thấy rút)
+        └─ Không ──► NONE
+5. EOA: key lộ công khai (có tx sau ngày lộ) / delegate độc / tiền bị rút gần như ngay lập tức?
+   ├─ Có ──► T5 (subtype KEY / ADDR / 7702; `malicious` = 1 / ? theo §3)
    ├─ Địa chỉ giống địa chỉ quen thuộc + tx mồi giá trị 0 ──► T6
    └─ Không (ví thường, sàn, smart wallet hợp lệ) ──► NONE (âm)
 ```
@@ -101,7 +101,12 @@ Thứ tự ưu tiên khi thỏa nhiều type: **T4 > T1**; **T5 > T6**; **T2** �
 7. **Ví sàn hay địa chỉ nạp có auto-sweep**: tiền bị chuyển đi nhanh nhưng **về ví tổng của sàn**, nên là âm (N4). Sweeper độc thì chuyển về ví lạ và thường trả gas cao.
 8. **Tx chỉ mất gas** (value = 0) tới NCD: vẫn là misuse (T1/T4). Thiệt hại nhỏ không làm đổi nhãn.
 9. **Một địa chỉ vừa là PCD vừa có contract khác ở chain khác** (PCD-XC): gán T2 nếu code hiện tại giữ tiền, kèm `xc_chain` trong note. Gán T4 nếu tx misuse xảy ra **trước** khi code xuất hiện trên chain này.
-10. **Calldata là văn bản** (UTF-8 đọc được) gửi tới EOA: thường là tin nhắn, nên là âm (N3).
+10. **Calldata là văn bản** (UTF-8 đọc được) hoặc **event topic** (ví dụ `0xddf252ad…`) gửi tới EOA: không phải gọi hàm. Xét như chuyển tiền thường và đi tiếp bước 5 (KEY/ADDR/7702). Không có dấu hiệu nào ở bước 5 thì là âm (N3).
+11. **Contract xuất hiện SAU tx** (lúc tx địa chỉ chưa có code): theo nhánh NCD (T1/T4). Ngoại lệ có chủ ý: kẻ cài contract rồi rút đúng khoản đó (P024) thì giữ T2/PCD, `malicious = 1`.
+12. **Testnet** làm chain gốc cho T4: có tính (khớp 8 mạng của `crosschain_matrix`); ghi `xc_chain` là tên testnet, không tra được ngày tạo thì `confidence = low`. Paper báo T4 có và không có testnet.
+13. **EOA 7702** (subtype tính tại `at`): thấy sweep thật → T5/7702, `malicious = 1`. Chưa thấy sweep nhưng delegate là forwarder chuyển tiền về địa chỉ cố định (xem bytecode/symexec) hoặc nằm trong danh sách đen → T5/7702, `malicious = ?`, `confidence` tối đa `medium`. Danh sách đen chỉ ghi vào `evidence`. Ô `delegate_known_wallet = -` **không** là bằng chứng độc. Delegate là ví hợp lệ có tên và chủ ví dùng bình thường → âm. Vừa lộ key vừa bị gắn delegate: theo ca 6 (KEY nếu delegate hợp lệ), nếu delegate là sweeper thì subtype `7702` kèm note "KEY?".
+14. **ADDR không có sweep:** không có type nào áp dụng nếu không thấy tiền bị rút về ví lạ → âm, `confidence = low`.
+15. **Cách ghi ô:** mẫu âm ghi `subtype`, `xc_chain`, `malicious` là `-`. `confidence = high` chỉ khi đã mở explorer xem tx tại `at`; chỉ dựa vào cột bằng chứng thì tối đa `medium`.
 
 ## 6. Bằng chứng có sẵn trong file mẫu
 
@@ -125,7 +130,7 @@ Trạng thái code là **hiện tại**, không phải lúc tx. Khi kết luận
 1. **Pilot 50 mẫu** (`data/gold/pilot50_items.csv`): mỗi người gán riêng vào `annotator_A.csv` / `annotator_B.csv`, không trao đổi.
 2. Tính κ trên `is_misuse` và trên `type`. Liệt kê các mẫu bất đồng.
 3. Họp phân xử: thống nhất nhãn cuối vào `adjudicated.csv`, rồi **sửa codebook** cho các điểm gây bất đồng (tăng phiên bản, ghi lại thay đổi ở §9).
-4. Nếu κ(type) < 0,8: làm thêm một pilot nhỏ (khoảng 30 mẫu) với codebook mới. Nếu κ ≥ 0,8: gán phần còn lại (khoảng 2.000 mẫu) theo lô.
+4. Nếu κ(`is_misuse`) < 0,8: làm thêm một pilot nhỏ (khoảng 30 mẫu **chưa ai thấy**, làm giàu PCD/KEY/7702) với codebook mới. Nếu κ ≥ 0,8: gán mẫu chính. κ tính lại sau khi đã biết bất đồng **không được báo**; κ báo trong paper là của pilot 2 và của 200 mẫu gán đôi.
 5. Mỗi lô khoảng 10% mẫu được gán trùng để theo dõi κ.
 
 ## 8. Đạo đức và an toàn
@@ -138,6 +143,7 @@ Trạng thái code là **hiện tại**, không phải lúc tx. Khi kết luận
 
 - **v0.1 (2026-10-16):** bản nháp đầu, trước pilot.
 - **v0.2 (2026-10-19):** bỏ các cột `n_tx`, `n_misuse_tx`, `cost_native` khỏi file mẫu (làm lộ nhãn: chỉ có ở mẫu thuộc dữ liệu tác giả); ô không tra được ghi `-` thay vì để trống.
+- **v0.4 (2026-10-25):** áp dụng §10.1 (điểm 1–5, đã sửa theo advisor) và §10.2: T2 cần tx thành công và sai ý định (cờ symexec chỉ gợi ý); KEY gán dương theo danh sách lộ + tx sau ngày lộ (`malicious` `1`/`?`); `malicious` có 4 giá trị; ca khó 10–15; bỏ điều kiện `delegate_known_wallet = -` làm bằng chứng độc. PCD của mình **hẹp hơn** PCD của tác giả (có chủ ý), paper báo cả hai cách đọc.
 - **v0.3 (2026-10-19):**
   - bỏ cột `delegate_flag` (thực chất là kết quả symexec, gây thiên lệch), thay bằng `delegate_symexec_transfer` và `delegate_known_wallet`;
   - tầng `neg_n6_7702_benign` đổi thành `eoa_7702_other`;
@@ -157,7 +163,7 @@ Danh sách điểm mơ hồ gặp khi gán pilot. Chưa sửa quy tắc; cần t
 ### 10.1. Đề xuất xử lý cho agenda trên (2026-10-25, **chưa áp dụng**, chờ buổi phân xử)
 
 Nên chốt 5 điểm này TRƯỚC khi gán 605 mẫu chính, vì chúng đổi nhãn của một số mẫu (đặc biệt PCD, 7702 và T4 testnet).
-Mỗi đề xuất cố ý khớp với cách engine và đặc tả đang làm, để nhãn người và nhãn máy không lệch vì định nghĩa.
+**Đã áp dụng thành v0.4** (§3, §4, §5, §9), có sửa theo nhận xét của advisor. Định nghĩa có thể giống đặc tả, nhưng **bằng chứng gán nhãn phải độc lập với engine**: danh sách đen/leak chỉ ghi vào `evidence`.
 
 1. **T2:** định nghĩa lại là "địa chỉ có code mà người dùng không định gọi, và tiền gửi vào không về lại cho người dùng"
    (hố đen HOẶC contract cài sẵn rút về ví kẻ cài). Phân biệt hai trường hợp bằng `malicious`: `0` = hố đen không đường rút,

@@ -2,6 +2,16 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-25 — CODEBOOK v0.4 và nhận xét của advisor (Opus)
+
+- Advisor không duyệt nguyên văn đề xuất §10.1/§10.2; các sửa đã áp dụng vào v0.4:
+  bỏ câu "cố ý khớp engine" (bằng chứng gán nhãn phải độc lập với engine); T2 cần tx thành công (P005: 164/167 tx lỗi); `malicious` ∈ {1, 0, ?, -};
+  `delegate_known_wallet = -` không là bằng chứng độc; danh sách đen chỉ ghi vào `evidence`; calldata event/văn bản đi tiếp bước 5.
+- Quyết định của người dùng: KEY gán dương nếu nằm trong danh sách lộ và có tx sau ngày lộ (`malicious` 1 nếu thấy rút, `?` nếu chưa), tránh thiên lệch sống sót.
+  Hệ quả cần ghi vào paper: nhãn KEY vàng trùng định nghĩa với luật `leaked_key`, nên báo chỉ số engine thêm trên tập con nhãn **không** dựa vào danh sách/symexec.
+- κ = 0,951 (tính lại sau khi biết bất đồng) không được báo; κ báo là của pilot 2 và của 200 mẫu gán đôi. Pilot 1 (0,615) báo như "trước khi sửa codebook".
+- PCD của mình hẹp hơn PCD tác giả (cố ý); RQ1 báo cả hai cách đọc. T4 báo có và không có testnet.
+
 ## 2026-10-25 — D5 pilot: κ(is_misuse) = 0,615 (< 0,8), toàn bộ bất đồng do MỘT điểm định nghĩa (T2/PCD)
 
 Tái tạo: `PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_A.csv data/gold/annotator_B.xlsx`.

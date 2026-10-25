@@ -422,11 +422,11 @@ def cmd_main(seed: int = 0, n_double: int = 200) -> pd.DataFrame:
 # ---------------------------------------------------------------- file Excel cho người gán
 
 CHOICES = {"is_misuse": ["1", "0", "?"], "type": ["T1", "T2", "T3", "T4", "T5", "T6", "NONE"],
-           "subtype": ["NCD", "PCD", "KEY", "ADDR", "7702", "-"], "malicious": ["1", "0", "-"],
+           "subtype": ["NCD", "PCD", "KEY", "ADDR", "7702", "-"], "malicious": ["1", "0", "?", "-"],
            "confidence": ["high", "medium", "low"]}
 SHEET = "Gan_nhan"
 GUIDE = [
-    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.3 §2–§6; đọc bản đầy đủ nếu phân vân)",
+    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.4 §2–§6; đọc bản đầy đủ nếu phân vân)",
     "",
     "Quy tắc: gán ĐỘC LẬP. Không xem pilot50_key.csv, file của người gán kia, hay CODEBOOK §10 trước khi xong.",
     "Chỉ điền các cột màu vàng ở sheet Gan_nhan. Các cột còn lại là bằng chứng; ô '-' = không tra được, không suy ra gì.",
@@ -435,7 +435,7 @@ GUIDE = [
     "is_misuse: 1 / 0 / ?   (? chỉ khi thiếu bằng chứng, tối đa 5 mẫu)",
     "type: một type chính T1…T6, hoặc NONE khi is_misuse = 0",
     "  T1 gọi hàm tới địa chỉ không có code (NCD), không có contract cùng địa chỉ ở chain khác deploy TRƯỚC tx",
-    "  T2 contract 'hố đen' hoặc contract cài sẵn chiếm tiền (PCD, không có đường rút)",
+    "  T2 PCD: tx THÀNH CÔNG tới contract người dùng không định gọi (hố đen hoặc cài sẵn chiếm tiền); cờ symexec chỉ là gợi ý",
     "  T3 gửi token vào chính contract token đó",
     "  T4 NCD trên chain này + cùng địa chỉ có code ở chain khác, deploy TRƯỚC tx đầu tiên (ghi xc_chain)",
     "  T5 key lộ / sweeper / EIP-7702 delegate độc (ADDR cũng T5 nếu tiền bị sweeper rút)",
@@ -443,7 +443,7 @@ GUIDE = [
     "  Ưu tiên: T4 > T1; T5 > T6",
     "subtype: NCD / PCD / KEY / ADDR / 7702 / -",
     "xc_chain: chỉ với T4, tên chain có contract gốc (eth, bsc, arb, op, base, polygon…); còn lại '-'",
-    "malicious: 1 nếu có bên thứ ba chủ động khai thác (sweeper, contract cài sẵn, delegate độc); 0; hoặc '-'",
+    "malicious: 1 = đã thấy tiền về ví bên thứ ba; 0 = đã kiểm tra và không có; ? = chưa thấy nhưng có dấu hiệu; - = mẫu âm",
     "confidence: high / medium / low (mức chắc chắn của chính bạn)",
     "evidence: bằng chứng đã dùng, ví dụ: code, timing, tx, symexec, label",
     "note: BẮT BUỘC khi confidence = low, is_misuse = ?, hoặc mẫu là ca khó (CODEBOOK §5)",
