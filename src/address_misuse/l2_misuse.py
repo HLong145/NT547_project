@@ -90,7 +90,14 @@ def candidates(chain: str, focus: str = "all") -> pd.DataFrame:
     return df
 
 
-BS_GAP = 0.35                         # giây giữa hai lần gọi Blockscout (gọi dồn thì bị 429)
+PRE_BEDROCK_BLOCK = {"op": 105_235_063}     # từ block này OP mới có trên RPC công khai; trước đó chỉ Blockscout
+
+
+class OutOfCredits(RuntimeError):
+    pass
+
+
+BS_GAP = 0.35                        # giây giữa hai lần gọi Blockscout (gọi dồn thì bị 429)
 _last_call = [0.0]
 
 
@@ -104,7 +111,11 @@ def _bs_get(chain: str, params: dict, retries: int = 6) -> dict:
             r = requests.get(BLOCKSCOUT_API[chain], params={**params, **({"apikey": key} if key else {})}, timeout=120)
             if r.status_code == 200:
                 return r.json()
+            if r.status_code == 402:                       # hết credit trong ngày: thử lại cũng vô ích
+                raise OutOfCredits(f"Blockscout {chain}: hết credit (HTTP 402), chạy lại sau khi credit reset")
             err = f"HTTP {r.status_code}"
+        except OutOfCredits:
+            raise
         except Exception as e:
             err = str(e)
         time.sleep((15 if err == "HTTP 429" else 2) * (attempt + 1))
@@ -149,16 +160,30 @@ def fetch_creations(chain: str, addresses: list[str]) -> None:
             try:
                 res = _bs_get(chain, {"module": "contract", "action": "getcontractcreation",
                                       "contractaddresses": ",".join(chunk)}).get("result") or []
+            except OutOfCredits:
+                raise
             except RuntimeError as e:
                 print(f"  lỗi {e}", flush=True)
                 continue
-            by = {r["contractAddress"].lower(): r for r in res if r.get("blockNumber")}
+            by ={r["contractAddress"].lower(): r for r in res if r.get("blockNumber")}
             blocks = sorted({int(r["blockNumber"]) for r in by.values()})
+            ts = {b: None for b in blocks}
+            via_rpc = [b for b in blocks if b >= PRE_BEDROCK_BLOCK.get(chain, 0)]   # block cũ: RPC công khai không có
             try:                                            # publicnode giới hạn theo IP, dùng chung với getCode
-                ts = dict(zip(blocks, rpc_batch(chain, [("eth_getBlockByNumber", [hex(b), False]) for b in blocks])))
+                ts.update(zip(via_rpc, rpc_batch(chain, [("eth_getBlockByNumber", [hex(b), False]) for b in via_rpc]) if via_rpc else []))
             except RuntimeError as e:
                 print(f"  lỗi {e}", flush=True)
-                continue
+            for b in blocks:
+                if not ts.get(b):                           # Blockscout vẫn có các block cũ đó
+                    try:
+                        w = _bs_get(chain, {"module": "block", "action": "getblockreward", "blockno": b}).get("result") or {}
+                    except OutOfCredits:
+                        raise
+                    except RuntimeError as e:
+                        print(f"  lỗi {e}", flush=True)
+                        continue
+                    if w.get("timeStamp"):
+                        ts[b] = {"timestamp": hex(int(w["timeStamp"]))}
             for a in chunk:
                 r = by.get(a)
                 if r and not ts.get(int(r["blockNumber"])):
@@ -194,13 +219,20 @@ def cmd_txlist(chain: str, kinds: list[str], focus: str = "all", max_records: in
         rr.fetch_creations(es, pcd)
         get = lambda a: rr.fetch_txlist(es, a, max_records=max_records)         # noqa: E731
     else:
-        fetch_creations(chain, pcd)
-        get = lambda a: fetch_txlist(chain, a)                                   # noqa: E731
+        try:
+            fetch_creations(chain, pcd)
+        except OutOfCredits as e:
+            print(f"  dừng: {e}", flush=True)
+            return
+        get =lambda a: fetch_txlist(chain, a)                                   # noqa: E731
     todo = [a for a in c.address if not txlist_path(chain, a).exists()]
     print(f"txlist cần tải: {len(todo):,}", flush=True)
     for i, a in enumerate(todo, 1):
         try:
             get(a)
+        except OutOfCredits as e:
+            print(f"  dừng: {e}", flush=True)
+            return
         except Exception as e:
             print(f"  lỗi {e}", flush=True)
         if i % 200 == 0 or i == len(todo):

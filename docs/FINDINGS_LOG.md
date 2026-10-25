@@ -826,3 +826,26 @@ Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn
   lỗi 402. Chưa chạy `rules --chain op` (dữ liệu thiếu sẽ làm số misuse OP lệch). Hướng đi: chờ credit reset (chưa rõ chu kỳ)
   hoặc giữ OP chỉ ở mức tín hiệu getCode, như PLAN_V2 §D3b đã cho phép.
 
+
+## 2026-10-25 — Rà soát lần 3, D7 không phân biệt, OP sửa lấy thời điểm tạo contract
+
+- **Credit Blockscout reset theo ngày** (người dùng xác nhận: hết credit ngày trước, reset lại sau 24 giờ). Không tạo thêm tài
+  khoản để lấy thêm credit (lách hạn mức, có thể vi phạm điều khoản); chia nhỏ crawl qua nhiều ngày. `_bs_get` nay ném
+  `OutOfCredits` ngay khi gặp HTTP 402 (trước đó thử lại 6 lần cho từng địa chỉ) và `cmd_txlist` dừng sạch.
+- **Lỗi `op batch thất bại ... phần tử lỗi` đã rõ nguyên nhân**: `getcontractcreation` trả block trước Bedrock (< 105.235.063,
+  tức contract tạo từ 11/2021 tới 6/2023), RPC công khai (publicnode) không có các block này nên mỗi lô lỗi mãi và không ghi,
+  còn mỗi lần chạy lại tốn ~30 giây/lô. Cache cũ chỉ có block ≥ 105.258.820, tức **PCD tạo trước Bedrock bị thiếu hệ thống**
+  (lệch về PCD mới). Sửa: block cũ lấy timestamp qua Blockscout `module=block&action=getblockreward`. Có test.
+- **D7 tách ngữ cảnh vẫn không phân biệt** (AUC dương vs âm, train / val / test): tổng số file 0,33 / 0,56 / 0,53; số repo
+  0,35 / 0,61 / 0,61; số file ngữ cảnh test/ví dụ 0,30 / 0,53 / 0,57; nhị phân 0,46 / 0,50 / 0,50. Dấu đổi giữa train và
+  val/test nên không có tín hiệu ổn định. Âm hạ tầng (N2 trung vị 60 repo, N7 67, N5 18) nhiều hơn hẳn dương (NCD 6, PCD 9,
+  ADDR 1, KEY 1). Kết luận: **không nối GitHub vào S_osint**; S_osint chỉ còn vai trò thật là khoá lộ (luật cứng KEY).
+  Phần trọng số 0,359 của osint là do `candidate_addresses` của tác giả: mọi dương nằm trong tập đó (và N1 cũng vì lấy mẫu
+  từ đó), nên cần nêu trong paper là tín hiệu do cách lấy mẫu, không phải tín hiệu triển khai được.
+- **Rà soát code (không sửa vì không làm sai số liệu đã công bố)**:
+  * `same_contract`: 14/≈400 báo nhầm S_cross của âm (PCD-XC 0,6) là do một bên thiếu selector (hash khác, không so được Jaccard);
+    nên coi là "không rõ" thay vì "khác code". Hầu hết còn lại là hash khác thật và Jaccard < 0,8.
+  * Cùng địa chỉ ở hai chain khác tập: 8 địa chỉ; khác nhãn giữa hai chain: 13 (khoá QA là (chain, address) nên không bắt).
+  * Mẫu âm theo tx lặp địa chỉ: test N2 253 dòng/230 địa chỉ, N3 559/343, N8 518/440; val bình thường 186 dòng/169 địa chỉ
+    (τ_warn dựa trên ≈ 2 mẫu âm cao nhất, nên bất ổn). Bootstrap đã lấy mẫu theo địa chỉ.
+  * pyflakes sạch (trừ một import thừa trong `bq_fetch.py`); 85 test đạt.

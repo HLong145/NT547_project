@@ -4,7 +4,7 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-10-24 (đêm)
+**Cập nhật lần cuối:** 2026-10-25
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
@@ -17,7 +17,11 @@
   âm) không có code, đã sửa. ✅ **Chuỗi chạy lại xong (2026-10-24 23:08):** symexec → evaluate → metrics → replay → freeze.
   Số mới (FINDINGS_LOG cuối file): test F1 0,926 (P 0,985, R 0,873), test_in_time F1 0,890, out_of_time F1 0,974; chỉ R
   trên mẫu mềm test R 0,728; GoPlus F1 0,038; τ_warn không ổn định (p5 26 – p95 66). dataset_v2 đóng băng 6.547 mẫu, QA đạt.
-  **Bước kế tiếp:** D7 (GitHub, nền) → nối vào S_osint và chạy lại metrics; OP txlist (nền) → rules; D5 `sample_gold main`.
+  ✅ D7 xong nhưng GitHub không phân biệt dương/âm (AUC ≈ 0,5, dấu đổi giữa train và val/test) nên không nối vào S_osint;
+  ✅ D5 `sample_gold main` (605 mẫu, 200 gán đôi) đã sinh.
+  🔄 **OP (2026-10-25):** credit Blockscout reset theo ngày; crawl `l2_misuse txlist --chain op --focus author` chạy lại; sửa
+  lỗi thời điểm tạo contract trước Bedrock (FINDINGS 2026-10-25). Hết credit thì dừng sạch (HTTP 402), chạy tiếp ngày sau.
+  **Bước kế tiếp:** hết txlist OP → `l2_misuse rules --chain op --focus author`; khung paper; ⏳ annotator_A (κ).
 
 - 🔄 **Dataset v2 (DATASHEET §8):** code xong, chạy thử QA đạt. v2 = v1 + N5 (118; 42 contract recovery bị tác giả
   gắn cờ PCD chuyển sang âm) + 42 dương mới D6 + cột `label_source`, `needs_review`, `key_value0`. Dựng bản cuối sau
