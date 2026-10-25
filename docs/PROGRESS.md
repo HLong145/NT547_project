@@ -68,6 +68,7 @@
   - ⬜ Test 6 địa chỉ đã biết qua Etherscan (cần key).
 - ✅ **D1** Giao dịch thô: ETH qua BigQuery (35.664 địa chỉ); BSC qua NodeReal cho mẫu đánh giá (800 dương + âm).
 - 🔄 **D2** Chạy lại rule trên dữ liệu thô và so với CSV tác giả (lệch < 2%). ✅ Pilot 500 ETH (`reproduce_rules.py`): khớp 100% ở snapshot.
+  - ℹ️ Kiểm tra độc lập trên toàn bộ ETH (2026-10-22, `d2_eth.py`, BigQuery không có `input`): KEY −0,02%, ADDR 0% (28.886/28.886 tx), cả hai đạt < 2%; NCD/PCD cần `input` nên chưa tính được. Xem FINDINGS_LOG
 - 🔄 **D3** Cross-chain
   - ✅ `crosschain.py`: `eth_getCode` song song trên 8 mạng, kèm verdict.
   - ✅ Pilot top 100 NCD mỗi chain (xem FINDINGS_LOG).

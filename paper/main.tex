@@ -1,5 +1,5 @@
 % Springer LNCS template. Needs llncs.cls and splncs04.bst (see paper/README.md).
-% The \todo{...} macros mark text to fill in; take numbers from docs/FINDINGS_LOG.md.
+% \todo{...} marks text that still needs data; every number below comes from docs/FINDINGS_LOG.md.
 \documentclass[runningheads]{llncs}
 
 \usepackage[T1]{fontenc}
@@ -15,172 +15,582 @@
 % Reminder macro: red in drafts. Redefine as {} before submission.
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 \newcommand{\addr}[1]{\texttt{#1}}
+\newcommand{\NCD}{\textsf{NCD}}
+\newcommand{\PCD}{\textsf{PCD}}
+\newcommand{\NCDXC}{\textsf{NCD-XC}}
+\newcommand{\PCDXC}{\textsf{PCD-XC}}
+\newcommand{\code}[2]{\mathrm{code}_{#1}(#2)}
 
 \begin{document}
 
 \title{Characterizing and Mitigating Address Misuse Risks\\in Cross-Chain EVM Ecosystems}
-% Optional running title: \titlerunning{Address Misuse in Cross-Chain EVM}
+\titlerunning{Address Misuse in Cross-Chain EVM Ecosystems}
 
-\author{First Author\inst{1} \and
-Second Author\inst{1} \and
-Third Author\inst{1}}
-\authorrunning{F. Author et al.}
-\institute{University / Faculty, City, Country\\
-\email{\{author1,author2,author3\}@example.edu}}
+\author{Nguyen Van A\inst{1} \and
+Tran Thi B\inst{1} \and
+Le Van C\inst{1} \and
+Pham Van D\inst{1,2}\thanks{Corresponding author}}
+\authorrunning{N. V. A et al.}
+\institute{Faculty of Information Security, University of Information Technology,\\
+Ho Chi Minh City, Vietnam\\
+\email{\{23520001,23520002,23520003\}@gm.uit.edu.vn}
+\and
+Vietnam National University Ho Chi Minh City, Ho Chi Minh City, Vietnam\\
+\email{lecturer@uit.edu.vn}}
 
 \maketitle
 
 \begin{abstract}
-% 150--250 words. Structure: context -> gap -> approach -> main result -> contributions.
-Users who send a transaction to an address that is not the contract they
-intended lose funds or leave them stranded. Shao et al.\ recently characterized
-such \emph{address misuse} on Ethereum and BNB Smart Chain. We partially
-replicate their study and extend it with a \emph{cross-chain consistency}
-analysis: an address that holds a contract on one chain but is empty on the
-chain the user transacts on. \todo{Key quantitative result, e.g.\ share of
-misuse addresses explained by cross-chain misalignment and loss covered.}
-We further propose a risk score $R(A,C)$ and a wallet-side warning that runs
-before signing, with \todo{latency} median overhead.
-\todo{One sentence on gold-label quality, e.g.\ Cohen's $\kappa$.}
+A transaction sent to the wrong address cannot be undone. Shao et al.\ recently
+characterized such \emph{address misuse} on Ethereum and BNB Smart Chain (BSC)
+and reported the losses it causes, but they analyze each chain in isolation and
+propose no mitigation at signing time. We partially replicate their detection
+rules on raw transaction data and match them exactly (500/500 addresses, to the
+wei, in snapshot mode). We then add a \emph{cross-chain consistency} analysis
+over 45{,}633 contract-misuse addresses and eight EVM networks. Most misused
+contract addresses are not random: 77.2\% (BSC) and 68.1\% (Ethereum) hold no
+code on the victim chain but are contracts elsewhere, and for 98.4\%--98.8\% of
+those with a known timeline the foreign contract existed \emph{before} the first
+transaction, so a pre-signing check could have fired. The share of addresses is
+large, but the monetary loss is concentrated elsewhere (only 18.9\% and 3.1\% of
+loss), which changes how a defender should prioritize. Building on these
+findings we define a risk score $R(A,C)\in[0,100]$ with four components and a
+MetaMask Snap that shows the score and its reasons before the user signs.
+\todo{Detection quality (precision/recall/FPR with Cohen's $\kappa$) and Snap median latency once the gold set and Module~4 are finished.}
 \keywords{Address misuse \and Cross-chain \and EVM \and Smart contracts \and Wallet security \and EIP-7702.}
 \end{abstract}
 
 %------------------------------------------------------------------
 \section{Introduction}
 \label{sec:intro}
-% Paragraph 1: the problem (sending to an address without code / the wrong contract).
-% Paragraph 2: prior work (Shao et al.) and its limits: per-chain only, no cross-chain root cause, no wallet-side warning.
-% Paragraph 3: our approach.
-\todo{Motivation paragraph with a concrete incident.}
+On EVM chains an address is only a 20-byte string. Nothing in the protocol tells
+a sender whether the address is a wallet, a contract, a contract on another
+chain, or nothing at all. A transaction with function-call data sent to an
+address that holds no code succeeds silently: it spends gas, moves any attached
+value, and does nothing else. A transaction sent to a wallet whose private key is
+public is swept by bots within moments. Because blockchains are immutable, the
+user cannot recover from either mistake.
+
+Shao et al.~\cite{shao2026lost} measure this problem systematically and call it
+\emph{address misuse}. They distinguish \emph{contract-address misuse} (the user
+calls an address as if it were a contract, but it has no code or the wrong code)
+from \emph{EOA misuse} (the user pays an externally owned account that is
+exposed, copied from a public source, or delegated by EIP-7702~\cite{eip7702} to
+malicious code). Their dataset covers Ethereum and BSC and contains large
+losses. Three questions remain open.
+
+First, their study is \emph{per chain}. Yet the same 20-byte address can be a
+deployed contract on one network and empty on another, because deployer, nonce
+and factory salt are chain-independent. Developers who deploy a protocol on
+several chains, and users who copy an address from the wrong chain's
+documentation, create exactly this situation. We call the resulting class
+\emph{cross-chain misalignment} and ask how much of the observed misuse it
+explains.
+
+Second, the original analysis is retrospective. A wallet that wants to prevent
+the loss needs information that was available \emph{before} the transaction:
+did a contract at this address already exist elsewhere when the user first
+used it? Answering this requires a timeline, not a snapshot.
+
+Third, no wallet-side defense is evaluated. Wallets show gas and a token amount;
+none tells the user that the destination looks like a contract on another chain,
+or that it is a known black hole.
 
 \medskip\noindent\textbf{Research questions.}
 \begin{itemize}
-\item \textbf{RQ1} How well can the address-misuse rules of Shao et al.\ be replicated on raw transaction data? \todo{replication gap}
-\item \textbf{RQ2} What fraction of misuse is explained by cross-chain address misalignment, and what are the root causes (same deployer and nonce, factory with CREATE2)?
-\item \textbf{RQ3} Can a risk score computed before signing separate misuse from benign transactions at a low false-positive rate and low latency?
+\item \textbf{RQ1 (replication).} Can the detection rules of Shao et al.\ be
+reproduced from raw transaction data, and where do they depend on unstated
+assumptions?
+\item \textbf{RQ2 (cross-chain).} What share of contract-address misuse is
+explained by cross-chain misalignment, how much loss does it carry, was the
+foreign contract already deployed at the time of misuse, and can the address
+still be claimed on the victim chain?
+\item \textbf{RQ3 (mitigation).} Can a risk score computed from information
+available before signing separate misuse from benign transactions at a low
+false-positive rate and within a latency budget a wallet can afford?
 \end{itemize}
 
 \medskip\noindent\textbf{Contributions.}
 \begin{itemize}
-\item A partial replication of address-misuse detection on Ethereum and BSC \todo{numbers}.
-\item A cross-chain consistency analysis over \todo{N} addresses on eight networks, with a taxonomy (Types~1--6) and a root-cause breakdown.
-\item A manually audited gold set of \todo{N} labels (Cohen's $\kappa=\todo{x}$) and negative sets N1--N8.
-\item A risk score $R(A,C)$ and a MetaMask Snap that warns before signing, evaluated on \todo{setting}.
+\item \emph{Replication.} A port of the detection rules and the symbolic
+executor to a public toolchain. On 500 sampled Ethereum addresses we reproduce
+the original misuse transactions and loss exactly in snapshot mode, and on 246
+contracts the symbolic executor agrees with the original results on all four
+flags. We document four defects in the released code
+(Section~\ref{sec:replication}).
+\item \emph{Cross-chain measurement.} The first address$\times$chain consistency
+matrix of 45{,}633 misused contract addresses over eight networks, with root
+cause (deployer, nonce, factory), timing and redeployability
+(Section~\ref{sec:matrix}, Section~\ref{sec:eval-xc}).
+\item \emph{Gold labels and negatives.} A codebook, two-annotator protocol with
+a target Cohen's $\kappa\ge0.8$, and negative sets N1--N8 that include benign
+EIP-7702 delegates and multi-chain infrastructure contracts that a naive
+detector would flag (Section~\ref{sec:gold}).
+\item \emph{Mitigation.} A four-component risk score $R(A,C)$ with
+explanations and hard rules, and a MetaMask Snap design with a 150~ms budget
+(Section~\ref{sec:design}).
 \end{itemize}
 
 %------------------------------------------------------------------
 \section{Background and Threat Model}
 \label{sec:background}
+\subsection{Accounts, code and CREATE addresses}
+An EVM account is either an externally owned account (EOA), controlled by a
+private key, or a contract account that holds code. We write $\code{C}{A}$ for
+the code at address $A$ on chain $C$, with three states: $\emptyset$ (no code),
+$\kappa$ (contract code) and $\delta$ (an EIP-7702 delegation indicator, bytecode
+starting with \texttt{0xef0100}). A contract created with \texttt{CREATE} lives at
+$\text{keccak}_{160}(\text{rlp}(d,n))$ for deployer $d$ and nonce $n$; with
+\texttt{CREATE2} at $\text{keccak}_{160}(\texttt{0xff}\Vert d\Vert s\Vert
+\text{keccak}(\mathit{init}))$. Neither formula contains a chain identifier.
+Hence the same deployer using the same nonce, or the same factory with the same
+salt and init code, yields the same address on every EVM chain. This property is
+what makes multi-chain deployments convenient and misalignment possible.
+
 \subsection{Address misuse}
-% Define CA misuse (NCD, PCD) and EOA misuse (KEY, ADDR, EIP-7702) following docs/CODEBOOK.md section 3.
-\todo{Define NCD, PCD, KEY, ADDR and EIP-7702 delegation~\cite{eip7702}; use the notation of the original paper.}
+Following~\cite{shao2026lost} we use these categories.
+\begin{description}
+\item[\NCD{} (No Code at Destination).] $\code{C}{A}=\emptyset$ when the user
+sends a transaction that carries a function selector or otherwise only makes
+sense for a contract. The transaction does not revert, so the user sees success.
+\item[\PCD{} (Planted/Present Code at Destination).] $\code{C}{A}=\kappa$ but
+$\kappa$ is not the contract the user meant; value is retained or forwarded.
+\item[KEY.] $A$ is an EOA whose private key is public (repositories, forum
+posts). Sweeper bots drain deposits within blocks.
+\item[ADDR.] $A$ is a public wallet address copied from documentation or sample
+code and the sender does not control it.
+\item[EIP-7702.] $\code{C}{A}=\delta$ and the delegate is a sweeper or otherwise
+malicious. Funds sent to the EOA are handled by the delegate's code.
+\end{description}
 
 \subsection{Taxonomy}
-% Table of Types 1--6.
+Our codebook refines these into six mutually exclusive types by priority
+(Table~\ref{tab:taxonomy}); T4 outranks T1 and T5 outranks T6. T4 is the new
+class of this paper.
 \begin{table}[t]
-\caption{Taxonomy of address misuse used in this work.}
+\caption{Taxonomy of address misuse used in this work. $t_0$ is the time of the
+first transaction to the address on the chain under study.}
 \label{tab:taxonomy}
 \centering
-\begin{tabular}{@{}lll@{}}
+\begin{tabular}{@{}llp{6.9cm}@{}}
 \toprule
 Type & Name & Defining condition\\
 \midrule
-T1 & Call to empty address & NCD, no contract elsewhere before the tx\\
-T2 & Black-hole contract & Code present, no withdrawal path\\
-T3 & Token sent to its own contract & \todo{condition}\\
-T4 & Cross-chain misalignment & NCD here, contract elsewhere deployed earlier\\
-T5 & Exposed key / sweeper / malicious 7702 & KEY, swept ADDR, or malicious delegate\\
-T6 & Address poisoning & Look-alike address, zero-value lure\\
+T1 & Call to empty address & \NCD{} and no contract at that address on any other
+chain before $t_0$\\
+T2 & Black-hole contract & Code present, receives coin, no withdrawal path
+(no \texttt{transfer}/\texttt{delegatecall} out in symbolic execution)\\
+T3 & Token sent to its own contract & ERC-20 \texttt{transfer} with
+$\mathit{to}$ equal to the token contract\\
+T4 & Cross-chain misalignment & \NCD{} here, and a contract with that address
+deployed on another chain before $t_0$\\
+T5 & Exposed key / sweeper / malicious 7702 & KEY, swept ADDR, or a malicious
+delegate\\
+T6 & Address poisoning & Look-alike of a known address (same first and last four
+hex characters) with a zero-value or fake-token lure\\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Threat model and ethics}
-% Passive analysis only; never use leaked keys; truncate personal addresses.
-We analyze public chain data passively. We never use leaked private keys, and
-we truncate personal addresses in the text. \todo{Responsible disclosure statement.}
+We study a \emph{careless-user} threat: the user is honest and the chain is
+correct, but the destination is wrong. We also consider an \emph{opportunistic
+adversary} who monitors addresses (sweepers, address poisoners, anyone who can
+redeploy a contract at an unclaimed address). The adversary does not break
+cryptography. The defender is the wallet, which can read public chain state
+before signing but cannot know the user's intent.
+
+All measurements are passive reads of public data. We never sign or send a
+transaction with a leaked key and never store private keys; the data contain only
+derived addresses. Personal addresses are truncated in the text
+(\texttt{0x1234\ldots abcd}). \todo{Responsible-disclosure statement: which wallet vendors and affected projects were notified, and when.}
 
 %------------------------------------------------------------------
 \section{Related Work}
 \label{sec:related}
-% Shao et al. (base work); address poisoning; sweeper bots and key leakage; EIP-7702 security; pre-sign transaction simulation and wallet warnings; bridge security.
-Shao et al.~\cite{shao2026lost} \todo{summarize contribution and limits}.
-\todo{Related work on address poisoning, leaked-key sweepers, EIP-7702 delegation attacks and pre-sign transaction simulation.}
+\paragraph{Address misuse.} Shao et al.~\cite{shao2026lost} introduce the
+problem, detection rules and a dataset for Ethereum and BSC. We differ in
+treating the chains jointly, in measuring the timeline needed for prevention,
+and in evaluating a wallet-side defense. \todo{Add the 3--5 papers on address poisoning, sweeper bots and leaked-key theft that the team selects.}
+
+\paragraph{EIP-7702 delegation.} EIP-7702~\cite{eip7702} lets an EOA point its
+code to a delegate contract. Because a delegate that can move funds is also what
+every legitimate smart wallet is, ``can transfer'' cannot define maliciousness.
+We show this on the data (Section~\ref{sec:replication}) and use a verified
+allow-list of benign delegates (N6). \todo{Add measurement studies of 7702 abuse.}
+
+\paragraph{Multi-chain deployment.} Deterministic deployers and CREATE2 factories
+are widely used to give a protocol the same address on every chain. We use them
+as a source of benign negatives (N7) and as the mechanism behind redeployability.
+\todo{Add references on cross-chain deployment practices and replay issues.}
+
+\paragraph{Wallet-side protection.} Transaction simulation and warnings in
+wallets reveal balance changes and approvals. They do not reason about
+destination type or cross-chain state. \todo{Cite simulation-based pre-sign defenses and MetaMask Snaps transaction-insight documentation.}
 
 %------------------------------------------------------------------
 \section{Data and Methodology}
 \label{sec:method}
 \subsection{Data sources}
-% Author dataset (Zenodo), BigQuery crypto_ethereum (ETH), Etherscan V2 / NodeReal (BSC first tx), RPC eth_getCode on 8 networks, Binplorer (BSC creation).
-\begin{itemize}
-\item Author dataset (Zenodo) as seed: \todo{counts per chain and subtype}.
-\item Raw transactions: BigQuery \texttt{crypto\_ethereum} for Ethereum; \todo{BSC source}.
-\item Cross-chain state: \texttt{eth\_getCode} on eight networks (Ethereum, BSC, Arbitrum, Optimism, Base, Polygon, Sepolia, BSC testnet).
-\item Contract creation: Etherscan \texttt{getcontractcreation}, and Binplorer for BSC.
-\end{itemize}
+Table~\ref{tab:data} summarizes the sources. We chose free, reproducible
+sources throughout; the choices below are driven by what each API actually
+returns.
+\begin{table}[t]
+\caption{Data sources.}
+\label{tab:data}
+\centering
+\small
+\begin{tabular}{@{}p{2.1cm}p{3.2cm}p{6.1cm}@{}}
+\toprule
+Id & Source & Use and known limit\\
+\midrule
+D0 & Zenodo release of~\cite{shao2026lost} & Seed addresses and labels (CA and EOA misuse, delegates, symbolic-execution results)\\
+D1 & Google BigQuery \texttt{crypto\_ethereum} & Ethereum transactions to 35{,}664 seed addresses (22{,}397{,}803 rows, key = block number and index; \texttt{input} column excluded to avoid a 3.3~TB scan)\\
+D1 (BSC) & Etherscan V2 (eth/arb/polygon/sepolia only); NodeReal \texttt{nr\_getTransactionByAddress} & No BSC dataset exists in BigQuery; NodeReal gives the first external transaction\\
+D3 & \texttt{eth\_getCode} on eight networks; Etherscan \texttt{getcontractcreation}; Binplorer & Code state; creator and creation time (Etherscan free tier lacks BSC/OP/Base, so Binplorer covers BSC)\\
+D5 & Manual audit & Gold labels, Section~\ref{sec:gold}\\
+\bottomrule
+\end{tabular}
+\end{table}
+The eight networks are Ethereum, BSC, Arbitrum, Optimism, Base, Polygon, Sepolia
+and BSC testnet. Two limits shape every result. First, code state is read at
+the latest block, not at the transaction time, so historical statements need the
+creation timeline (Section~\ref{sec:matrix}). Second, ``first transaction''
+means the first \emph{external} transaction; internal transactions are not
+counted.
 
 \subsection{Rule replication}
-% Port of Algorithms 1--3; paper_compat flags for bugs B1/B2; pilot of 500 ETH addresses matched 500/500 in snapshot mode.
-We port Algorithms~1--3 of \cite{shao2026lost} and report two modes: a
-\emph{snapshot} that reproduces the original data cut and a \emph{current} mode.
-\todo{Describe known deviations (selector 0xffffffff, sweep pairing) and results.}
+\label{sec:replication}
+We port Algorithms~1--3 of~\cite{shao2026lost} (NCD, PCD and EOA loss) to a
+Windows-compatible toolchain with Etherscan API V2. We run two modes: a
+\emph{snapshot} mode that uses only the first $n_{tx}$ transactions, as at the
+original collection time, and a \emph{current} mode with all transactions.
+While porting we found defects in the released code that change results, so we
+keep an option to reproduce them (\texttt{paper\_compat}):
+\begin{itemize}
+\item B1: the condition \texttt{len != 10 or len != 74} is always true, so every
+transaction with selector \texttt{0xffffffff} is skipped;
+\item B2: the sweep detector does not stop after a match, so one deposit can be
+counted more than once;
+\item B3/B4: the code fetcher passes its API key as the chain parameter and the
+symbolic executor uses \texttt{SIGALRM}, so neither runs as released (the latter
+cannot run on Windows); we replace the timeout with a basic-block deadline;
+\item the paper states \texttt{tx.gas < 30000} while the code uses
+\texttt{gasUsed <= 30000}; we follow the code.
+\end{itemize}
+The NCD rule also relies on the explorer-provided \texttt{functionName}, which
+raw data lack, and the PCD rule excludes an address that ever sent a
+transaction, which is wrong for an EOA that later adopts EIP-7702.
 
 \subsection{Cross-chain consistency matrix}
-% Address x chain matrix: deployer, CREATE nonce, factory, NCD-XC/PCD-XC labels, redeployability, timing.
-For each misuse address we build an $\text{address}\times\text{chain}$ matrix of
-code state, deployer, CREATE nonce, creation kind and creation time. We label an
-address \emph{NCD-XC} (resp.\ \emph{PCD-XC}) when it is empty (resp.\ holds
-different code) on the victim chain but holds a contract on another chain, and
-classify whether it can be \emph{redeployed} (claimable, burned, factory-bound,
-unknown). \todo{Formalize with notation.}
+\label{sec:matrix}
+Let $\mathcal{N}$ be the eight networks and $V\in\mathcal{N}$ the chain on which
+an address $A$ was misused. For each $A$ we read $\code{C}{A}$ for every
+$C\in\mathcal{N}$, giving the vector $M_A=(\code{C}{A})_{C\in\mathcal{N}}$.
+\begin{definition}[Cross-chain labels]
+$A$ is \NCDXC{} if $\code{V}{A}=\emptyset$ and $\exists C\ne V:\code{C}{A}=\kappa$.
+It is \PCDXC{} if $\code{V}{A}=\kappa$ and $\exists C\ne V$ with
+$\code{C}{A}=\kappa'$ where $\kappa'$ has different bytecode. Otherwise the
+label is \textsf{-Other}. If the code is identical on $V$ and $C$, we do not
+label it, since that is a benign multi-chain deployment (N7).
+\end{definition}
+For each foreign contract we record the creator, creation kind, and for
+\texttt{CREATE} the deployer nonce, which we recover locally by searching
+$\text{create\_address}(d,n)$ up to $n\le200{,}000$ (public RPCs do not index old
+transactions on several chains, so fetching the nonce is not reliable). We then
+derive two quantities.
+
+\paragraph{Timing.} Let $t_c$ be the earliest known creation time of the foreign
+contract and $t_0$ the first external transaction to $A$ on $V$. The address is
+\emph{deployed\_before} if $t_c<t_0$, and \emph{deployed\_after} otherwise. This
+separates T4 from T1: a deployment after $t_0$ cannot have warned anyone.
+
+\paragraph{Redeployability.} Let $n_V$ be the current nonce of the creator on $V$
+and $n_c$ the nonce used for the foreign contract. For a \texttt{CREATE}
+deployment the address is \emph{claimable} if $n_V\le n_c$ (the owner can still
+produce it on $V$), \emph{burned} if $n_V>n_c$, and \emph{already deployed} if
+code exists. If the creator is a factory, we record whether the factory itself
+exists on $V$. Claimable addresses matter twice: they give the owner a way to
+close the hole, and they give an attacker holding the deployer key a way to
+capture funds that users keep sending.
 
 \subsection{Gold labels and negative sets}
-% Codebook, two annotators, kappa; N1--N8.
-Two annotators label a stratified sample independently following a codebook
-(Types T1--T6); we report Cohen's $\kappa$ on misuse and on type.
-Negative sets N1--N8 are: \todo{list: random unflagged addresses, benign 7702 delegates, multi-chain infrastructure contracts, \ldots}.
+\label{sec:gold}
+\paragraph{Protocol.} The unit of annotation is a pair (chain, address). Two
+annotators label independently with a written codebook that contains a decision
+tree and hard cases; agreement is measured by Cohen's $\kappa$ with target
+$\ge0.8$, followed by adjudication and codebook revision. We first run a pilot
+of 50 items. The evidence presented to annotators is \emph{blinded}: every item
+gets the same evidence columns for all strata, because in an earlier version a
+column that was filled only for some strata let annotators infer the stratum.
+The hidden key is never shown. \todo{Final size of the gold set (target about 2{,}000), $\kappa$ on misuse and on type, and number of items adjudicated.}
+
+\paragraph{Negatives.} A detector can only be evaluated against realistic
+benign cases.
+\begin{itemize}
+\item N1: 400 random addresses from the same public-code candidate pool that
+are not flagged (200 per chain);
+\item N6: five verified benign 7702 delegates (MetaMask, Coinbase, Uniswap,
+eth-infinitism Simple7702Account, Ambire);
+\item N7: 18 infrastructure contracts deployed at the same address on at least
+six networks (CREATE2 factories, Multicall3, Permit2, Safe, EntryPoint, 1inch,
+0x, Seaport);
+\item N2--N5, N8 (exchange deposits, inscriptions, ordinary transactions):
+\todo{build after D1.}
+\end{itemize}
+The negatives already reveal pitfalls. Permit2, 1inch, 0x and Seaport have
+\emph{different} bytecode across chains (chain id and immutables), so a
+detector must not require identical bytecode. In N1, 14 of 400 addresses (3.5\%)
+currently delegate through EIP-7702, so a wallet cannot warn on every delegated
+EOA.
 
 %------------------------------------------------------------------
 \section{Risk Score and Wallet-Side Warning}
 \label{sec:design}
-\subsection{Risk score $R(A,C)$}
-% R(A,C) in [0,100]; features: code here, code elsewhere and timing, calldata, symbolic execution, delegate, history.
-Given a destination address $A$ and the transaction context $C$ (chain,
-calldata, value), the score is $R(A,C)\in[0,100]$ computed from
-\todo{features and weights, e.g.\ code state, cross-chain consistency, delegate, intent}.
+\subsection{Risk score}
+For destination $A$ on chain $C$ at time $t$, the score uses only information
+available before $t$:
+\begin{equation}
+R(A,C)=100\,\bigl(w_1S_{\mathrm{bytecode}}+w_2S_{\mathrm{cross}}+w_3S_{\mathrm{osint}}+w_4S_{\mathrm{history}}\bigr),
+\end{equation}
+with $S_i\in[0,1]$, $w_i\ge0$ and $\sum_iw_i=1$. Using only past information is
+essential: in 283 of 17{,}918 timed Ethereum cases the foreign contract appears
+after the first transaction, and a score that reads today's state would
+``see the future''.
+
+\paragraph{Components.}
+\begin{itemize}
+\item $S_{\mathrm{bytecode}}$ examines $\code{C}{A}$: a call with data to an empty
+address scores 1 (T1); a code that offline symbolic execution shows has no
+withdrawal path scores 1 (T2); a known malicious delegate scores 1 (T5); a
+verified benign delegate scores 0; an unknown delegate that can move funds
+scores 0.5, because the ability to move funds does not distinguish a sweeper from
+a smart wallet.
+\item $S_{\mathrm{cross}}$ scores 1 when $\code{C}{A}=\emptyset$ and a contract
+existed on another chain before $t$ (T4), 0.7 if the foreign deployment time is
+unknown, 0.6 for different code on both chains, and 0 for identical code
+(benign N7). A small increment applies when the address is claimable.
+\item $S_{\mathrm{osint}}$ is 1 for addresses derived from a leaked key and
+saturates with the number of public sources that mention the address.
+\item $S_{\mathrm{history}}=1-(1-s_{\mathrm{sweep}})(1-s_{\mathrm{revert}})(1-s_{\mathrm{misuse}})$
+combines the fraction of deposits swept within a few blocks, the revert rate and
+earlier hits of the replicated rules from multiple senders.
+\end{itemize}
+
+\paragraph{Learning and thresholds.} We fit a logistic regression with
+non-negative coefficients on the four components using a time-split, address-disjoint
+train/validation/test partition, then normalize coefficients to obtain $w_i$.
+The warning threshold $\tau_{\mathrm{warn}}$ is the lowest value with false
+positive rate $\le1\%$ on ordinary transactions (N8) on the validation set.
+Two hard rules, leaked key and known malicious delegate, warn regardless of $R$;
+we report their effect separately so they do not inflate the score's apparent
+quality. \todo{Learned weights and thresholds.}
 
 \subsection{Wallet-side warning}
-% MetaMask Snap + risk engine; latency budget 150 ms.
-The warning runs as a MetaMask Snap \todo{transaction-insight API} that queries a
-risk engine before the user signs, with a latency target of
-\SI{150}{\milli\second}. \todo{Architecture figure.}
+The warning is split into an \emph{offline} part that precomputes expensive
+facts and an \emph{online} part that stays within the latency budget.
+Symbolic execution takes seconds to minutes and also exhausted memory on 37 of
+344 contracts at 850~MB, so it is run offline and stored in a lookup table;
+unknown contracts fall back to a fast opcode scan for \texttt{CALL},
+\texttt{DELEGATECALL} and \texttt{SELFDESTRUCT}. Online, the engine reads the
+code at the destination on the current chain and, in parallel, on the other seven
+networks with a 100~ms timeout per network; a network that times out is skipped
+and listed in the explanation, and the transaction is never blocked merely
+because an RPC was slow.
+
+A MetaMask Snap uses the transaction-insight interface to call this engine
+before the user signs, and shows the score, the suspected type and one-line
+reasons (``this address is a contract on Ethereum, deployed 3 days earlier, but
+empty on this chain''). The latency target is \SI{150}{\milli\second}. Our
+measurements of public RPCs from our network give 0.9--1.3~s per call with peaks
+of 8--9~s, so the target requires caching, a dedicated RPC provider and short
+timeouts. \todo{Architecture figure and measured median and p95 latency.}
 
 %------------------------------------------------------------------
 \section{Evaluation}
 \label{sec:eval}
 \subsection{Replication (RQ1)}
-\todo{Table: ours vs.\ author numbers (addresses, misuse tx, loss), agreement.}
+\paragraph{Rules.} On 500 Ethereum addresses (350 NCD, 100 PCD, 50 KEY; at most
+5{,}000 transactions each) the snapshot mode reproduces the original result
+\emph{to the wei}: 500 of 500 addresses and a total of 579.759~ETH. Table~\ref{tab:repl} shows that the
+current mode adds little loss but changes labels over time.
+\begin{table}[t]
+\caption{Replication on 500 Ethereum addresses.}
+\label{tab:repl}
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Mode & Result & Observation\\
+\midrule
+Snapshot & 500/500 exact match & total 579.759 ETH\\
+Current & loss $+0.02\%$ & 98 new NCD misuse tx on 20 addresses;\\
+ & & 2 NCD became PCD; 24/50 KEY received 238 more tx\\
+\bottomrule
+\end{tabular}
+\end{table}
+Misuse is therefore continuing after the original collection, and NCD/PCD labels
+change over time, so any dataset must carry its observation date.
+
+\paragraph{Symbolic execution.} On 344 contracts (all EIP-7702 delegates, proxy
+logic and 150 sampled misuse addresses), 307 completed within memory. On the 246
+that finished within the 120~s soft deadline our results match the authors' on
+all four flags (delegatecall, transfer all ETH, transfer \texttt{msg.value},
+transfer input amount) at 100\%. Including timed-out contracts, agreement is
+99.0--99.7\% per flag and every disagreement has the same direction: the original
+reports a path and ours, stopped earlier, does not.
+
+\paragraph{EIP-7702 delegates.} The authors' delegate flag coincides exactly with
+symbolic execution: 89 of 89 delegates have a transfer path, 2 have none and 10
+are unanalyzed. It is therefore not a label of maliciousness, and the benign
+MetaMask delegate carries flag~1. All 17{,}326 authorizations in the dataset come
+from KEY or ADDR EOAs, so there is no benign EIP-7702 EOA among the positives.
 
 \subsection{Cross-chain analysis (RQ2)}
-% Existing numbers are in docs/FINDINGS_LOG.md: NCD-XC share, deployed_before share, redeployability breakdown.
-\todo{Table: per chain, NCD-XC and PCD-XC share of addresses and of loss; timing (deployed before / after); redeployability breakdown.}
+\label{sec:eval-xc}
+\paragraph{Prevalence.} Table~\ref{tab:xc} classifies the 45{,}633 contract-misuse
+addresses (49{,}344 chain--address pairs).
+\begin{table}[t]
+\caption{Cross-chain labels on the victim chain. Loss share is the fraction of
+that chain's loss.}
+\label{tab:xc}
+\centering
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+Victim chain & Label & Addresses & \% addresses & \% loss\\
+\midrule
+BSC (21{,}775; 8{,}681 BNB) & \NCDXC & 16{,}819 & 77.2 & 18.9\\
+ & NCD-Other & 4{,}380 & 20.1 & 67.6\\
+ & \PCDXC & 496 & 2.3 & 13.0\\
+ & PCD-Other & 80 & 0.4 & 0.4\\
+\midrule
+ETH (27{,}569; 22{,}738 ETH) & \NCDXC & 18{,}782 & 68.1 & 3.1\\
+ & NCD-Other & 8{,}201 & 29.7 & 81.5\\
+ & \PCDXC & 491 & 1.8 & 2.2\\
+ & PCD-Other & 95 & 0.3 & 13.2\\
+\bottomrule
+\end{tabular}
+\end{table}
+Cross-chain misalignment is the dominant pattern by \emph{count} but not by
+\emph{value}: NCD-Other holds 67.6\% (BSC) and 81.5\% (ETH) of the loss. Only
+about 10--13\% of NCD-XC addresses ever received a positive value; the rest lost
+only gas. For a wallet this means that warning on T4 prevents many mistakes but
+few large losses, whereas the high-value cases need other signals. The
+independent re-scan of \texttt{eth\_getCode} by a second implementation on
+another machine returned the same 16{,}819 and 18{,}782, and a control sample of
+600 random addresses on three chains had no code, ruling out spurious RPC
+answers. Most addresses have code on a single other chain, mostly ETH$\leftrightarrow$BSC (13{,}223 BSC
+victims have code on ETH; 13{,}492 ETH victims have code on BSC).
+
+An asymmetry appears in the top-100 NCD addresses per chain: 36 of 100 on BSC
+are contracts on another chain (13\% of the loss, for example Uniswap V3
+SwapRouter) but only 2 of 100 on ETH. The largest NCD on Ethereum are probably
+copies from decommissioned testnets (Ropsten, Rinkeby, Kovan, Goerli), which no
+live RPC can show; GitHub context is needed to confirm this.
+
+\paragraph{Timing.} Table~\ref{tab:timing} answers whether the foreign contract
+existed first.
+\begin{table}[t]
+\caption{Foreign contract deployed before the first transaction (known cases).}
+\label{tab:timing}
+\centering
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Victim chain & Known & deployed\_before & deployed\_after & Unknown\\
+\midrule
+BSC & 16{,}562 & 16{,}366 (98.8\%) & 196 & 753\\
+ETH & 17{,}918 & 17{,}635 (98.4\%) & 283 & 1{,}355\\
+\bottomrule
+\end{tabular}
+\end{table}
+For almost every timed case the user used an address that was already a real
+contract elsewhere, so a pre-signing check could have fired at the very first
+use. The median gap between the first transaction and the foreign deployment is
+32 days on BSC and 39 days on ETH (BSC: p10 0, p90 443; ETH: p10 1, p90 414),
+and on ETH 6.9\% of the cases fall within one day and 44.8\% within 30 days. A
+short gap suggests mistakes near a multi-chain launch. Cases with
+deployed\_after are mostly Sepolia (82 of 320) and Arbitrum (62) and are T1 by
+the codebook. Because creation data are missing for OP, Base and BSC testnet
+sources, deployed\_before is a lower bound. Two counterexamples show that history
+matters: Uniswap V2 Router02, an Ethereum contract, was misused on BSC (30{,}124 tx,
+669.6 BNB) and today has the same bytecode on four other chains, yet in that
+period it was a PCD. The cross-chain state \emph{today} would therefore label a
+historical case incorrectly.
+
+\paragraph{Redeployability.} Table~\ref{tab:redeploy} shows whether the address
+could be claimed on the victim chain.
+\begin{table}[t]
+\caption{Redeployability of NCD/PCD-XC addresses (current state).}
+\label{tab:redeploy}
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & BSC victim & ETH victim\\
+\midrule
+claimable & 11{,}515 (1{,}000 BNB) & 11{,}293 (308.0 ETH)\\
+burned & 2{,}377 (469 BNB) & 3{,}112 (205.8 ETH)\\
+already deployed & 494 (1{,}049 BNB) & 527 (492.5 ETH)\\
+factory present / absent on victim & 607 / 1{,}507 & 1{,}172 / 1{,}597\\
+unknown & 815 & 1{,}572\\
+\bottomrule
+\end{tabular}
+\end{table}
+On BSC most misused addresses can still be deployed by their owner, a concrete
+mitigation: the owner can claim the address and recover or at least stop
+capturing user value. Conversely, anyone holding the deployer key could place
+different code there. The ETH column reflects the updated Binplorer coverage; the
+earlier ETH unknown count of 14{,}955 has dropped to 1{,}572.
 
 \subsection{Detection quality (RQ3)}
-\todo{Precision, recall, F1, FPR on the gold set; ROC for $R(A,C)$; ablation of the cross-chain feature.}
+\todo{Gold set results: precision, recall, F1 and FPR by type and by chain with bootstrap confidence intervals; ROC and PR curves of $R(A,C)$; $\kappa$.}
+\todo{Ablation: drop each $S_i$; $S_{\mathrm{cross}}$ alone; the original rules alone. Report hard-rule and score contributions separately. Note that $S_{\mathrm{osint}}$ is binary in this version and cannot separate positives from N1, since both come from the public-code candidate pool.}
 
 \subsection{Latency}
-\todo{Median and p95 latency of the Snap and the engine.}
+\todo{Median and p95 for engine and Snap on a warm cache and a cold cache; effect of the per-network timeout on score availability.}
 
 %------------------------------------------------------------------
-\section{Discussion}
+\section{Discussion and Limitations}
 \label{sec:discussion}
-\todo{Implications for wallets and explorers. Limitations: current-state code versus state at transaction time, snapshots, BSC data coverage, API truncation, label subjectivity. Generalization to other EVM chains.}
+\paragraph{Implications.} Wallets should check whether an address with no code on
+the current chain is a contract on another one, and surface the result at the
+first use. Because most NCD-XC cases involve only gas, the warning prevents
+frequent small mistakes; large losses need history and hard rules. Project teams
+that deploy on several chains should claim the same address everywhere, or burn
+the nonce deliberately, instead of leaving it claimable. Explorers could mark
+``this address is a contract on chain X''.
 
+\paragraph{Limitations.}
+\begin{itemize}
+\item \emph{State versus time.} Code is the latest state. We use creation time to
+approximate history, but cases whose code later changed are not fully resolved.
+\item \emph{Coverage.} Creation data missing for OP, Base and BSC testnet make
+timing a lower bound; the original ETH dataset itself is a snapshot.
+\item \emph{External transactions only.} The first transaction ignores internal
+transfers.
+\item \emph{Rules requiring \texttt{input}.} We excluded \texttt{input} from the
+BigQuery scan for cost reasons, so NCD/PCD rules are evaluated on subsets
+through an explorer.
+\item \emph{Label subjectivity.} Intent cannot be observed; we mitigate with a
+codebook and $\kappa$, but a residual remains.
+\item \emph{Scope.} Two source chains and eight networks; results may differ for
+other EVM chains.
+\end{itemize}
+
+\paragraph{Ethics.} See Section~\ref{sec:background}. We publish derived
+statistics and truncated addresses, not keys.
+
+%------------------------------------------------------------------
 \section{Conclusion}
 \label{sec:conclusion}
-\todo{Summary of findings and future work.}
+We replicated the address-misuse rules exactly in snapshot mode, showed that
+most misused contract addresses are empty on the victim chain but real contracts
+elsewhere, and that those contracts almost always came first. This gives wallets
+a signal available before signing, and gives project owners a concrete action,
+claiming the address. The cross-chain class is large in count but small in value,
+so a defense needs more than one signal. Future work: complete the gold set and
+evaluation, add the history and OSINT features, and measure the Snap in real
+conditions. \todo{Update after RQ3 results.}
 
-\subsubsection*{Acknowledgments.} \todo{Funding, if any.}
+\subsubsection*{Acknowledgments.} \todo{Funding, supervisor and data providers (Google BigQuery public data, NodeReal, Etherscan, Binplorer).}
 
 %------------------------------------------------------------------
 \bibliographystyle{splncs04}

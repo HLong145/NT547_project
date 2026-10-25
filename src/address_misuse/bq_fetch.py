@@ -172,14 +172,50 @@ def cmd_fetch(max_gb: float):
     print(f"{len(df):,} giao dịch → {out} (tính phí {(job.total_bytes_billed or 0) / GB:,.0f} GB)")
 
 
+def cmd_download(table: str, part_rows: int = 1_000_000):
+    """Tải bảng kết quả đã lưu trên BigQuery về các file part, chạy lại được (bỏ qua part đã xong), rồi gộp."""
+    import pyarrow.parquet as pq
+    bq, client = _client()
+    t = client.get_table(table)
+    parts = ETH_DIR / "bq_txs_parts"
+    parts.mkdir(parents=True, exist_ok=True)
+    n_parts = -(-t.num_rows // part_rows)
+    for i in range(n_parts):
+        f = parts / f"part_{i:04d}.parquet"
+        if f.exists():
+            continue
+        tbl = client.list_rows(t, start_index=i * part_rows, max_results=part_rows).to_arrow()
+        pq.write_table(tbl, f.with_suffix(".tmp"))
+        f.with_suffix(".tmp").replace(f)
+        print(f"part {i + 1}/{n_parts} ({tbl.num_rows:,} dòng)", flush=True)
+    out = ETH_DIR / "bq_txs.parquet"
+    tmp = out.with_suffix(".tmp")
+    writer, n = None, 0
+    for f in sorted(parts.glob("part_*.parquet")):
+        pf = pq.ParquetFile(f)
+        for batch in pf.iter_batches(batch_size=500_000):
+            if writer is None:
+                writer = pq.ParquetWriter(tmp, batch.schema)
+            writer.write_batch(batch)
+            n += batch.num_rows
+    writer.close()
+    if n != t.num_rows:
+        raise SystemExit(f"Thiếu dòng: {n:,} != {t.num_rows:,}")
+    tmp.replace(out)
+    print(f"xong: {n:,} giao dịch → {out}")
+
+
 def main():
     from address_misuse import config  # noqa: F401  (nạp .env)
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["dry-run", "fetch", "new-dry-run", "new-fetch"])
+    ap.add_argument("step", choices=["dry-run", "fetch", "download", "new-dry-run", "new-fetch"])
+    ap.add_argument("--table", default="address-misuse.work.eth_txs")
     ap.add_argument("--max-gb", type=float, default=700)
     a = ap.parse_args()
     if a.step.startswith("new-"):
         cmd_new(a.max_gb if a.max_gb != 700 else 220, dry_run=a.step == "new-dry-run")
+    elif a.step == "download":
+        cmd_download(a.table)
     else:
         cmd_dry_run() if a.step == "dry-run" else cmd_fetch(a.max_gb)
 

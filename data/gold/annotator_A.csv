@@ -1,0 +1,51 @@
+item_id,is_misuse,type,subtype,xc_chain,malicious,confidence,evidence,note
+P001,1,T1,NCD,-,0,high,"code,tx","16 tx approve() (0 ETH) tới EOA không code, receipt không log"
+P002,0,NONE,-,-,-,high,"code,same_code_elsewhere,tx","contract đa chain (eth/arb/base) cùng bytecode, gọi đúng hàm swap"
+P003,1,T5,7702,-,1,high,"code,delegate,storage,tx","delegate forwarder 0x8332… (cùng họ bytecode với 9 ví còn lại), destination riêng 0x63a3…; 190 tx vào/73.4 ETH, 479 tx ra/98.6 ETH, balance 0"
+P004,1,T4,NCD,eth,0,high,"code,timing,tx",BSC không code; contract eth tạo 2022-05-30 trước tx đầu BSC 2022-05-31; mint(uint256)
+P005,0,NONE,-,-,-,medium,"code,tx","ClaimerProxy hợp lệ (proxy + implementation), submit() đúng; số dư ETH hiện 0"
+P006,1,T5,7702,-,1,high,"code,delegate,storage,tx","delegate Forwarder 0x0727…, destination 0x810b…; 0.3163 ETH vào bị rút 0.09489 ETH trong CÙNG block về EOA lạ 0x9a86… (dấu hiệu key bị dùng)"
+P007,1,T4,NCD,op,0,high,"code,timing,tx",contract op tạo 2024-03-10 trước tx đầu eth 2024-03-13; 5000 tx mint(string)
+P008,0,NONE,-,-,-,high,"code,tx","BridgeToken, approve() sinh log; contract được gọi đúng"
+P009,0,NONE,-,-,-,medium,"code,tx",6 tx self-call (from=to) có calldata; 1 tx 0xddf252ad là payload event Transfer (spam) không phải selector hàm; còn lại chuyển ETH thường → không phải NCD
+P010,0,NONE,-,-,-,high,"code,tx",token Bakery LPs (BLP) trên bsc; gọi đúng approve/transfer
+P011,1,T1,NCD,-,0,high,"code,tx","1 tx deposit() mang 0.5 ETH tới EOA không code (2018), receipt không log → mất 0.5 ETH"
+P012,0,NONE,-,-,-,high,"code,tx","7 tx vào/3.02 ETH, 33 tx ra/13.6 ETH, không có cặp vào→ra <120s; tiền ra chủ yếu vào router Uniswap (contract) → ví thường, không bị sweep"
+P013,1,T1,NCD,-,0,high,"code,tx","1 tx approve() (0 ETH) tới EOA không code, receipt không log; địa chỉ chỉ có 1 tx"
+P014,1,T1,NCD,-,0,high,"code,timing,tx",faucet() trên eth; contract sepolia tạo 2024-03-19 SAU tx đầu 2024-02-03 (deployed_after) nên không gán T4 (§5.1)
+P015,1,T4,NCD,eth,0,high,"code,timing,tx",bsc không code; contract eth tạo 2022-09-07 trước tx đầu bsc 2022-10-20
+P016,1,T4,NCD,arb,0,high,"code,timing,tx",eth không code; contract arb tạo 2021-11-20 trước tx đầu eth 2021-11-21
+P017,1,T4,NCD,eth,0,high,"code,timing,tx",bsc không code; contract eth tạo 2024-01-01 trước tx đầu bsc 2024-03-11
+P018,1,T5,7702,-,1,high,"code,delegate,storage,tx","delegate Forwarder 0x0727…, destination 0x810b…; 33 tx ra/0.343 ETH, có cặp vào→ra cùng block về EOA lạ 0x770a…"
+P019,0,NONE,-,-,-,high,"code,tx","1 tx 0.1 ETH vào; 8 tx ra, không có cặp <120s; có tx gửi lại đúng địa chỉ nguồn → ví thường"
+P020,1,T5,7702,-,1,medium,"code,delegate,storage,tx","delegate Forwarder 0x0727… (1254 byte, cùng hợp đồng với 9 ví), destination 0x810b…; 13 lần nhận dust từ 0xfb76…, 19 tx transfer token phần lớn revert, 1 tx rút 0.005747 ETH về 0xe90b… — không có sweep rõ ràng; T5 dựa vào delegate độc, không dựa vào sweep"
+P021,1,T1,NCD,-,0,high,"code,tx","2 tx deposit()/withdraw() (0 ETH) tới EOA không code, receipt không log"
+P022,1,T4,NCD,bsc,0,high,"code,timing,tx",eth không code; contract bsc tạo 2022-01-03 trước tx đầu eth 2022-01-07; withdraw()
+P023,0,NONE,-,-,-,high,"code,tx","25 tx vào/4.63 ETH, 126 tx ra/11.07 ETH; 2 cặp <120s nhưng đều vào contract DeFi, không về ví lạ → ví thường"
+P024,1,T2,PCD,-,1,high,"code,timing,tx,internal","tx 2021-02-04 gửi 0.02 ETH khi địa chỉ chưa có code; contract cài 2023-10-08 rồi rút đúng 0.02 ETH về 0xbaeb… trong cùng block. Lưu ý: §3 định nghĩa T2 là 'không có đường rút' nhưng §4 bước 4 xếp PCD cài sẵn để chiếm tiền vào T2/malicious=1 — mẫu này theo §4, đề xuất sửa §3 ở v0.4"
+P025,0,NONE,-,-,-,high,"code,tx","ERC1967Proxy hợp lệ (LayerZero OFT), gọi đúng hàm"
+P026,1,T4,NCD,eth,0,high,"code,timing,tx",bsc không code; contract eth tạo 2021-08-17 trước tx đầu bsc 2021-08-19 (bsc_testnet là bản sao)
+P027,0,NONE,-,-,-,high,"code,same_code_elsewhere,tx",Safe deploy cùng địa chỉ trên mọi chain (N7)
+P028,1,T4,NCD,eth,0,high,"code,timing,tx",bsc không code; contract eth tạo 2021-06-27 trước tx đầu bsc 2021-09-23
+P029,1,T1,NCD,-,0,high,"code,tx","1/69 tx withdrawTo() mang 0.15177 ETH tới EOA không code, receipt không log → mất 0.15 ETH"
+P030,1,T5,7702,-,1,medium,"code,delegate,storage,tx","delegate 0x88cf… (forwarder, tên giả MetaMaskSwapRouter), destination 0x810b… chung với 9 ví; chưa thấy ETH chạy ra (chỉ 0.00077 ETH vào, balance 0) — T5 dựa trên delegate độc"
+P031,1,T1,NCD,-,0,high,"code,tx","20 tx mintTokensByPeers() (0 ETH) tới EOA không code, receipt không log"
+P032,0,NONE,-,-,-,high,"code,tx",token Pancake LPs trên bsc; gọi đúng approve
+P033,0,NONE,-,-,-,high,"code,same_code_elsewhere,tx",CreateX deploy cùng địa chỉ nhiều chain (N7)
+P034,1,T5,7702,-,1,medium,"code,delegate,storage,tx","delegate 0xa191… (forwarder), destination 0x02b1… trên bsc; 3 tx vào đều 0 ETH, chưa có tx rút thực tế — T5 dựa trên delegate độc"
+P035,0,NONE,-,-,-,high,"code,same_code_elsewhere,tx",Multicall3 deploy cùng địa chỉ nhiều chain (N7)
+P036,1,T4,NCD,bsc_testnet,0,low,"code,timing,tx",eth không code; code ở bsc_testnet nhưng không tra được ngày tạo → §5.2 gán T4 low. Lưu ý: nếu testnet không được tính là 'chain gốc' cho T4 thì mẫu này nên xét lại thành T1
+P037,0,NONE,-,-,-,high,"code,same_code_elsewhere,tx","bytecode trùng trên 8 chain, tx gọi hàm đúng"
+P038,1,T5,7702,-,1,high,"code,delegate,storage,tx","delegate Forwarder 0x0727…, destination 0x810b…; 1.4949 ETH vào / 1.4277 ETH ra (17 tx), gần như rút sạch, balance 0"
+P039,1,T4,NCD,polygon,0,high,"code,timing,tx",bsc không code; contract polygon tạo 2022-03-16 trước tx đầu bsc 2022-11-19
+P040,1,T1,NCD,-,0,high,"code,tx","1 tx mint(uint256) mang 0.045 ETH tới EOA không code, status ok và không log"
+P041,1,T1,NCD,-,0,high,"code,tx","2 tx buyTokens() mang 0.1 ETH mỗi tx tới EOA không code, receipt không log → mất 0.2 ETH"
+P042,1,T5,7702,-,1,high,"code,delegate,storage,tx","delegate Forwarder 0x0727…, destination 0x810b…; 1.7031 ETH vào / 1.6549 ETH ra (17 tx) về 2 EOA lạ 0x5411… và 0x5e50…; 0.7071 vào → 0.7069 ra trong 2 phút"
+P043,1,T5,7702,-,1,medium,"code,delegate,storage,tx","delegate Forwarder 0x0727… (1254 byte, cùng hợp đồng với 9 ví), destination 0x810b…; 0.14 ETH vào, chỉ 0.0069 ETH ra trong txlist, balance 0 nên ~0.133 ETH chưa giải thích được (chưa tìm được tx rút tương ứng) — T5 dựa vào delegate độc"
+P044,1,T1,NCD,-,0,high,"code,tx","1628 tx approve() (0 ETH) tới EOA không code, receipt không log"
+P045,1,T5,7702,-,1,medium,"code,delegate,storage,tx","delegate Forwarder 0x0727… (1254 byte, cùng hợp đồng với 9 ví), destination 0x810b…; 112 tx ra/3.86 ETH chủ yếu DEX/token, KHÔNG có dấu hiệu rút về ví lạ — T5 dựa vào delegate độc, không dựa vào sweep"
+P046,1,T5,7702,-,1,high,"code,delegate,storage,tx","delegate 0x9db9… (forwarder), destination 0x02b1… trên bsc; 2 internal transfer 0.0001+0.00001 BNB về đúng destination → có sweep thực tế"
+P047,0,NONE,-,-,-,high,"code,tx",nhận 0.036 ETH rồi tự deploy contract; không có calldata gọi hàm tới địa chỉ
+P048,1,T4,NCD,polygon,0,high,"code,timing,tx",eth không code; contract polygon tạo 2021-12-08 trước tx đầu eth 2021-12-11
+P049,1,T1,NCD,-,0,high,"code,tx","89 tx depositTransaction() (tổng 0.061 ETH) tới EOA không code, receipt không log"
+P050,1,T5,7702,-,1,medium,"code,delegate,storage,tx","delegate Forwarder 0x0727… (1254 byte, cùng hợp đồng với 9 ví), destination 0x810b…; 20 tx ra/0.0716 ETH vào bridge/contract, KHÔNG có dấu hiệu sweep về ví lạ — T5 dựa vào delegate độc"

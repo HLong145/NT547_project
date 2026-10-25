@@ -577,6 +577,23 @@ File `data/raw/eth/bq_txs.parquet` (bạn chạy `bq_fetch fetch`, 1,49 GB, khô
 - **Giới hạn của ADDR:** rule ADDR cần "delegate độc", mình coi là thoả vì mọi EOA ADDR đều có trong `eip7702_delegations` của tác giả; số dư snapshot lấy từ dữ liệu tác giả. Nên 100% ở đây xác nhận phần đếm tx/tính loss, **không** xác nhận độc lập việc nhận diện delegate độc (FINDINGS_LOG 2026-10-19: `flag` = symexec).
 - Kết luận: rule của Shao et al. tái lập đầy đủ trên ETH cho cả 4 subtype và cả nhóm n_tx lớn.
 
+## 2026-10-22 — D2 (ETH): chạy lại rule trên 22,4 triệu tx BigQuery (`python -m address_misuse.d2_eth`)
+
+Dữ liệu: `bq_txs.parquet` (22.397.803 tx, không có `input`). Chế độ snapshot: chỉ giữ `n_tx` tx đầu mỗi địa chỉ. `value` của BigQuery tính bằng wei. Kết quả theo địa chỉ: `data/interim/d2_eth_compare.parquet`, tổng hợp: `d2_eth_summary.csv`.
+
+| Tập (ETH) | Địa chỉ | Tx misuse: tác giả / mình | Loss (ETH): tác giả / mình | Lệch |
+|---|---|---|---|---|
+| KEY | 4.256 | 54.891 / 54.891 | 103.711,06 / 103.690,07 | −0,02% |
+| ADDR | 3.893 | 28.886 / 28.886 | 1.627,415 / 1.627,415 | 0% (3.893/3.893 địa chỉ khớp) |
+| NCD | 26.983 | 696.025 / (cận trên 1.689.961) | không tính được | — |
+| PCD | 586 | 40.115 / không tính được | không tính được | — |
+
+- **KEY và ADDR đạt mục tiêu < 2%**, ADDR khớp tuyệt đối trên toàn bộ 3.893 địa chỉ (chạy `rules.find_sweep_pairs`, số tx chuyển thuần suy ra từ gasUsed = 21.000).
+- **Bài học kỹ thuật:** lần chạy đầu ADDR lệch −4,46% (28.679 tx) chỉ vì đọc `value` sang float64. Các tx rút "đúng bằng" tx nạp (tỉ lệ 1,0) bị làm tròn thành > 1 nên rơi khỏi điều kiện `out ≤ in`. Dùng wei nguyên chính xác thì hết lệch. Ngoài ra `gasUsed × gasPrice` tràn int64 ở vài tx có gas price rác (phải tính bằng float hoặc số nguyên Python).
+- **KEY còn 2/4.256 địa chỉ lệch** (−21 ETH, trong đó 20,9 ETH ở `0xf46b…ae32`, một khoản nạp có trong số liệu tác giả mà BigQuery không có). Chưa rõ nguyên nhân, nhiều khả năng khác biệt nguồn (tx nội bộ hoặc thứ tự); địa chỉ còn lại lệch nhỏ do gas price hiệu dụng của một tx.
+- **NCD/PCD không tái lập được** vì thiếu `input` (rule cần selector, `functionName`, văn bản đọc được, transfer-to-self). Cận trên (success, gasUsed trong (21.000, 30.000]) chỉ cho biết phủ được 100% địa chỉ, không dùng được cho loss: lẫn cả ví thường như `0x742d…f44e` (3.723 tx, 6,2 triệu ETH "loss"). Cần Etherscan cho tập con (xem pilot, khớp 100%).
+- Số tx của địa chỉ: BigQuery có nhiều hơn (14,4 triệu so với 9,1 triệu của tác giả với NCD) vì dữ liệu đến 2026-10-20; snapshot cắt theo `n_tx` nên khớp (26.979/26.983 NCD có đủ `n_tx`).
+
 ## 2026-10-20 — D3 timing BSC qua NodeReal (`crosschain_matrix timing`, `build`)
 
 Nguồn: NodeReal MegaNode free, `nr_getTransactionByAddress` (`category=[external]`, `order=asc`, `maxCount=1`), 16.562 địa chỉ BSC trong ~5 phút, 0 lỗi. (Moralis đòi gói $149+, BigQuery không có dataset BSC, Blockscout/Ankr không dùng được.)
