@@ -242,4 +242,5 @@ Bất đồng nằm ở các điểm mới sau, cần chốt cùng §10.1 trư�
 
 - **KEY**: vì file mẫu không biết ví có nằm trong danh sách lộ key hay không, KEY chỉ gán được khi thấy mẫu hình rút nhanh. Ví lộ key mà chưa bị rút sẽ bị gán âm (`NONE`), nên nhãn vàng KEY là **cận dưới** của KEY thật và độ chính xác (precision) của luật `leaked_key` sẽ bị tính thấp hơn thực tế. Paper báo kết quả KEY với cảnh báo này.
 - **Đã cân nhắc và bỏ**: thêm cột `leak_list` (làm nhãn KEY thành cơ học ở 60/60 mẫu, trùng luật `leaked_key`, và chỉ 60 mẫu có giá trị `yes`).
+- Phép đo tự động trên toàn danh sách (không cần người gán): xem FINDINGS_LOG 2026-10-25 (`key_sweep`).
 - Nhãn KEY, dù theo cách nào, vẫn không độc lập hoàn toàn với luật `sweeper` của engine (cùng dựa vào mẫu hình rút nhanh): báo chỉ số engine thêm trên tập con không có KEY/ADDR.

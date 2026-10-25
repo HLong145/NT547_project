@@ -85,3 +85,29 @@ def test_event_tx_recovers_incoming_tx_at_event_time(tmp_path, monkeypatch):
     assert event_tx("eth", a, None) is None
     monkeypatch.setattr(F, "txlist_path", lambda chain, address: tmp_path / "none.gz")
     assert event_tx("eth", a, 100) is None
+
+
+def test_key_sweep_measures_time_to_drain_and_classifies_recipient():
+    from address_misuse.key_sweep import analyze, classify, summarize
+    k1, k2, w, s1, s2, thief = ("0x" + c * 40 for c in "abcdef")
+
+    def tx(b, i, ts, frm, to, val, status=1, fee=1e12):
+        return {"block_number": b, "transaction_index": i, "block_ts": ts, "from_address": frm, "to_address": to,
+                "value_wei": val, "receipt_status": status, "fee_wei": fee, "order": b * 100_000 + i}
+    df = pd.DataFrame([
+        tx(100, 0, 1000, s1, k1, 1e18), tx(101, 0, 1012, k1, thief, 0.999e18),        # rút sau 1 block
+        tx(200, 0, 2000, s2, k1, 1e18), tx(300, 0, 5000, k1, thief, 0.99e18),         # rút sau 3000 s (<=1 giờ)
+        tx(400, 0, 9000, s1, k1, 1e18, status=0),                                     # nạp lỗi: bỏ
+        tx(500, 0, 9500, s1, k2, 2e18), tx(501, 0, 9512, k2, s1, 1.99e18),             # trả về người gửi
+        tx(600, 0, 9900, s1, k2, 1e18),                                               # không thấy rút
+        tx(700, 0, 20000, s1, k1, 1e18), tx(701, 0, 20012, k1, w, 0.2e18)])            # rút ít hơn 95%: không tính
+    d = analyze(df, {k1, k2})
+    assert len(d) == 5
+    d = d.set_index(["addr", "in_block"])
+    assert d.loc[(k1, 100), "dt_block"] == 1 and d.loc[(k1, 200), "dt_sec"] == 3000
+    assert not d.loc[(k1, 700), "drained"] and not d.loc[(k2, 600), "drained"]
+    d = classify(d.reset_index(), {k1, k2})
+    kinds = d.set_index(["addr", "in_block"]).recipient_kind
+    assert kinds[(k2, 500)] == "trả về người gửi" and kinds[(k1, 100)] == "ví khác" and kinds[(k1, 700)] == "không thấy rút"
+    s = summarize(d).set_index("tập").loc["tất cả"]
+    assert s["tx <=2 block"] == 2 and s["tx <=1 giờ"] == 1 and s["số khoản nạp"] == 5

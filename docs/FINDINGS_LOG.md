@@ -2,6 +2,20 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-25 — D2/KEY: tốc độ bị rút của ví lộ khoá trên ETH (45.483 lần nạp, 3.770 ví)
+
+Tái tạo: `PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.key_sweep` (đọc `bq_txs.parquet` đã có, không truy vấn BigQuery mới; kết quả `data/interim/key_sweep_eth{,_summary}.csv/.parquet`; test trong `tests/test_sample_gold.py`).
+Định nghĩa: khoản nạp = tx thành công, value > 0, từ ví khác; "bị rút" = tx thành công đầu tiên sau đó mang ≥ 95% khoản nạp (value + phí), tìm trong 24 giờ.
+- **Theo số lần nạp:** 42,0% bị rút trong ≤ 2 block, 53,9% trong ≤ 10 phút (tx cộng dồn), 31.014/45.483 trong 24 giờ. Với người nhận: 21.632 khoản rút về các "collector" (ví nhận khoản rút từ ≥ 3 ví lộ khác nhau), 8.665 về ví khác, 678 trả về người gửi, 39 sang ví lộ khác.
+- **Theo ví:** 1.764/3.770 ví có ≥ 1 khoản bị rút ≤ 10 phút; 1.081 ví có ≥ 50% số khoản như vậy; trung vị theo ví là 0%.
+- **Theo giá trị: khác hẳn.** Tổng nạp 103.617 ETH (khớp 103.711 ETH `cost_native` KEY ETH của tác giả), chỉ **4,2%** bị rút ≤ 10 phút và **89%** không thấy rút trong 24 giờ.
+  Lý do: **hai ví giữ 86.237 ETH (83%)** qua 9 lần nạp, chỉ 20–25% số lần bị rút nhanh, và top-10 ví chiếm 92,9% tiền nạp. Bỏ top-10 ví: 7.379 ETH, 35,1% ETH và 49,5% tx bị rút ≤ 10 phút.
+  Kết luận: con số loss KEY của tác giả (cộng mọi khoản nạp) là **cận trên**, và bị chi phối bởi vài ví; không dùng nó làm "thiệt hại do sweeper".
+- Cờ: `pre_mark` (khoản nạp trước lần bị rút nhanh đầu tiên của ví) 2.863 khoản; bỏ chúng thì ETH còn 14.822 và % ETH bị rút ≤ 10 phút lên 29,5%. Khoá test Hardhat mặc định: 1.768 khoản ở 10 ví (bỏ chúng gần như không đổi kết quả).
+- Cảnh báo bắt buộc ghi trong paper: chỉ ETH coin gốc (BigQuery thiếu internal tx và token), số rút là cận dưới; danh sách là 16.961 địa chỉ riêng biệt (17.971 dòng; 1.122 dòng từ StackExchange, phần còn lại GitHub), chỉ gồm ví đã có ≥ 1 tx và không có ngày lộ, nên kết quả là tỉ lệ có điều kiện trên "khoá lộ, có hoạt động, có nạp value", không suy ra cho mọi khoá lộ. BSC chưa làm (txlist đã cache 150/12.705 địa chỉ; cần người dùng duyệt việc lấy dữ liệu).
+- Không vòng lặp với luật KEY của tác giả (`rules.detect_eoa_key` chỉ cần địa chỉ thuộc danh sách và có tx nạp thành công). Có liên quan tới luật `sweeper` của engine và nhãn vàng KEY (cùng tiêu chí "rút nhanh"); đừng gọi nhãn vàng KEY là kiểm chứng độc lập của phép đo.
+- Hệ quả cho nhãn vàng và đánh giá engine (advisor, 2026-10-25): chỉ số chính của engine tính trên mẫu không thuộc KEY/ADDR; κ báo có và không có KEY; precision/recall của `leaked_key` đối với nhãn vàng KEY không xác định về khái niệm (tập âm dựng bằng cách loại ví trong danh sách), không báo như kết quả.
+
 ## 2026-10-25 — Thử cột `leak_list` cho mẫu vàng rồi BỎ (làm lộ nhãn KEY)
 
 - Danh sách khoá lộ (`candidate_pk_addresses`, 17.971 địa chỉ eth/bsc, nguồn GitHub, không có ngày lộ). Trên dataset_v2: 301 dương nằm trong danh sách, 0 âm.
