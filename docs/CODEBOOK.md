@@ -38,7 +38,7 @@ Taxonomy theo [requirements.md](requirements.md) §3.1 và [PLAN_V2.md](PLAN_V2.
 
 ### EOA Misuse: người dùng gửi tài sản tới ví mà họ không kiểm soát được an toàn
 
-- **KEY:** ví có private key **đã lộ công khai** (GitHub/StackExchange) và có tx tới **sau ngày lộ**. Gán dương khi ví nằm trong danh sách lộ key (ghi `leaklist` vào `evidence`); `malicious = 1` nếu thấy tiền bị rút trong vòng 10 phút về một ví lạ (không phải người gửi, không phải ví sàn hay router), `?` nếu chưa thấy rút. Không biết ngày lộ thì vẫn gán nhưng `confidence` tối đa `medium`.
+- **KEY:** ví có private key **đã lộ công khai** (GitHub/StackExchange). File mẫu **không** cho biết ví có nằm trong danh sách lộ key hay không (danh sách chỉ chứa dương, nên cột đó làm lộ nhãn). Người gán nhận ra KEY qua tx: tiền vào rồi bị rút trong **≤ 10 phút** về một ví lạ (không phải người gửi, không phải ví sàn / router / bridge), thấy **ít nhất 2 lần** về cùng ví đó. Thấy 1 lần thì vẫn gán nhưng `confidence` tối đa `medium`. Khi gán dương thì `malicious = 1`. Ví lộ key nhưng chưa bị rút thì **không thể gán** (ghi nhận là hạn chế, xem §10.3).
 - **ADDR:** người dùng gửi tới một địa chỉ ví công khai (ví dụ trong tài liệu hay code mẫu) **không phải của họ**.
 - **7702:** EOA đã ủy quyền EIP-7702 (code bắt đầu `0xef0100…`) tới một delegate. Tiền gửi tới bị delegate xử lý, thường là delegate sweeper.
 
@@ -80,7 +80,7 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`) gồm:
    └─ Không (PCD): tx tại `at` thành công và tiền bị giữ/chuyển đi? (tx lỗi `isError = 1` thì không mất tiền)
         ├─ Có ──► T2 (malicious = 0 hố đen / 1 rút về ví kẻ cài / ? chưa thấy rút)
         └─ Không ──► NONE
-5. EOA: key lộ công khai (có tx sau ngày lộ) / delegate độc / tiền bị rút gần như ngay lập tức?
+5. EOA: tiền bị rút ≤ 10 phút về ví lạ (≥ 2 lần) / delegate độc?
    ├─ Có ──► T5 (subtype KEY / ADDR / 7702; `malicious` = 1 / ? theo §3)
    ├─ Địa chỉ giống địa chỉ quen thuộc + tx mồi giá trị 0 ──► T6
    └─ Không (ví thường, sàn, smart wallet hợp lệ) ──► NONE (âm)
@@ -114,7 +114,8 @@ Thứ tự ưu tiên khi thỏa nhiều type: **T4 > T1**; **T5 > T6**; **T2** �
 Thiếu một điều kiện → `NONE`. Token, proxy, LP, router được gọi đúng hàm → `NONE`. Cờ `symexec_*` chỉ để gợi ý chỗ cần xem, **không bao giờ đủ để gán một mình**.
 
 **Bước D. EOA.**
-- `leak_list = yes` → **T5 / KEY**, `is_misuse = 1`. `malicious = 1` nếu thấy rút nhanh về ví lạ trong tab Internal/Transactions của chính địa chỉ; chưa thấy → `?`. (Ví nằm trong danh sách dù chưa bị rút vẫn là KEY: key đã công khai là rủi ro đủ.)
+- Mở tab Transactions của chính địa chỉ. Thấy **≥ 2 lần** tiền vào rồi ra trong **≤ 10 phút** về cùng một ví lạ → **T5 / KEY**, `is_misuse = 1`, `malicious = 1`. Chỉ thấy 1 lần → như trên nhưng `confidence` tối đa `medium`. Không thấy lần nào → không phải KEY (xét tiếp các dòng dưới).
+- `subtype`: `KEY` là mặc định cho mẫu hình rút nhanh. `ADDR` chỉ khi explorer ghi rõ đó là ví công khai dùng làm ví dụ. Hai subtype này cùng là T5 nên không ảnh hưởng κ của `type`.
 - Code hiện là 7702 (`delegate_7702` có giá trị): xem ca khó 13. Thấy rút về ví lạ → T5/7702, `malicious = 1`. Delegate là forwarder chuyển về địa chỉ cố định mà chưa thấy rút → T5/7702, `malicious = ?`, `confidence` tối đa `medium`. Delegate là ví hợp lệ có tên (`delegate_known_wallet`) và chủ ví dùng bình thường → `NONE`.
 - Tiền gửi tới ví công khai không phải của người gửi (ví trong tài liệu mẫu) và bị rút về ví lạ → T5/ADDR. Không thấy rút → `NONE`, `confidence = low`.
 - Địa chỉ giống địa chỉ quen + tx mồi giá trị 0 → **T6**.
@@ -130,7 +131,7 @@ Thiếu một điều kiện → `NONE`. Token, proxy, LP, router được gọi
 | P002 | contract đa chain cùng bytecode, tx gọi đúng hàm swap | `0`, NONE |
 | P005 | 167 tx vào, 164 tx lỗi, 0 tx ra; proxy `submit()` đúng | `0`, NONE (tx lỗi không mất tiền) |
 | P024 | tx gửi 0,02 ETH khi chưa có code; contract cài sau rồi rút đúng khoản đó về ví lạ | `1`, T2/PCD, `malicious = 1` (ca khó 11) |
-| P012 | `leak_list = yes`; tiền ra chủ yếu vào router Uniswap, không thấy rút nhanh về ví lạ | `1`, T5/KEY, `malicious = ?` |
+| P012 | 7 tx vào, 33 tx ra chủ yếu vào router Uniswap, không có cặp vào-ra ≤ 10 phút về ví lạ | `0`, NONE, `confidence = medium` (không thấy mẫu hình rút nhanh) |
 | P038 | 7702 tới Forwarder; 1,49 ETH vào, 1,43 ETH ra về ví lạ | `1`, T5/7702, `malicious = 1`, high |
 | P034 | 7702 tới forwarder; 3 tx vào đều 0 ETH, chưa thấy rút | `1`, T5/7702, `malicious = ?`, medium |
 | P009 | calldata chỉ là event topic `0xddf252ad…` tới EOA | `0`, NONE (ca khó 10) |
@@ -191,8 +192,8 @@ Trạng thái code là **hiện tại**, không phải lúc tx. Khi kết luận
 
 - **v0.1 (2026-10-16):** bản nháp đầu, trước pilot.
 - **v0.2 (2026-10-19):** bỏ các cột `n_tx`, `n_misuse_tx`, `cost_native` khỏi file mẫu (làm lộ nhãn: chỉ có ở mẫu thuộc dữ liệu tác giả); ô không tra được ghi `-` thay vì để trống.
-- **v0.4.1 (2026-10-25):** thêm §4.1 (quy trình từng bước, định nghĩa dùng chung, mặc định khi phân vân, bảng ví dụ pilot); cột `leak_list` (danh sách khoá lộ, tra đồng đều cho mọi mẫu); KEY dương khi `leak_list = yes` (chưa có ngày lộ trong dữ liệu).
-- **v0.4 (2026-10-25):** áp dụng §10.1 (điểm 1–5, đã sửa theo advisor) và §10.2: T2 cần tx thành công và sai ý định (cờ symexec chỉ gợi ý); KEY gán dương theo danh sách lộ + tx sau ngày lộ (`malicious` `1`/`?`); `malicious` có 4 giá trị; ca khó 10–15; bỏ điều kiện `delegate_known_wallet = -` làm bằng chứng độc. PCD của mình **hẹp hơn** PCD của tác giả (có chủ ý), paper báo cả hai cách đọc.
+- **v0.4.1 (2026-10-25):** thêm §4.1 (quy trình từng bước, định nghĩa dùng chung, mặc định khi phân vân, bảng ví dụ pilot); KEY chỉ gán dương khi thấy mẫu hình rút nhanh (≥ 2 lần, ≤ 10 phút, về cùng ví lạ) trong tx; **không** có cột danh sách khoá lộ (đã thử, bỏ vì làm lộ nhãn 60/60 mẫu KEY).
+- **v0.4 (2026-10-25):** áp dụng §10.1 (điểm 1–5, đã sửa theo advisor) và §10.2: T2 cần tx thành công và sai ý định (cờ symexec chỉ gợi ý); KEY gán dương theo tx rút nhanh (xem v0.4.1); `malicious` có 4 giá trị; ca khó 10–15; bỏ điều kiện `delegate_known_wallet = -` làm bằng chứng độc. PCD của mình **hẹp hơn** PCD của tác giả (có chủ ý), paper báo cả hai cách đọc.
 - **v0.3 (2026-10-19):**
   - bỏ cột `delegate_flag` (thực chất là kết quả symexec, gây thiên lệch), thay bằng `delegate_symexec_transfer` và `delegate_known_wallet`;
   - tầng `neg_n6_7702_benign` đổi thành `eoa_7702_other`;
@@ -234,6 +235,11 @@ Bất đồng nằm ở các điểm mới sau, cần chốt cùng §10.1 trư�
 
 6. **T2/PCD có cần tx chứng minh không?** (6 trong 7 bất đồng.) Đề xuất: PCD chỉ gán dương khi tx tại thời điểm `at` là tx **sai ý định** (chuyển coin vào contract không nhận coin, gọi hàm không tồn tại,
    hoặc contract được cài sau tx như P024). Cờ symexec (`transfer_all_eth`, `delegatecall`, "không có đường rút") **chỉ là gợi ý, không đủ để gán**. Contract được gọi đúng hàm (token, proxy, LP) là âm.
-7. **Chuẩn bằng chứng cho KEY (P012).** Đề xuất: KEY chỉ gán dương khi thấy tiền rút ra trong vài phút về ví lạ; chỉ biết "key có trong danh sách rò rỉ" là chưa đủ.
-   Nếu không thấy tx rút thì `is_misuse = 0`, `confidence = low` (đồng bộ với điểm 5).
+7. **Chuẩn bằng chứng cho KEY (P012).** Chốt: KEY chỉ gán dương khi thấy mẫu hình rút nhanh (§3, §4.1 bước D); chỉ biết "key có trong danh sách rò rỉ" không đủ và file mẫu cũng không cung cấp thông tin đó.
 8. **Quy ước ô:** mẫu âm ghi `subtype = -`, `xc_chain = -`, `malicious = -`; `confidence = high` chỉ khi đã mở explorer xem tx tại thời điểm `at`, còn chỉ dựa vào cột bằng chứng thì `medium`.
+
+### 10.3. Hạn chế đã biết của nhãn vàng (ghi vào paper)
+
+- **KEY**: vì file mẫu không biết ví có nằm trong danh sách lộ key hay không, KEY chỉ gán được khi thấy mẫu hình rút nhanh. Ví lộ key mà chưa bị rút sẽ bị gán âm (`NONE`), nên nhãn vàng KEY là **cận dưới** của KEY thật và độ chính xác (precision) của luật `leaked_key` sẽ bị tính thấp hơn thực tế. Paper báo kết quả KEY với cảnh báo này.
+- **Đã cân nhắc và bỏ**: thêm cột `leak_list` (làm nhãn KEY thành cơ học ở 60/60 mẫu, trùng luật `leaked_key`, và chỉ 60 mẫu có giá trị `yes`).
+- Nhãn KEY, dù theo cách nào, vẫn không độc lập hoàn toàn với luật `sweeper` của engine (cùng dựa vào mẫu hình rút nhanh): báo chỉ số engine thêm trên tập con không có KEY/ADDR.

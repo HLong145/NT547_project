@@ -2,22 +2,20 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
-## 2026-10-25 — Cột `leak_list` làm nhãn KEY của mẫu vàng thành cơ học (hệ quả của quyết định "cách 2")
+## 2026-10-25 — Thử cột `leak_list` cho mẫu vàng rồi BỎ (làm lộ nhãn KEY)
 
-- Danh sách khoá lộ (`candidate_pk_addresses`, 17.971 địa chỉ eth/bsc, nguồn GitHub, **không có ngày lộ**). Trên dataset_v2: 301 dương nằm trong danh sách, 0 âm.
-- Mẫu chính 605 sau khi thêm cột: `leak_list = yes` ⇔ tầng +KEY (60/60), mọi tầng khác `no`. Nên với KEY: `is_misuse = 1` do cột quyết định, người gán chỉ đóng góp `malicious` (thấy rút hay không).
-  Hệ quả cho paper: (1) nhãn vàng KEY trùng luật `leaked_key` của engine, không dùng nó để "xác nhận" `leaked_key`;
-  (2) báo chỉ số engine thêm trên tập con KHÔNG gồm mẫu KEY/`leak_list`; (3) báo κ thêm trên tập gán đôi bỏ mẫu KEY (các mẫu KEY dễ, làm κ cao hơn);
-  (4) tỉ lệ `malicious = 1` trong 60 mẫu KEY là phát hiện độc lập (tỉ lệ ví lộ key bị rút thật).
-- Pilot 1 không có cột này (đã gán xong, không sinh lại). `main_items.csv` sinh lại, khoá `main_key.csv` không đổi.
+- Danh sách khoá lộ (`candidate_pk_addresses`, 17.971 địa chỉ eth/bsc, nguồn GitHub, không có ngày lộ). Trên dataset_v2: 301 dương nằm trong danh sách, 0 âm.
+- Thử thêm cột vào mẫu chính 605: `leak_list = yes` ⇔ tầng +KEY (60/60), mọi tầng khác `no`. Nhãn KEY thành cơ học, trùng luật `leaked_key` của engine, và chỉ 60 mẫu có giá trị `yes`.
+  Người dùng quyết định bỏ cột (cùng ngày). `main_items.csv` sinh lại không có cột này; `main_key.csv` không đổi.
+- Hệ quả: KEY chỉ gán dương khi người gán thấy mẫu hình rút nhanh (≥ 2 lần, ≤ 10 phút, về cùng ví lạ). Ví lộ key chưa bị rút bị gán âm, nên nhãn vàng KEY là cận dưới và
+  precision của `leaked_key` bị tính thấp hơn thực tế (hạn chế ghi ở CODEBOOK §10.3). Báo chỉ số engine thêm trên tập con không có KEY/ADDR.
 
 ## 2026-10-25 — CODEBOOK v0.4 và nhận xét của advisor (Opus)
 
 - Advisor không duyệt nguyên văn đề xuất §10.1/§10.2; các sửa đã áp dụng vào v0.4:
   bỏ câu "cố ý khớp engine" (bằng chứng gán nhãn phải độc lập với engine); T2 cần tx thành công (P005: 164/167 tx lỗi); `malicious` ∈ {1, 0, ?, -};
   `delegate_known_wallet = -` không là bằng chứng độc; danh sách đen chỉ ghi vào `evidence`; calldata event/văn bản đi tiếp bước 5.
-- Quyết định của người dùng: KEY gán dương nếu nằm trong danh sách lộ và có tx sau ngày lộ (`malicious` 1 nếu thấy rút, `?` nếu chưa), tránh thiên lệch sống sót.
-  Hệ quả cần ghi vào paper: nhãn KEY vàng trùng định nghĩa với luật `leaked_key`, nên báo chỉ số engine thêm trên tập con nhãn **không** dựa vào danh sách/symexec.
+- Quyết định ban đầu của người dùng (cách 2: KEY dương theo danh sách lộ) đã bị thay bằng KEY theo mẫu hình rút nhanh, xem mục kế trên.
 - κ = 0,951 (tính lại sau khi biết bất đồng) không được báo; κ báo là của pilot 2 và của 200 mẫu gán đôi. Pilot 1 (0,615) báo như "trước khi sửa codebook".
 - PCD của mình hẹp hơn PCD tác giả (cố ý); RQ1 báo cả hai cách đọc. T4 báo có và không có testnet.
 

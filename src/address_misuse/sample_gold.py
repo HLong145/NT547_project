@@ -99,7 +99,7 @@ def delegations(s: dict[str, pd.DataFrame]) -> pd.DataFrame:
 def load_sources() -> dict[str, pd.DataFrame]:
     s = {name: pd.read_parquet(SEED_DIR / f"{name}.parquet") for name in
          ("ca_misuse", "eoa_misuse", "rq1_labels", "symexec_results", "eip7702_delegations",
-          "candidate_addresses", "candidate_pk_addresses")}
+          "candidate_addresses")}
     s["matrix"] = pd.read_parquet(INTERIM_DIR / "crosschain_matrix.parquet")
     s["n7"] = pd.read_parquet(INTERIM_DIR / "n7_multichain_contracts.parquet")
     n6 = INTERIM_DIR / "n6_benign_7702_delegates.parquet"           # python -m address_misuse.negatives n6
@@ -294,12 +294,7 @@ def add_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], run_symexec: 
                                        for c, d in zip(ev.chain, ev.delegate_7702)]
     ev["delegate_known_wallet"] = [wallets.get(d) if isinstance(d, str) else None for d in ev.delegate_7702]
 
-    # Danh sách khoá riêng bị lộ (GitHub; chỉ eth, bsc; không có ngày lộ). Tra cho MỌI mẫu cùng một cách:
-    # 'yes' nằm trong danh sách, 'no' không nằm (chain được phủ), '-' chain không được phủ.
-    pk = s["candidate_pk_addresses"]
-    leaked, covered = set(zip(pk.chain, pk.address)), set(pk.chain)
-    ev["leak_list"] = ["yes" if (c, a) in leaked else ("no" if c in covered else None)
-                       for c, a in zip(ev.chain, ev.address)]
+    # Không có cột "nằm trong danh sách khoá lộ": danh sách chỉ chứa dương KEY nên cột đó làm lộ nhãn (FINDINGS_LOG 2026-10-25).
 
     ev["first_create_date"] = ev.first_create_ts.map(_date)
     ev["first_tx_date"] = ev.first_tx_ts.map(_date)
@@ -449,8 +444,6 @@ GUIDE = [
     "  T6 address poisoning (trùng 4 ký tự đầu + 4 cuối, có tx mồi giá trị 0)",
     "  Ưu tiên: T4 > T1; T5 > T6",
     "subtype: NCD / PCD / KEY / ADDR / 7702 / -",
-    "leak_list: yes = địa chỉ nằm trong danh sách khoá riêng bị lộ công khai (GitHub, eth/bsc, không có ngày lộ); no = không nằm; - = chain không được tra",
-    "  EOA có leak_list = yes → KEY (is_misuse = 1, T5) ; malicious = 1 chỉ khi bạn THẤY tiền bị rút ≤ 10 phút về ví lạ, chưa thấy thì '?'",
     "xc_chain: chỉ với T4, tên chain có contract gốc (eth, bsc, arb, op, base, polygon…); còn lại '-'",
     "malicious: 1 = đã thấy tiền về ví bên thứ ba; 0 = đã kiểm tra và không có; ? = chưa thấy nhưng có dấu hiệu; - = mẫu âm",
     "confidence: high / medium / low (mức chắc chắn của chính bạn)",
@@ -464,7 +457,7 @@ GUIDE = [
     "4. Code là contract người dùng định gọi và gọi đúng hàm → NONE;  là 7702 (0xef0100…) → 5;",
     "   không phải contract định gọi: tx THÀNH CÔNG (Status = Success) mà tiền bị giữ/chuyển đi → T2 (PCD);  tx lỗi (Fail) → NONE",
     "   Cờ symexec KHÔNG đủ để gán T2. Token / proxy / LP được gọi đúng hàm (approve, transfer, swap…) → NONE",
-    "5. EOA: leak_list = yes / delegate độc / tiền bị rút gần như ngay → T5;  giống địa chỉ quen + tx mồi → T6;  ví thường/sàn/smart wallet hợp lệ → NONE",
+    "5. EOA: thấy tiền vào rồi bị rút ≤ 10 phút về ví lạ (≥ 2 lần) / delegate độc → T5;  giống địa chỉ quen + tx mồi → T6;  ví thường/sàn/smart wallet hợp lệ → NONE",
     "",
     "Ca khó hay gặp (CODEBOOK §5):",
     "- xc_timing = deployed_after → T1, không phải T4.  xc_timing = unknown → mở explorer chain kia; vẫn không biết → T4, confidence low.",
