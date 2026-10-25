@@ -19,7 +19,7 @@
   trên mẫu mềm test R 0,728; GoPlus F1 0,038; τ_warn không ổn định (p5 26 – p95 66). dataset_v2 đóng băng 6.547 mẫu, QA đạt.
   ✅ D7 xong nhưng GitHub không phân biệt dương/âm (AUC ≈ 0,5, dấu đổi giữa train và val/test) nên không nối vào S_osint;
   ✅ 2026-10-25 rà soát lần 4 xong (mẫu vàng lộ nhãn, proxy fail-open, README/DATASHEET) và tính lại độc lập số liệu chính (`engine.verify_independent`): khớp; w không xác định, kết quả không đổi theo l2. OP: 5.149/7.615 txlist, dừng vì hết credit 402, chạy lại sau reset.
-  ✅ D5 `sample_gold main` (605 mẫu, 200 gán đôi) đã sinh; 2026-10-25 sửa lỗi lộ nhãn qua tx_hash (FINDINGS_LOG), sinh lại `main_items.csv`, khoá không đổi.
+  ✅ D5 `sample_gold main` (nay 758 mẫu lô 1, 200 gán đôi; trước 605) đã sinh; 2026-10-25 sửa lỗi lộ nhãn qua tx_hash (FINDINGS_LOG), sinh lại `main_items.csv`, khoá không đổi.
   🔄 **OP (2026-10-25):** credit Blockscout reset theo ngày; crawl `l2_misuse txlist --chain op --focus author` chạy lại; sửa
   lỗi thời điểm tạo contract trước Bedrock (FINDINGS 2026-10-25). Hết credit thì dừng sạch (HTTP 402), chạy tiếp ngày sau.
   ✅ 2026-10-25 `key_sweep` xong cho ETH (FINDINGS_LOG): theo lần nạp 54% bị rút ≤ 10 phút, theo giá trị chỉ 4,2% (hai ví giữ 83% tiền); ✅ BSC xong (NodeReal, 3.495 ví): theo lần nạp 70,8% bị rút ≤ 10 phút, theo giá trị 52,4%, trung vị ví 36% (FINDINGS_LOG).

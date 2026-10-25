@@ -461,6 +461,9 @@ def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame]) -> pd.DataFr
                      "value_native": value})
     items = sample[["item_id", "chain", "address"]].merge(pd.DataFrame(rows), on="item_id").merge(
         ev, on=["chain", "address"], how="left")
+    # liên kết thẳng tới tx cần xem (tiết kiệm bước tìm tx trong danh sách của địa chỉ); mọi mẫu đều có tx_hash nên không lộ nhãn
+    items["tx_url"] = [EXPLORERS[c].replace("/address/", "/tx/") + h if isinstance(h, str) else None
+                       for c, h in zip(items.chain, items.tx_hash)]
     return items.astype(object).where(items.notna() & (items != ""), "-")
 
 
@@ -585,7 +588,7 @@ def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False) -> None
             if c in LABEL_COLS:
                 cell.fill = yellow
                 cell.number_format = "@"                        # giữ "1"/"0" là chữ, không thành số
-            elif c.startswith("explorer_url") and str(cell.value).startswith("http"):
+            elif (c.startswith("explorer_url") or c == "tx_url") and str(cell.value).startswith("http"):
                 cell.hyperlink = cell.value
                 cell.style = "Hyperlink"
         if c in LABEL_COLS:

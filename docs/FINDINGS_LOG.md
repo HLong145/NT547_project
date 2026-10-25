@@ -22,8 +22,8 @@ Tái tạo: `PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.s
   Thêm âm chỉ để thu hẹp recall (dương ẩn trong tầng âm). Với 0 dương ẩn quan sát được, cận trên 95% của số dương ẩn (cộng cận từng ô) là khoảng 25–86 dòng ở lô 1, 9–39 với +250 âm, 6–27 với +500 âm (advisor, tính theo n hiệu dụng).
 - Mù: dương và âm xáo lẫn trong một file; B (người thiết kế) biết thiết kế nên ghi vào hạn chế. Lô 2 chỉ toàn âm nên giao A hoặc xen ~10% mẫu đã gán (đổi mã).
 - Silver: nhãn theo luật tác giả trên cả dataset_v2 gọi là *silver*, báo riêng, KHÔNG cộng vào số nhãn vàng. `key_sweep` là phép đo tự động, không phải nhãn.
-- Chỉ số này không thay đổi 605 → 758 cho những ai chờ ~2.000: paper viết "nhãn vàng phủ 100% dương và 100% cảnh báo của engine, âm lấy mẫu có trọng số n/1.568 (lô 2 tới 1.568 nếu đủ thời gian)".
-- Hash tiền đăng ký (sha256, commit cùng mục này): main_items.csv `a65c74a24d95c784358f0051e4654f4640b45978f2e3e1be9a902adcb5dc50c0`; main_key.csv `c31b7c6a24c6fb1b747de8bde390b952d69a43e79752b7bcebbc07d8a3c06fa0` và main_reserve_key.csv `f7ad4d5d39f5cbf628cc1ef8b03278cac1c9087f5930e7e01ff58901999ec77a` (hai file khoá không commit; hash để chứng minh danh sách có trước khi gán).
+- 758 (hoặc tới 1.568 + dương nếu đủ lô 2) vẫn thấp hơn ~2.000 của GOALS: paper viết "nhãn vàng phủ 100% dương và 100% cảnh báo của engine, âm lấy mẫu có trọng số n/1.568 (lô 2 tới 1.568 nếu đủ thời gian)".
+- Hash tiền đăng ký (sha256, commit cùng mục này): main_items.csv `2fb7e602bf5ff88d866f186e330054abecae7bd6a2eb9b517cfc43aab6e90673` (đã thêm cột `tx_url` liên kết thẳng tới tx; danh sách mẫu và key không đổi); main_key.csv `c31b7c6a24c6fb1b747de8bde390b952d69a43e79752b7bcebbc07d8a3c06fa0` và main_reserve_key.csv `f7ad4d5d39f5cbf628cc1ef8b03278cac1c9087f5930e7e01ff58901999ec77a` (hai file khoá không commit; hash để chứng minh danh sách có trước khi gán).
 
 ## 2026-10-25 — D2/KEY trên BSC: ví lộ khoá bị rút nhanh hơn ETH nhiều (62.527 lần nạp, 1.813 ví)
 

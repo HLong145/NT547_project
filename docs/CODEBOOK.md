@@ -220,7 +220,7 @@ Danh sách điểm mơ hồ gặp khi gán pilot. Chưa sửa quy tắc; cần t
 
 ### 10.1. Đề xuất xử lý cho agenda trên (2026-10-25, **chưa áp dụng**, chờ buổi phân xử)
 
-Nên chốt 5 điểm này TRƯỚC khi gán 605 mẫu chính, vì chúng đổi nhãn của một số mẫu (đặc biệt PCD, 7702 và T4 testnet).
+Nên chốt 5 điểm này TRƯỚC khi gán mẫu chính, vì chúng đổi nhãn của một số mẫu (đặc biệt PCD, 7702 và T4 testnet).
 **Đã áp dụng thành v0.4** (§3, §4, §5, §9), có sửa theo nhận xét của advisor. Định nghĩa có thể giống đặc tả, nhưng **bằng chứng gán nhãn phải độc lập với engine**: danh sách đen/leak chỉ ghi vào `evidence`.
 
 1. **T2:** định nghĩa lại là "địa chỉ có code mà người dùng không định gọi, và tiền gửi vào không về lại cho người dùng"

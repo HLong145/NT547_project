@@ -145,7 +145,7 @@ def score(address: str, chain: str, at: int | None = None, ctx: TxContext | None
 - [x] Báo cáo KEY/ADDR riêng (luật cứng) và "R-only" (mẫu không dính luật cứng) trong `engine.metrics`. ✅ Mốc chia D8 chốt (2026-10-23).
 - [x] D8 xong: học `w`, chọn ngưỡng, ablation, GoPlus, replay ví (nhãn tạm = nhãn luật của tác giả).
 - [x] D7: tra GitHub xong; kết luận không nối vào S_osint (không phân biệt dương/âm).
-- [ ] Chạy lại toàn bộ với nhãn vàng D5 (605 mẫu) và dương D6 đã duyệt tay.
+- [ ] Chạy lại toàn bộ với nhãn vàng D5 (758 mẫu lô 1, thêm lô 2 nếu có) và dương D6 đã duyệt tay.
 
 ## Lịch sử
 
