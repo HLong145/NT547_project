@@ -2,6 +2,7 @@
 
 Theo khung *Datasheets for Datasets* (Gebru et al., 2021). File và cột: [data/final/README.md](../data/final/README.md).
 Phiên bản: v1, đóng băng 2026-10-23 (`data/final/MANIFEST.json` ghi sha256 từng file).
+**Các mục 2–7 mô tả v1** (6.429 mẫu); v2 (6.547 mẫu, có N5 và dương D6) khác v1 ở mục 8 và thay thế v1 khi báo cáo số liệu.
 
 ## 1. Động cơ
 

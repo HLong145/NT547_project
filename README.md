@@ -26,7 +26,7 @@ python -m venv .venv
 # 3. Tạo bảng seed Parquet từ dữ liệu tác giả (~15 giây)
 .venv\Scripts\python.exe -X utf8 -m address_misuse.seed
 
-# 4. Kiểm tra: phải thấy "39 passed" (seed khớp số liệu trong paper)
+# 4. Kiểm tra: tất cả test phải đạt (hiện 86; seed khớp số liệu trong paper)
 #    Sau mỗi lần pull mà requirements.txt đổi: chạy lại lệnh pip install -r ở bước 1
 .venv\Scripts\python.exe -m pytest
 
@@ -65,7 +65,15 @@ project/
 │   ├── crosschain_matrix.py  # D3: ma trận CA Misuse × 8 mạng, nguồn gốc contract, khả năng deploy lại
 │   ├── known_multichain.py   # Tập âm N7: contract hợp lệ cùng địa chỉ trên nhiều chain
 │   ├── negatives.py          # Tập âm N1 (ngẫu nhiên không bị gắn cờ), N6 (ví EIP-7702 hợp lệ)
-│   └── sample_gold.py        # D5: lấy mẫu pilot gán nhãn (làm mù, có bằng chứng) và tính Cohen's κ
+│   ├── sample_gold.py        # D5: mẫu pilot và mẫu vàng chính (làm mù, có bằng chứng), Excel cho người gán, Cohen's κ
+│   ├── bq_fetch.py           # D1/D6: kéo tx ETH từ BigQuery (luôn dry-run trước)
+│   ├── d6_new.py             # D6: dương mới trên ETH từ 2025-09 bằng luật của nhóm
+│   ├── key_genesis.py        # Tách phần phân bổ genesis khỏi loss của KEY trên ETH
+│   ├── osint_github.py       # D7: đặc trưng GitHub (code search, 10 lệnh/phút)
+│   ├── l2_fetch.py, l2_misuse.py  # Mở rộng sang Arbitrum/OP/Base/Polygon (Blockscout, RPC)
+│   ├── freeze.py             # D8: đóng băng dataset_v2, chia tập theo thời gian, QA tự động
+│   ├── engine/               # Risk score R: đặc trưng, 4 hàm S, luật cứng, học trọng số, ngưỡng, GoPlus, đánh giá
+│   └── wallet/               # Phía ví: kiểm tra trực tuyến, replay, RPC proxy, đo độ trễ
 ├── tests/                    # pytest
 ├── data/                     # Xem data/README.md
 └── docs/                     # Mục tiêu, tiến độ, kế hoạch, phát hiện, lý thuyết, slide

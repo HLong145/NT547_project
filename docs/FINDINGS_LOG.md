@@ -859,3 +859,16 @@ Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn
   0,68 (âm) / 0,76 (dương) (chênh do chuyển ETH thường không có calldata, không còn là dấu hiệu nhãn). Khoá mẫu `main_key.csv`
   giữ nguyên (605 dòng giống hệt, vì chọn mẫu không đổi).
 - Test mới `test_event_tx_recovers_incoming_tx_at_event_time`. Nếu đã gửi file Excel cũ cho người gán thì phải sinh lại.
+
+## 2026-10-25 — Tính lại độc lập số liệu chính, trọng số không xác định
+- `engine/verify_independent.py` học lại w (Newton–Raphson, không dùng code của `metrics.py`), chọn lại τ_warn trên val và tính
+  test từ `engine_eval.parquet`. Với cùng l2 = 1e-3: w = 0,518 / 0,085 / 0,364 / 0,033 (metrics.py: 0,522 / 0,086 / 0,359 / 0,033),
+  τ_warn 62,7 (63,0), test P 0,985 / R 0,873 / F1 0,926 / FPR 0,0038, trùng số công bố. Không có lỗi trong khâu học w, chọn τ
+  và tính chỉ số.
+- **Nhưng w không xác định**: đổi l2 từ 1e-4 đến 1e-1 thì w_osint đi từ 0,62 xuống 0,05 (bytecode 0,32 → 0,62, cross 0,04 → 0,29), τ_warn
+  50,3 → 66,2, trong khi test F1 chỉ 0,925–0,926 và FPR 0,0038–0,0045. Lý do: tập train gần tách được nên nghiệm logistic phụ
+  thuộc mức chính quy hóa. Trong paper: không diễn giải từng trọng số như tầm quan trọng của đặc trưng; nêu l2 và dải số liệu;
+  tính ổn định đến từ luật cứng và thứ tự xếp hạng, không từ giá trị w. (Khớp với kết luận osint do cách lấy mẫu.)
+- Rà soát nốt: `wallet/proxy.py` (giải mã RLP các loại tx 0–4 đúng; sửa: lỗi `store.check` giờ chuyển tiếp thay vì làm ví mất
+  kết nối), `wallet/bench.py`, `reproduce_symexec.py`, `seed.py`, `etherscan.py`, `bq_fetch.py` không có lỗi. README ghi sai
+  "39 passed" và thiếu module (đã sửa); DATASHEET ghi rõ mục 2–7 là v1.

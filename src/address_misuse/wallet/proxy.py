@@ -125,8 +125,13 @@ class Proxy(BaseHTTPRequestHandler):
             tx = tx_from_request(r.get("method", ""), r.get("params") or [])
         except Exception as e:                              # không giải mã được thì không chặn
             print(f"[proxy] không giải mã được tx: {e!r:.100}", flush=True)
+        res = None
         if tx and tx["to"]:
-            res = self.store.check(tx["to"], self.chain, tx["value"], tx["data"], authorizations=tx["authorizations"])
+            try:
+                res = self.store.check(tx["to"], self.chain, tx["value"], tx["data"], authorizations=tx["authorizations"])
+            except Exception as e:                          # kiểm tra lỗi thì không chặn (fail-open), tránh làm ví mất kết nối
+                print(f"[proxy] kiểm tra lỗi, chuyển tiếp: {e!r:.100}", flush=True)
+        if res:
             print(f"[proxy] {r['method']} → {tx['to']} R={res['score']:.1f} {res['decision']} "
                   f"({res['ms_total']:.0f} ms) {res['reasons'][:2]}", flush=True)
             if res["decision"] == "block":
