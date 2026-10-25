@@ -22,7 +22,8 @@
   ✅ D5 `sample_gold main` (605 mẫu, 200 gán đôi) đã sinh; 2026-10-25 sửa lỗi lộ nhãn qua tx_hash (FINDINGS_LOG), sinh lại `main_items.csv`, khoá không đổi.
   🔄 **OP (2026-10-25):** credit Blockscout reset theo ngày; crawl `l2_misuse txlist --chain op --focus author` chạy lại; sửa
   lỗi thời điểm tạo contract trước Bedrock (FINDINGS 2026-10-25). Hết credit thì dừng sạch (HTTP 402), chạy tiếp ngày sau.
-  **Bước kế tiếp:** hết txlist OP → `l2_misuse rules --chain op --focus author`; khung paper; ⏳ annotator_A (κ).
+  **Bước kế tiếp:** hết txlist OP (dừng 402 ở 5.149/7.615, chạy lại sau khi credit reset) → `l2_misuse rules --chain op --focus author`; khung paper.
+  **Chặn bởi người dùng (quyết định 2026-10-25):** ⏳ file pilot của annotator_A → `sample_gold kappa` → chốt CODEBOOK v0.4 (xem §10.1) → RỒI MỚI sinh Excel mẫu chính (`sample_gold sheet B --set main`, `--only-double` cho người thứ hai). Chưa sinh Excel trước đó.
 
 - 🔄 **Dataset v2 (DATASHEET §8):** code xong, chạy thử QA đạt. v2 = v1 + N5 (118; 42 contract recovery bị tác giả
   gắn cờ PCD chuyển sang âm) + 42 dương mới D6 + cột `label_source`, `needs_review`, `key_value0`. Dựng bản cuối sau
