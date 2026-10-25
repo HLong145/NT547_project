@@ -62,3 +62,26 @@ def test_live_evidence_is_uniform():
     ev = live_evidence("bsc", {**none, "bsc": _code_record(a, "0xef0100" + "cd" * 20), "eth": _code_record(a, None)})
     assert ev["code_bsc"] == "7702" and ev["delegate_7702"] == "0x" + "cd" * 20 and ev["code_eth"] is None
     assert ev["same_code_elsewhere"] is False
+
+
+def test_event_tx_recovers_incoming_tx_at_event_time(tmp_path, monkeypatch):
+    import gzip
+    import json
+    import address_misuse.engine.features as F
+    from address_misuse.sample_gold import event_tx
+    a = "0x" + "aa" * 20
+    txs = [
+        {"hash": "0x1", "to": a, "timeStamp": "100", "gasUsed": "21000", "transactionIndex": "0", "input": "0x", "value": "5"},
+        {"hash": "0x2", "to": a, "timeStamp": "100", "gasUsed": "90000", "transactionIndex": "3", "input": "0xa9059cbb00", "value": "0"},
+        {"hash": "0x3", "to": "0x" + "bb" * 20, "timeStamp": "100", "gasUsed": "90000", "transactionIndex": "1", "input": "0x", "value": "0"},
+        {"hash": "0x4", "to": a, "timeStamp": "101", "gasUsed": "90000", "transactionIndex": "0", "input": "0x", "value": "0"},
+    ]
+    p = tmp_path / "tx.json.gz"
+    with gzip.open(p, "wt", encoding="utf-8") as f:
+        json.dump({"result": txs}, f)
+    monkeypatch.setattr(F, "txlist_path", lambda chain, address: p)
+    assert event_tx("eth", a, 100)["hash"] == "0x2"            # ưu tiên tx có calldata, bỏ tx đi tới địa chỉ khác
+    assert event_tx("eth", a, 999) is None
+    assert event_tx("eth", a, None) is None
+    monkeypatch.setattr(F, "txlist_path", lambda chain, address: tmp_path / "none.gz")
+    assert event_tx("eth", a, 100) is None

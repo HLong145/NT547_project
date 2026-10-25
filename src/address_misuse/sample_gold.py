@@ -363,6 +363,21 @@ def draw_main(ds: pd.DataFrame, seed: int = 0, n_double: int = 200) -> pd.DataFr
     return out
 
 
+def event_tx(chain: str, address: str, at) -> dict | None:
+    """Tx đi vào `address` tại đúng thời điểm `at` (mẫu theo địa chỉ chọn `at` từ một tx đi vào, nhưng dataset không lưu hash).
+    Cần cho người gán thấy cùng loại bằng chứng ở mọi mẫu: nếu chỉ mẫu âm theo tx có tx_hash thì có hash = âm."""
+    import gzip
+    from address_misuse.engine.features import txlist_path
+    p = txlist_path(chain, address)
+    if not p.exists() or at is None or pd.isna(at):
+        return None
+    with gzip.open(p, "rt", encoding="utf-8") as f:
+        txs = json.load(f)["result"]
+    hit = [t for t in txs if (t.get("to") or "").lower() == address and int(t["timeStamp"]) == int(at)]
+    hit.sort(key=lambda t: (int(t["gasUsed"]) <= 21_000, int(t.get("transactionIndex") or 0)))   # ưu tiên tx có calldata
+    return hit[0] if hit else None
+
+
 def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Bằng chứng theo địa chỉ (`add_evidence`) + bằng chứng THEO THỜI ĐIỂM `at` của mẫu: ngày xét, trạng thái code lúc đó
     (một PCD chưa có contract lúc `at` thì trạng thái là none), ngày tạo contract, tx (hash, selector, value) nếu là mẫu
@@ -374,10 +389,14 @@ def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame]) -> pd.DataFr
     for r in sample.itertuples():
         f = fs.features(r.address, r.chain, int(r.at))
         cts = fs.own_create.get((r.chain, r.address))
+        tx_hash, selector, value = (r.tx_hash if isinstance(r.tx_hash, str) else None, r.selector,
+                                    None if pd.isna(r.value_wei) else int(r.value_wei) / 1e18)
+        if tx_hash is None and (t := event_tx(r.chain, r.address, r.at)):       # mẫu theo địa chỉ: khôi phục tx tại `at`
+            inp = t.get("input") or "0x"
+            tx_hash, selector, value = t["hash"], inp[:10] if len(inp) >= 10 else None, int(t["value"]) / 1e18
         rows.append({"item_id": r.item_id, "at_date": _date(r.at), "code_at_event": f.state() or "-",
-                     "own_create_date": _date(cts) if cts else None,
-                     "tx_hash": r.tx_hash if isinstance(r.tx_hash, str) else None, "selector": r.selector,
-                     "value_native": None if pd.isna(r.value_wei) else int(r.value_wei) / 1e18})
+                     "own_create_date": _date(cts) if cts else None, "tx_hash": tx_hash, "selector": selector,
+                     "value_native": value})
     items = sample[["item_id", "chain", "address"]].merge(pd.DataFrame(rows), on="item_id").merge(
         ev, on=["chain", "address"], how="left")
     return items.astype(object).where(items.notna() & (items != ""), "-")

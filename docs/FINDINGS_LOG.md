@@ -849,3 +849,13 @@ Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn
   * Mẫu âm theo tx lặp địa chỉ: test N2 253 dòng/230 địa chỉ, N3 559/343, N8 518/440; val bình thường 186 dòng/169 địa chỉ
     (τ_warn dựa trên ≈ 2 mẫu âm cao nhất, nên bất ổn). Bootstrap đã lấy mẫu theo địa chỉ.
   * pyflakes sạch (trừ một import thừa trong `bq_fetch.py`); 85 test đạt.
+
+## 2026-10-25 — Rà soát lần 4: mẫu vàng D5 lộ nhãn qua bằng chứng giao dịch (đã sửa)
+- **Lỗi**: ở `data/gold/main_items.csv`, `tx_hash`/`selector`/`value_native` chỉ có ở mẫu âm theo tx (N2/N3/N8); mọi mẫu dương và
+  các âm theo địa chỉ đều trống. Tỷ lệ có `tx_hash`: nhãn âm 0,58, nhãn dương 0,00 → người gán chỉ cần thấy có hash là đoán được
+  "âm", làm hỏng điều kiện làm mù và thổi phồng κ / độ chính xác nhãn vàng.
+- **Sửa**: `sample_gold.event_tx(chain, address, at)` khôi phục tx đi vào tại đúng `at` từ txlist đã lưu (ưu tiên tx có calldata);
+  `main_evidence` dùng nó cho mẫu theo địa chỉ. Sau khi sinh lại: `tx_hash` và `value_native` 1,00 ở cả hai nhãn, `selector`
+  0,68 (âm) / 0,76 (dương) (chênh do chuyển ETH thường không có calldata, không còn là dấu hiệu nhãn). Khoá mẫu `main_key.csv`
+  giữ nguyên (605 dòng giống hệt, vì chọn mẫu không đổi).
+- Test mới `test_event_tx_recovers_incoming_tx_at_event_time`. Nếu đã gửi file Excel cũ cho người gán thì phải sinh lại.
