@@ -22,7 +22,7 @@
   ✅ D5 `sample_gold main` (605 mẫu, 200 gán đôi) đã sinh; 2026-10-25 sửa lỗi lộ nhãn qua tx_hash (FINDINGS_LOG), sinh lại `main_items.csv`, khoá không đổi.
   🔄 **OP (2026-10-25):** credit Blockscout reset theo ngày; crawl `l2_misuse txlist --chain op --focus author` chạy lại; sửa
   lỗi thời điểm tạo contract trước Bedrock (FINDINGS 2026-10-25). Hết credit thì dừng sạch (HTTP 402), chạy tiếp ngày sau.
-  ✅ 2026-10-25 `key_sweep` xong cho ETH (FINDINGS_LOG): theo lần nạp 54% bị rút ≤ 10 phút, theo giá trị chỉ 4,2% (hai ví giữ 83% tiền); BSC để sau, cần duyệt lấy dữ liệu.
+  ✅ 2026-10-25 `key_sweep` xong cho ETH (FINDINGS_LOG): theo lần nạp 54% bị rút ≤ 10 phút, theo giá trị chỉ 4,2% (hai ví giữ 83% tiền); ✅ BSC xong (NodeReal, 3.495 ví): theo lần nạp 70,8% bị rút ≤ 10 phút, theo giá trị 52,4%, trung vị ví 36% (FINDINGS_LOG).
   **Bước kế tiếp:** hết txlist OP (dừng 402 ở 5.149/7.615, chạy lại sau khi credit reset) → `l2_misuse rules --chain op --focus author`; khung paper.
   **Chặn bởi người dùng (quyết định 2026-10-25):** ✅ pilot 1 xong: κ(is_misuse) = 0,615 (< 0,8), κ(type) = 0,823; 7 bất đồng, 6/7 do định nghĩa T2/PCD (FINDINGS_LOG 2026-10-25). ✅ CODEBOOK v0.4.1 (advisor Opus duyệt có sửa; §4.1 quy trình từng bước + ví dụ). Cột `leak_list` đã thử rồi BỎ (làm lộ nhãn 60/60 KEY; KEY nay gán theo mẫu hình rút nhanh, hạn chế ở CODEBOOK §10.3). Người dùng KHÔNG muốn pilot 2: κ chính thức lấy từ 200 mẫu gán đôi, gán theo lô, kiểm κ lô đầu trước khi gán tiếp. ⏳ A xác nhận v0.4.1 → rồi MỚI sinh Excel mẫu chính (`sample_gold sheet B --set main`, `--only-double` cho A). Mẫu chính 605 < mục tiêu ~2.000 của GOALS vì dataset_v2 chỉ có 42 dương mới và ~450 dương test (biện luận trong paper).
 

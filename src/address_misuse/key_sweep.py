@@ -1,6 +1,8 @@
 """Đo tốc độ bị rút của các ví nằm trong danh sách khoá lộ (KEY) trên ETH, từ giao dịch BigQuery đã tải sẵn.
 
-python -m address_misuse.key_sweep
+python -m address_misuse.key_sweep                 # ETH (BigQuery đã tải sẵn)
+python -m address_misuse.key_sweep --chain bsc --fetch   # BSC: tải txlist NodeReal cho ví có khoản nạp value > 0 theo dữ liệu tác giả
+python -m address_misuse.key_sweep --chain bsc           # BSC: đo trên txlist đã tải
 
 Câu hỏi: với mỗi lần nạp coin vào một ví lộ khoá, bao lâu sau thì có tx rút gần hết khoản đó đi?
 Luật KEY của tác giả (`rules.detect_eoa_key`) chỉ cần "ví thuộc danh sách và có tx nạp thành công", không kiểm tra việc tiền bị rút,
@@ -10,6 +12,12 @@ Giới hạn (ghi vào paper): chỉ ETH coin gốc; BigQuery thiếu internal t
 nên tiền chủ ví tự nạp trước khi lộ bị tính vào (xem cờ `pre_mark`); số liệu là có điều kiện trên "khoá lộ, có hoạt động, có nạp value".
 """
 
+import argparse
+import gzip
+import json
+import os
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
@@ -17,8 +25,7 @@ import pyarrow.parquet as pq
 from address_misuse.config import INTERIM_DIR, RAW_DIR, SEED_DIR
 
 SRC = RAW_DIR / "eth" / "bq_txs.parquet"
-OUT = INTERIM_DIR / "key_sweep_eth.parquet"
-SUMMARY = INTERIM_DIR / "key_sweep_eth_summary.csv"
+BSC_MAX_RECORDS = 10_000          # như engine.prepare.HISTORY_MAX_RECORDS; ví dài hơn bị cắt (cờ `truncated`)
 DRAIN_RATIO = 0.95
 SCAN_SECONDS = 24 * 3600                       # chỉ tìm tx rút trong 24 giờ sau khoản nạp
 BINS = [("<=2 block", None, 2), ("<=10 phút", 600, None), ("<=1 giờ", 3600, None), ("<=24 giờ", SCAN_SECONDS, None)]
@@ -32,9 +39,62 @@ HARDHAT = {a.lower() for a in (
     "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f", "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720")}
 
 
-def key_addresses() -> set[str]:
+def key_addresses(chain: str = "eth") -> set[str]:
     pk = pd.read_parquet(SEED_DIR / "candidate_pk_addresses.parquet", columns=["chain", "address"])
-    return set(pk[pk.chain == "eth"].address.str.lower())
+    return set(pk[pk.chain == chain].address.str.lower())
+
+
+def bsc_targets() -> list[str]:
+    """Ví KEY BSC mà dữ liệu tác giả ghi có khoản nạp value > 0 (cost_native > 0); các ví còn lại chỉ có tx value 0 (lệnh sweep 7702)."""
+    e = pd.read_parquet(SEED_DIR / "eoa_misuse.parquet")
+    e = e[(e.chain == "bsc") & (e.subtype == "KEY") & (e.cost_native > 0)]
+    return sorted(set(e.address.str.lower()))
+
+
+def fetch_bsc(workers: int = 4) -> None:
+    """Tải txlist BSC qua NodeReal (`engine.prepare.fetch_nodereal`, có cache theo địa chỉ). Chạy lại chỉ tải phần còn thiếu."""
+    from address_misuse.engine.prepare import fetch_nodereal
+    from address_misuse.engine.features import txlist_path
+    key = os.environ.get("NODEREAL_API_KEY")
+    if not key:
+        raise SystemExit("thiếu NODEREAL_API_KEY trong .env")
+    todo = [a for a in bsc_targets() if not txlist_path("bsc", a).exists()]
+    print(f"txlist NodeReal bsc: {len(todo)} địa chỉ còn thiếu (tối đa {BSC_MAX_RECORDS:,} tx/địa chỉ)", flush=True)
+
+    def one(a):
+        try:
+            fetch_nodereal("bsc", a, key, BSC_MAX_RECORDS)
+            return True
+        except RuntimeError as e:                        # lần chạy sau thử lại
+            print(f"  lỗi {e}", flush=True)
+            return False
+    done = 0
+    with ThreadPoolExecutor(workers) as ex:
+        for ok in ex.map(one, todo):
+            done += 1
+            if done % 100 == 0 or done == len(todo):
+                print(f"  {done}/{len(todo)}", flush=True)
+
+
+def load_txlists(chain: str, keys: set[str]) -> tuple[pd.DataFrame, int]:
+    """Gộp txlist (định dạng Etherscan) đã tải của các ví trong `keys` thành bảng cùng cột với `load_txs`. Trả thêm số ví bị cắt."""
+    from address_misuse.engine.features import txlist_path
+    rows, truncated, have = [], 0, 0
+    for a in sorted(keys):
+        p = txlist_path(chain, a)
+        if not p.exists():
+            continue
+        have += 1
+        rec = json.load(gzip.open(p, "rt", encoding="utf-8"))
+        truncated += bool(rec.get("truncated"))
+        for t in rec["result"]:
+            rows.append((int(t["blockNumber"]), int(t["transactionIndex"]), int(t["timeStamp"]), t["from"], t["to"],
+                         float(t["value"]), int(t["isError"] == "0"), float(t["gasUsed"]) * float(t["gasPrice"])))
+    df = pd.DataFrame(rows, columns=["block_number", "transaction_index", "block_ts", "from_address", "to_address",
+                                     "value_wei", "receipt_status", "fee_wei"])
+    df["order"] = df.block_number.astype("int64") * 100_000 + df.transaction_index.astype("int64")
+    print(f"{have}/{len(keys)} ví {chain} có txlist; {truncated} ví bị cắt ở {BSC_MAX_RECORDS:,} tx", flush=True)
+    return df, truncated
 
 
 def load_txs(keys: set[str]) -> pd.DataFrame:
@@ -147,19 +207,31 @@ def per_address(d: pd.DataFrame) -> dict:
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--chain", choices=["eth", "bsc"], default="eth")
+    ap.add_argument("--fetch", action="store_true", help="bsc: tải txlist NodeReal rồi thoát")
+    args = ap.parse_args()
     INTERIM_DIR.mkdir(parents=True, exist_ok=True)
-    keys = key_addresses()
-    df = load_txs(keys)
-    print(f"{len(keys):,} ví KEY eth; {len(df):,} tx liên quan; block_ts đến {pd.to_datetime(df.block_ts.max(), unit='s')}", flush=True)
+    out, summary = INTERIM_DIR / f"key_sweep_{args.chain}.parquet", INTERIM_DIR / f"key_sweep_{args.chain}_summary.csv"
+    if args.fetch:
+        return fetch_bsc()
+    keys = key_addresses(args.chain)
+    if args.chain == "eth":
+        df = load_txs(keys)
+    else:
+        keys = set(bsc_targets())                         # chỉ đo trên ví có khoản nạp value > 0 theo dữ liệu tác giả
+        df, _ = load_txlists("bsc", keys)
+        keys = keys & set(df.to_address) | keys & set(df.from_address)
+    print(f"{len(keys):,} ví KEY {args.chain}; {len(df):,} tx liên quan; block_ts đến {pd.to_datetime(df.block_ts.max(), unit='s')}", flush=True)
     d = classify(analyze(df, keys), keys)
-    d.to_parquet(OUT, index=False)
+    d.to_parquet(out, index=False)
     s = summarize(d)
-    s.to_csv(SUMMARY, index=False)
+    s.to_csv(summary, index=False)
     print(s.T.to_string())
     print(per_address(d))
     print(d.groupby("recipient_kind").agg(tx=("addr", "size"), eth=("in_wei", lambda x: round(x.sum() / 1e18, 3))).to_string())
     print(f"pre_mark: {int(d.pre_mark.sum())} khoản; hardhat: {int(d.hardhat.sum())} khoản ({d[d.hardhat].addr.nunique()} ví)")
-    print(f"→ {OUT}, {SUMMARY}")
+    print(f"→ {out}, {summary}")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,18 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-25 — D2/KEY trên BSC: ví lộ khoá bị rút nhanh hơn ETH nhiều (62.527 lần nạp, 1.813 ví)
+
+Tái tạo: `PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.key_sweep --chain bsc --fetch` (tải txlist NodeReal cho 3.495 ví KEY BSC có `cost_native > 0` theo dữ liệu tác giả, ~3.461 ví mới, không lỗi, 3 ví bị cắt ở 10.000 tx), rồi `... --chain bsc`.
+Cùng định nghĩa như mục ETH ngay dưới (đơn vị là BNB, cột tên "ETH" trong file CSV là coin gốc của chain).
+- **Theo số lần nạp:** 59,4% bị rút trong ≤ 2 block, **70,8% trong ≤ 10 phút** (ETH: 42,0% và 53,9%).
+- **Theo giá trị:** tổng nạp 8.610 BNB, **52,4%** bị rút ≤ 10 phút (ETH: 4,2%); 1.675 BNB (19%) không thấy rút trong 24 giờ.
+- **Theo ví:** 1.299/1.813 ví có ≥ 1 khoản bị rút ≤ 10 phút, 841 ví có ≥ 50% số khoản như vậy, **trung vị theo ví 36,4%** (ETH: 0%). Top-10 ví chiếm 70,7% tiền nạp (ETH: 92,9%): BSC ít bị một vài ví lớn chi phối.
+- Người nhận: 42.376 khoản rút về collector (≥ 3 ví lộ khác nhau), 5.627 ví khác, 1.096 trả về người gửi, 18 sang ví lộ khác.
+- Khoá test Hardhat mặc định: 5.392 khoản ở 10 ví; bỏ chúng kết quả gần như không đổi. `pre_mark` 1.231 khoản.
+- Cảnh báo: chỉ ví có khoản nạp value > 0 theo luật tác giả (cùng điều kiện chọn với ETH); chỉ tx ngoài (external) của NodeReal, không có internal tx/token nên số rút là cận dưới; danh sách không có ngày lộ.
+- So sánh ETH/BSC: sweeper trên BSC hoạt động nhanh và đều hơn, ETH có hai ví giữ phần lớn giá trị mà không bị rút nhanh.
+
 ## 2026-10-25 — D2/KEY: tốc độ bị rút của ví lộ khoá trên ETH (45.483 lần nạp, 3.770 ví)
 
 Tái tạo: `PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.key_sweep` (đọc `bq_txs.parquet` đã có, không truy vấn BigQuery mới; kết quả `data/interim/key_sweep_eth{,_summary}.csv/.parquet`; test trong `tests/test_sample_gold.py`).
