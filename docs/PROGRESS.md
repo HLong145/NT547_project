@@ -23,7 +23,7 @@
   🔄 **OP (2026-10-25):** credit Blockscout reset theo ngày; crawl `l2_misuse txlist --chain op --focus author` chạy lại; sửa
   lỗi thời điểm tạo contract trước Bedrock (FINDINGS 2026-10-25). Hết credit thì dừng sạch (HTTP 402), chạy tiếp ngày sau.
   **Bước kế tiếp:** hết txlist OP (dừng 402 ở 5.149/7.615, chạy lại sau khi credit reset) → `l2_misuse rules --chain op --focus author`; khung paper.
-  **Chặn bởi người dùng (quyết định 2026-10-25):** ⏳ file pilot của annotator_A → `sample_gold kappa` → chốt CODEBOOK v0.4 (xem §10.1) → RỒI MỚI sinh Excel mẫu chính (`sample_gold sheet B --set main`, `--only-double` cho người thứ hai). Chưa sinh Excel trước đó.
+  **Chặn bởi người dùng (quyết định 2026-10-25):** ✅ file pilot A đã về (commit a79e7a4); `sample_gold kappa`: κ(is_misuse) = 0,615 (< 0,8), κ(type) = 0,823; 7 bất đồng, 6/7 do định nghĩa T2/PCD (FINDINGS_LOG 2026-10-25). ⏳ buổi phân xử A–B: chốt CODEBOOK v0.4 (§10.1 điểm 1–5 và §10.2 điểm 6–8) → RỒI MỚI sinh Excel mẫu chính (`sample_gold sheet B --set main`, `--only-double` cho người thứ hai). Chưa sinh Excel trước đó.
 
 - 🔄 **Dataset v2 (DATASHEET §8):** code xong, chạy thử QA đạt. v2 = v1 + N5 (118; 42 contract recovery bị tác giả
   gắn cờ PCD chuyển sang âm) + 42 dương mới D6 + cột `label_source`, `needs_review`, `key_value0`. Dựng bản cuối sau
@@ -44,7 +44,7 @@
 - ✅ Bước 2 engine (2026-10-23): lịch sử BSC qua NodeReal, `engine/evaluate.py` (4.364 mẫu, AUC 0,75–1,00 với trọng số 0,25). Rà soát xong, sửa 5 lỗi (FINDINGS_LOG 2026-10-23).
 - ✅ D8 chốt (2026-10-23, A + B): train < 2023-02-10 ≤ val < 2023-10-05 ≤ test (phân vị 70/85% dương CA) + tập test ngoài thời gian ≥ 2025-09-01 từ dương mới D6. Quét thêm block 2020–2022 cho âm của train. AUC (trọng số 0,25): ETH train 0,83 / val 0,89 / test 0,90; BSC 0,82 / 0,86 / 0,98.
 - 🔄 D6 bước 1 xong: BigQuery (quota nhóm, 118,7 GB) → `data/raw/eth/bq_new_activity.parquet`, 1,26M ứng viên có tx từ 2025-09; 141.348 nhận tx gọi hàm mà không tự gửi. **Đang làm (bước 2, `d6_new.py`, chạy lại được, tự tiếp tục):** `d6_new state` (getCode 202.850 địa chỉ) → `d6_new created` (Etherscan) → `d6_new rules` → dương mới; truy vấn riêng cho 17.971 địa chỉ lộ key; dương mới cần nhãn vàng (D5).
-- 🔄 D5: codebook v0.3 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Pilot: người gán A (bạn của người dùng) xong; người gán B (người dùng) xong 2026-10-23 trong `data/gold/annotator_B.xlsx` (`sample_gold sheet B`, 50/50, `sample_gold check` không lỗi). **Chờ file của A** → `data/gold/annotator_A.csv` → `sample_gold kappa`.
+- 🔄 D5: codebook v0.3 ([CODEBOOK.md](CODEBOOK.md)) + `sample_gold.py pilot` → `data/gold/pilot50_*.csv` (50 mẫu, 15 tầng, làm mù, bằng chứng điền sẵn); `sample_gold.py kappa A.csv B.csv`. Pilot: người gán A (bạn của người dùng) xong; người gán B (người dùng) xong 2026-10-23 trong `data/gold/annotator_B.xlsx` (`sample_gold sheet B`, 50/50, `sample_gold check` không lỗi). File A đã về: κ(is_misuse) = 0,615 (chưa đạt 0,8), chờ phân xử và codebook v0.4.
 
 ## 2. Chờ người dùng
 

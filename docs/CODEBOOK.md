@@ -171,3 +171,14 @@ Mỗi đề xuất cố ý khớp với cách engine và đặc tả đang làm,
 5. **`malicious` khi chưa thấy tx rút:** gán `T5` khi delegate nằm trong danh sách đen hoặc không có tên ví hợp lệ (`delegate_known_wallet = -`).
    `malicious = 1` chỉ khi thấy tiền thực sự bị rút về ví lạ; nếu không thấy thì `malicious = 0` và `confidence = low`, kèm note.
    Delegate có tên ví hợp lệ mà chủ ví dùng bình thường (DEX, bridge) → âm (§5 ca 6).
+
+### 10.2. Điểm cần chốt thêm sau κ pilot (2026-10-25: κ(is_misuse) = 0,615, chưa đạt 0,8)
+
+Các điểm 1–5 ở §10 và §10.1 không gây bất đồng giữa A và B (hai người chọn giống nhau trên P009, P020, P024, P030, P034, P036, P038, P043, P045, P050).
+Bất đồng nằm ở các điểm mới sau, cần chốt cùng §10.1 trước khi gán mẫu chính:
+
+6. **T2/PCD có cần tx chứng minh không?** (6 trong 7 bất đồng.) Đề xuất: PCD chỉ gán dương khi tx tại thời điểm `at` là tx **sai ý định** (chuyển coin vào contract không nhận coin, gọi hàm không tồn tại,
+   hoặc contract được cài sau tx như P024). Cờ symexec (`transfer_all_eth`, `delegatecall`, "không có đường rút") **chỉ là gợi ý, không đủ để gán**. Contract được gọi đúng hàm (token, proxy, LP) là âm.
+7. **Chuẩn bằng chứng cho KEY (P012).** Đề xuất: KEY chỉ gán dương khi thấy tiền rút ra trong vài phút về ví lạ; chỉ biết "key có trong danh sách rò rỉ" là chưa đủ.
+   Nếu không thấy tx rút thì `is_misuse = 0`, `confidence = low` (đồng bộ với điểm 5).
+8. **Quy ước ô:** mẫu âm ghi `subtype = -`, `xc_chain = -`, `malicious = -`; `confidence = high` chỉ khi đã mở explorer xem tx tại thời điểm `at`, còn chỉ dựa vào cột bằng chứng thì `medium`.

@@ -2,6 +2,18 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-25 — D5 pilot: κ(is_misuse) = 0,615 (< 0,8), toàn bộ bất đồng do MỘT điểm định nghĩa (T2/PCD)
+
+Tái tạo: `PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_A.csv data/gold/annotator_B.xlsx`.
+- κ(is_misuse) = 0,615 (đồng ý 43/50); κ(type) = 0,823 (43/50). Chỉ tiêu ≥ 0,8 áp cho `is_misuse` (nhị phân); κ(type) cao hơn vì nhiều lớp làm κ dễ cao, **không** dùng nó để báo đạt.
+- 7 bất đồng, đều cùng chiều (A = 0, B = 1): 6 mẫu PCD/T2 (P002, P005, P008, P010, P025, P032) và 1 mẫu KEY (P012).
+  B xếp T2 theo cờ symexec/"không có đường rút", A xem tx và thấy contract được gọi đúng hàm (token BLP, Pancake LP, proxy LayerZero OFT, BridgeToken).
+  Đọc theo §3 ("có code, không đường rút") thì mọi token ERC-20 đều là T2: định nghĩa thiếu điều kiện "có tx sai ý định tại thời điểm `at`".
+- Nếu 6 mẫu PCD được thống nhất theo A, κ(is_misuse) = 0,951; bỏ 6 mẫu đó khỏi tính toán κ = 0,927. Trên 35 mẫu cùng dương, type/subtype/malicious đều khớp 100%.
+- Phụ: B ghi `malicious = 0` cho mẫu âm, A ghi `-` (15 ô lệch, chỉ do cách ghi); `confidence` lệch 8/50 (B thường "high" cho 7702, A "medium").
+- Quan sát cho RQ1 (n nhỏ, chưa kết luận): trong 4 mẫu tầng `ca_pcd` (nhãn PCD của tác giả), A cho 3 là âm; B cho 1/4 mẫu N1 ngẫu nhiên là dương. Kiểm tra lại bằng mẫu chính 605.
+- P005 (ClaimerProxy, tầng `ca_pcd`): 167 tx vào, 164 tx lỗi (`isError=1`), 0 tx ra; tx lỗi thì không mất tiền, nên PCD theo luật tác giả chưa chắc gây thiệt hại.
+
 ## 2026-10-24 — D3b Polygon: misuse trên Polygon lớn hơn Arbitrum nhiều, 88% NCD là Type 4 (nhãn TẠM)
 
 Tái tạo: `python -X utf8 -m address_misuse.l2_misuse txlist --chain polygon --focus author --max-records 1000` rồi
