@@ -88,6 +88,54 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`) gồm:
 
 Thứ tự ưu tiên khi thỏa nhiều type: **T4 > T1**; **T5 > T6**; **T2** áp dụng độc lập với phía EOA. Type phụ, nếu có, ghi trong `note`.
 
+### 4.1. Quy trình từng bước (làm đúng thứ tự, mỗi bước có bằng chứng bắt buộc)
+
+**Định nghĩa dùng chung (không tự diễn giải khác):**
+- *Tx tại `at`*: mẫu chính cho sẵn `tx_hash`. Pilot không có `tx_hash`: mở `explorer_url`, tab Transactions, chọn tx gần nhất tới địa chỉ trước hoặc đúng `first_tx_date` / ngày xét.
+- *Thành công*: trang tx có `Status: Success`. `Fail` thì tiền không chuyển, không mất tiền (trừ gas) → coi như không có misuse về tiền, trừ NCD (ca khó 8: tx lỗi hay thành công đều tính nếu địa chỉ không có code).
+- *Gọi đúng hàm*: contract đã verify, `Method` của tx được giải mã ra tên hàm có thật (approve, transfer, swap, submit…).
+- *Ví lạ*: ví nhận tiền KHÔNG phải người gửi, KHÔNG phải ví sàn / router / bridge có nhãn trên explorer.
+- *Rút nhanh*: tiền ra khỏi địa chỉ trong **≤ 10 phút** sau khi vào.
+- *Mặc định khi phân vân*: sau khi làm đủ các bước vẫn không chứng minh được misuse → `is_misuse = 0`, `confidence = low`, ghi `note`. Chỉ dùng `?` khi **không mở được explorer** (tối đa 10% số mẫu).
+
+**Bước A. Địa chỉ có code tại `at` không?** (`code_at_event` ở mẫu chính; pilot: nếu `own_create_date` / ngày tạo contract sau tx thì tại `at` là không có code.)
+- Không có code → **Bước B**.
+- Có code, là 7702 (`0xef0100…`) → **Bước D**.
+- Có code → **Bước C**.
+
+**Bước B. NCD (không có code).** Tx có calldata hàm thật (selector 4 byte, không phải event topic hay văn bản) hoặc gửi coin theo kiểu chỉ hợp với contract?
+- Không → coi như chuyển tiền thường tới EOA → **Bước D** (xét KEY/ADDR/7702).
+- Có → cùng địa chỉ có code ở chain khác, tạo **trước** tx đầu tiên ở chain này → **T4** (ghi `xc_chain`); tạo sau, hoặc không rõ → **T1**. Contract ở chain khác không tra được ngày tạo mà vẫn nghi: T4 với `confidence = low`.
+
+**Bước C. PCD (có code).** Chỉ gán T2 khi đủ **cả 3 điều kiện**:
+1. Tx tại `at` thành công;
+2. Contract không phải thứ người dùng định gọi: tx gửi coin vào contract không có hàm nhận coin, hoặc gọi hàm không có trong contract (`Method` hiện selector thô `0x…` trên contract đã verify), hoặc contract do kẻ khác cài (ca khó 11);
+3. Tiền không quay lại người dùng: nằm yên trong contract (hố đen, `malicious = 0`), hoặc đi ra ví lạ (`malicious = 1`), hoặc code có đường rút nhưng chưa thấy rút (`malicious = ?`).
+Thiếu một điều kiện → `NONE`. Token, proxy, LP, router được gọi đúng hàm → `NONE`. Cờ `symexec_*` chỉ để gợi ý chỗ cần xem, **không bao giờ đủ để gán một mình**.
+
+**Bước D. EOA.**
+- `leak_list = yes` → **T5 / KEY**, `is_misuse = 1`. `malicious = 1` nếu thấy rút nhanh về ví lạ trong tab Internal/Transactions của chính địa chỉ; chưa thấy → `?`. (Ví nằm trong danh sách dù chưa bị rút vẫn là KEY: key đã công khai là rủi ro đủ.)
+- Code hiện là 7702 (`delegate_7702` có giá trị): xem ca khó 13. Thấy rút về ví lạ → T5/7702, `malicious = 1`. Delegate là forwarder chuyển về địa chỉ cố định mà chưa thấy rút → T5/7702, `malicious = ?`, `confidence` tối đa `medium`. Delegate là ví hợp lệ có tên (`delegate_known_wallet`) và chủ ví dùng bình thường → `NONE`.
+- Tiền gửi tới ví công khai không phải của người gửi (ví trong tài liệu mẫu) và bị rút về ví lạ → T5/ADDR. Không thấy rút → `NONE`, `confidence = low`.
+- Địa chỉ giống địa chỉ quen + tx mồi giá trị 0 → **T6**.
+- Còn lại (ví thường, sàn, smart wallet hợp lệ) → `NONE`.
+
+**Bước E. Điền ô.** Mẫu âm: `type = NONE`, `subtype = xc_chain = malicious = -`. `confidence = high` chỉ khi đã mở explorer xem tx tại `at`; chỉ dựa vào cột bằng chứng thì tối đa `medium`. `evidence` ghi đủ nguồn đã dùng (`code`, `tx`, `timing`, `symexec`, `leaklist`, `label`). `note` bắt buộc khi `confidence = low`, `?`, hoặc ca khó §5.
+
+**Ví dụ từ pilot (đã chốt, dùng làm chuẩn):**
+
+| Mẫu | Quan sát | Nhãn chuẩn |
+|---|---|---|
+| P008, P010, P032, P025 | token / LP / proxy được gọi đúng hàm (`approve`, `transfer`), tx thành công | `0`, NONE (cờ symexec "không có đường rút" **không** đổi nhãn) |
+| P002 | contract đa chain cùng bytecode, tx gọi đúng hàm swap | `0`, NONE |
+| P005 | 167 tx vào, 164 tx lỗi, 0 tx ra; proxy `submit()` đúng | `0`, NONE (tx lỗi không mất tiền) |
+| P024 | tx gửi 0,02 ETH khi chưa có code; contract cài sau rồi rút đúng khoản đó về ví lạ | `1`, T2/PCD, `malicious = 1` (ca khó 11) |
+| P012 | `leak_list = yes`; tiền ra chủ yếu vào router Uniswap, không thấy rút nhanh về ví lạ | `1`, T5/KEY, `malicious = ?` |
+| P038 | 7702 tới Forwarder; 1,49 ETH vào, 1,43 ETH ra về ví lạ | `1`, T5/7702, `malicious = 1`, high |
+| P034 | 7702 tới forwarder; 3 tx vào đều 0 ETH, chưa thấy rút | `1`, T5/7702, `malicious = ?`, medium |
+| P009 | calldata chỉ là event topic `0xddf252ad…` tới EOA | `0`, NONE (ca khó 10) |
+| P036 | eth không code; code chỉ ở bsc_testnet, không tra được ngày tạo | `1`, T4, `confidence = low` (ca khó 12) |
+
 ## 5. Ca khó (đọc kỹ trước khi gán)
 
 1. **Contract ở chain khác deploy SAU tx đầu tiên** (`xc_timing = deployed_after`): **không** gán T4. Người dùng khi đó không thể copy từ chain kia. Gán T1, ghi note.
@@ -143,6 +191,7 @@ Trạng thái code là **hiện tại**, không phải lúc tx. Khi kết luận
 
 - **v0.1 (2026-10-16):** bản nháp đầu, trước pilot.
 - **v0.2 (2026-10-19):** bỏ các cột `n_tx`, `n_misuse_tx`, `cost_native` khỏi file mẫu (làm lộ nhãn: chỉ có ở mẫu thuộc dữ liệu tác giả); ô không tra được ghi `-` thay vì để trống.
+- **v0.4.1 (2026-10-25):** thêm §4.1 (quy trình từng bước, định nghĩa dùng chung, mặc định khi phân vân, bảng ví dụ pilot); cột `leak_list` (danh sách khoá lộ, tra đồng đều cho mọi mẫu); KEY dương khi `leak_list = yes` (chưa có ngày lộ trong dữ liệu).
 - **v0.4 (2026-10-25):** áp dụng §10.1 (điểm 1–5, đã sửa theo advisor) và §10.2: T2 cần tx thành công và sai ý định (cờ symexec chỉ gợi ý); KEY gán dương theo danh sách lộ + tx sau ngày lộ (`malicious` `1`/`?`); `malicious` có 4 giá trị; ca khó 10–15; bỏ điều kiện `delegate_known_wallet = -` làm bằng chứng độc. PCD của mình **hẹp hơn** PCD của tác giả (có chủ ý), paper báo cả hai cách đọc.
 - **v0.3 (2026-10-19):**
   - bỏ cột `delegate_flag` (thực chất là kết quả symexec, gây thiên lệch), thay bằng `delegate_symexec_transfer` và `delegate_known_wallet`;

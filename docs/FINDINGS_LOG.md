@@ -2,6 +2,15 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-25 — Cột `leak_list` làm nhãn KEY của mẫu vàng thành cơ học (hệ quả của quyết định "cách 2")
+
+- Danh sách khoá lộ (`candidate_pk_addresses`, 17.971 địa chỉ eth/bsc, nguồn GitHub, **không có ngày lộ**). Trên dataset_v2: 301 dương nằm trong danh sách, 0 âm.
+- Mẫu chính 605 sau khi thêm cột: `leak_list = yes` ⇔ tầng +KEY (60/60), mọi tầng khác `no`. Nên với KEY: `is_misuse = 1` do cột quyết định, người gán chỉ đóng góp `malicious` (thấy rút hay không).
+  Hệ quả cho paper: (1) nhãn vàng KEY trùng luật `leaked_key` của engine, không dùng nó để "xác nhận" `leaked_key`;
+  (2) báo chỉ số engine thêm trên tập con KHÔNG gồm mẫu KEY/`leak_list`; (3) báo κ thêm trên tập gán đôi bỏ mẫu KEY (các mẫu KEY dễ, làm κ cao hơn);
+  (4) tỉ lệ `malicious = 1` trong 60 mẫu KEY là phát hiện độc lập (tỉ lệ ví lộ key bị rút thật).
+- Pilot 1 không có cột này (đã gán xong, không sinh lại). `main_items.csv` sinh lại, khoá `main_key.csv` không đổi.
+
 ## 2026-10-25 — CODEBOOK v0.4 và nhận xét của advisor (Opus)
 
 - Advisor không duyệt nguyên văn đề xuất §10.1/§10.2; các sửa đã áp dụng vào v0.4:
