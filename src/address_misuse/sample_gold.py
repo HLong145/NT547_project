@@ -327,42 +327,102 @@ def cmd_pilot(seed: int = 0) -> pd.DataFrame:
 
 # ---------------------------------------------------------------- mẫu vàng chính (từ dataset_v2)
 
-# Số mẫu mỗi tầng; None = lấy hết. Tầng "+D6" = dương mới D6 (label_source == d6_rule). Kéo từ test ∪ out_of_time của
-# dataset_v2 (không lấy train/val/excluded/no_time): nhãn vàng dùng để chấm engine nên phải ở tập đánh giá. PLAN_V2 cũ ghi
-# "~1.000 dương mới", nhưng dataset_v2 chỉ có 42 dương mới và ~450 dương test, nên mẫu chính là ~600 (xem FINDINGS_LOG).
-MAIN_PLAN = {"+ADDR": 60, "+KEY": 60, "+NCD": 80, "+PCD": 50, "+D6": None, "-N1": 40, "-N2": 60, "-N3": 40, "-N4": 30,
-             "-N5": None, "-N6": None, "-N7": None, "-N8": 80}
+# Kế hoạch mẫu (tiền đăng ký, CODEBOOK §7.6). Đơn vị lấy mẫu là địa chỉ (chain, address); mỗi địa chỉ thuộc đúng một tầng
+# (tầng đầu tiên trong kế hoạch có địa chỉ đó). Tầng "+D6" = dương mới D6 (label_source == d6_rule).
+# Khung = test ∪ out_of_time của dataset_v2 (bỏ excluded): nhãn vàng dùng để chấm engine nên phải ở tập đánh giá.
+# - Dương (mọi tầng "+"): lấy HẾT (điều tra toàn bộ, trọng số 1).
+# - Âm bị engine gắn cờ (luật cứng hoặc R ≥ τ_warn): lấy HẾT.
+# - Âm không cờ: mẫu ngẫu nhiên đơn giản trong từng ô (tầng × chain), số địa chỉ ở lô 1 là giá trị dưới đây
+#   (None = lấy hết); phần còn lại xếp thành danh sách dự phòng đã xáo cho lô 2 (`draw_reserve`).
+MAIN_PLAN = {"+ADDR": None, "+KEY": None, "+NCD": None, "+PCD": None, "+D6": None, "-N1": 40, "-N2": 60, "-N3": 40,
+             "-N4": 30, "-N5": None, "-N6": None, "-N7": None, "-N8": 80}
+RESERVE_BATCH = 50                                        # lô 2 gán theo từng lô 50 mẫu, chỉ dừng ở ranh giới lô
 
 
-def draw_main(ds: pd.DataFrame, seed: int = 0, n_double: int = 200) -> pd.DataFrame:
-    """Rút mẫu phân tầng từ dataset_v2. `weight` = số mẫu của tầng trong tập đánh giá / số mẫu rút (để ước lượng precision,
-    recall không lệch khi tầng bị lấy mẫu con). Mỗi (chain, address) tối đa một mẫu."""
+def _take_counts(sizes: dict[str, int], n: int) -> dict[str, int]:
+    """Chia n địa chỉ đều giữa eth và bsc; chain nào thiếu thì chain kia bù."""
+    want = {"eth": n - n // 2, "bsc": n // 2}
+    k = {c: min(want[c], sizes.get(c, 0)) for c in want}
+    short = n - sum(k.values())
+    for c in want:
+        extra = min(short, sizes.get(c, 0) - k[c])
+        k[c] += extra
+        short -= extra
+    return k
+
+
+def _units(ds: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
+    """Khung lấy mẫu theo ĐỊA CHỈ: mỗi dòng là một (chain, address) với dòng đại diện (ưu tiên dòng engine gắn cờ), số dòng
+    của địa chỉ trong khung (`n_rows`), ô lấy mẫu (`cell` = tầng|chain|F/u), thứ tự xáo trong ô (`rank`), cỡ ô (`cell_n`,
+    `cell_rows`) và số địa chỉ lô 1 lấy trong ô (`k`). Lô 1 = rank < k; danh sách dự phòng = âm không cờ có rank ≥ k."""
     rng = np.random.default_rng(seed)
     pool = ds[(ds.split == "test") | ds.out_of_time].copy()
     pool = pool[pool.split != "excluded"]
     pool["stratum"] = np.where(pool.label_source == "d6_rule", "+D6", pool.grp)
+    pool["flag"] = pool["flag"].fillna(False).astype(bool) if "flag" in pool else False
     pool = pool.sample(frac=1, random_state=int(rng.integers(2**31)))        # xáo trước khi bỏ trùng
-    picked, taken = [], set()
+    pool = pool.sort_values("flag", ascending=False, kind="stable")           # dòng có cờ lên trước → làm dòng đại diện
+    taken, parts = set(), []
     for stratum, n in MAIN_PLAN.items():
-        d = pool[pool.stratum == stratum].drop_duplicates(["chain", "address"])
+        d = pool[pool.stratum == stratum]
         d = d[np.array([k not in taken for k in zip(d.chain, d.address)], dtype=bool)]   # np: list rỗng sẽ chọn 0 cột
-        if n is None or len(d) <= n:
-            got = d
-        else:                                              # chia đều giữa eth và bsc khi đủ mẫu
-            half = {"eth": n - n // 2, "bsc": n // 2}
-            got = pd.concat([d[d.chain == c].head(k) for c, k in half.items()])
-            if len(got) < n:
-                got = pd.concat([got, d.drop(got.index).head(n - len(got))])
-        if n is not None and len(got) < n:
-            print(f"  cảnh báo: tầng {stratum} chỉ có {len(got)}/{n} mẫu")
-        taken |= set(zip(got.chain, got.address))
-        picked.append(got.assign(weight=len(d) / max(len(got), 1)))
-    out = pd.concat(picked)
+        rows = d.groupby(["chain", "address"]).size().rename("n_rows").reset_index()
+        u = d.drop_duplicates(["chain", "address"]).merge(rows, on=["chain", "address"], how="left")
+        taken |= set(zip(u.chain, u.address))
+        u["cell"] = stratum + "|" + u.chain + "|" + np.where(u.flag, "F", "u")
+        u["rank"] = u.groupby("cell").cumcount()
+        u["cell_n"] = u.groupby("cell").cell.transform("size")
+        u["cell_rows"] = u.groupby("cell").n_rows.transform("sum")
+        u["k"] = u.cell_n                                              # mặc định: lấy hết ô
+        if stratum[0] == "-" and n is not None:                        # âm không cờ: lấy mẫu
+            sizes = u[~u.flag].groupby("chain").size().to_dict()
+            kk = _take_counts(sizes, n)
+            if len(u) and sum(kk.values()) < n:
+                print(f"  cảnh báo: tầng {stratum} chỉ có {sum(kk.values())}/{n} địa chỉ không cờ")
+            m = ~u.flag
+            u.loc[m, "k"] = u.loc[m, "chain"].map(kk).fillna(0).astype(int)
+        parts.append(u)
+    return pd.concat(parts, ignore_index=True)
+
+
+def draw_main(ds: pd.DataFrame, seed: int = 0, n_double: int = 200) -> pd.DataFrame:
+    """Lô 1 của mẫu vàng chính. `w_addr` = cỡ ô / số địa chỉ lấy (ước lượng theo địa chỉ); `w_row` = w_addr × số dòng của
+    địa chỉ trong khung (ước lượng theo dòng, như các chỉ số của engine). Dương và âm có cờ: trọng số 1 theo địa chỉ.
+    `n_double` mẫu gán đôi rút ngẫu nhiên từ cả lô. Thứ tự đã xáo (dương và âm lẫn lộn, giữ làm mù)."""
+    u = _units(ds, seed)
+    out = u[u["rank"] < u.k].copy()
+    out["w_addr"] = out.cell_n / out.k
+    out["w_row"] = out.w_addr * out.n_rows
+    out["weight"] = out.w_row                                   # tên cũ
     out = out.iloc[np.random.default_rng(seed + 1).permutation(len(out))].reset_index(drop=True)
     out["double"] = False
-    out.loc[out.sample(min(n_double, len(out)), random_state=int(rng.integers(2**31))).index, "double"] = True
+    out.loc[out.sample(min(n_double, len(out)), random_state=seed + 2).index, "double"] = True
     out.insert(0, "item_id", [f"G{i + 1:03d}" for i in range(len(out))])
     return out
+
+
+def draw_reserve(ds: pd.DataFrame, seed: int = 0, double_frac: float = 0.1) -> pd.DataFrame:
+    """Danh sách âm dự phòng cho lô 2, thứ tự cố định tính từ trước khi gán: trong từng ô là tiếp nối thứ tự xáo của lô 1
+    (nên tập đã gán của ô luôn là mẫu ngẫu nhiên đơn giản), giữa các ô xen kẽ theo tỉ lệ cỡ ô (mọi tiền tố ≈ phân bổ tỉ lệ).
+    Chia lô `RESERVE_BATCH`; chỉ dừng ở ranh giới lô, theo ngân sách / hạn chót, KHÔNG theo kết quả engine."""
+    u = _units(ds, seed)
+    r = u[(u.stratum.str[0] == "-") & ~u.flag & (u["rank"] >= u.k)].copy()
+    r["pos"] = (r["rank"] - r.k + 0.5) / (r.cell_n - r.k)
+    r = r.sort_values("pos", kind="stable").reset_index(drop=True)
+    r["batch"] = np.arange(len(r)) // RESERVE_BATCH + 1
+    r["double"] = np.random.default_rng(seed + 3).random(len(r)) < double_frac
+    r.insert(0, "item_id", [f"R{i + 1:04d}" for i in range(len(r))])
+    return r
+
+
+def engine_flag(ds: pd.DataFrame) -> np.ndarray:
+    """Cờ cảnh báo của engine (mức warn: luật cứng hoặc R ≥ τ_warn) cho từng dòng dataset_v2. `engine_eval.parquet` cùng thứ tự."""
+    ev = pd.read_parquet(INTERIM_DIR / "engine_eval.parquet")
+    for c in ("chain", "address", "grp", "at"):
+        if not (ds[c].values == ev[c].values).all():
+            raise SystemExit(f"engine_eval.parquet lệch dataset_v2 ở cột {c}: chạy lại engine.evaluate")
+    tau = json.load(open(INTERIM_DIR / "engine_metrics.json", encoding="utf-8"))["main"]["thresholds"]["warn"]
+    return ev.hard.notna().to_numpy() | (ev.R.to_numpy() >= tau)
 
 
 def event_tx(chain: str, address: str, at) -> dict | None:
@@ -405,19 +465,29 @@ def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame]) -> pd.DataFr
 
 
 def cmd_main(seed: int = 0, n_double: int = 200) -> pd.DataFrame:
+    import hashlib
     from address_misuse.config import FINAL_DIR
     p = FINAL_DIR / "dataset_v2.parquet"
     if not p.exists():
         raise SystemExit("chưa có dataset_v2.parquet: chạy address_misuse.freeze (sau khi engine.evaluate xong)")
-    sample = draw_main(pd.read_parquet(p), seed, n_double)
+    ds = pd.read_parquet(p)
+    ds["flag"] = engine_flag(ds)
+    sample = draw_main(ds, seed, n_double)
+    reserve = draw_reserve(ds, seed)
     items = main_evidence(sample, load_sources())
     GOLD_DIR.mkdir(parents=True, exist_ok=True)
     items.to_csv(GOLD_DIR / "main_items.csv", index=False, encoding="utf-8")
-    key = sample[["item_id", "sample_id", "stratum", "grp", "chain", "address", "label", "label_source", "split",
-                  "out_of_time", "needs_review", "weight", "double"]]
-    key.to_csv(GOLD_DIR / "main_key.csv", index=False, encoding="utf-8")
-    print(f"Ghi {len(items)} mẫu ({int(sample.double.sum())} gán đôi để tính κ) → {GOLD_DIR / 'main_items.csv'} (+ main_key.csv)")
-    print(sample.groupby("stratum").agg(n=("item_id", "size"), weight=("weight", "first")).round(2).to_string())
+    keycols = ["item_id", "sample_id", "stratum", "grp", "chain", "address", "label", "label_source", "split",
+               "out_of_time", "needs_review", "flag", "cell", "cell_n", "cell_rows", "k", "n_rows", "w_addr", "w_row",
+               "double"]
+    sample[keycols].to_csv(GOLD_DIR / "main_key.csv", index=False, encoding="utf-8")
+    reserve[keycols[:-3] + ["batch", "double"]].to_csv(GOLD_DIR / "main_reserve_key.csv", index=False, encoding="utf-8")
+    print(f"Ghi {len(items)} mẫu lô 1 ({int(sample.double.sum())} gán đôi để tính κ) → {GOLD_DIR / 'main_items.csv'} "
+          f"(+ main_key.csv); dự phòng lô 2: {len(reserve)} âm ({reserve.batch.max()} lô × {RESERVE_BATCH}) → main_reserve_key.csv")
+    for f in ("main_items.csv", "main_key.csv", "main_reserve_key.csv"):
+        print(f"  sha256 {f}: {hashlib.sha256((GOLD_DIR / f).read_bytes()).hexdigest()}")
+    print(sample.groupby("stratum").agg(n=("item_id", "size"), flag=("flag", "sum"), rows=("n_rows", "sum"),
+                                        w_addr_max=("w_addr", "max")).round(2).to_string())
     return items
 
 

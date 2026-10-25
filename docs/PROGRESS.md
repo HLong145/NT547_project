@@ -24,7 +24,7 @@
   lỗi thời điểm tạo contract trước Bedrock (FINDINGS 2026-10-25). Hết credit thì dừng sạch (HTTP 402), chạy tiếp ngày sau.
   ✅ 2026-10-25 `key_sweep` xong cho ETH (FINDINGS_LOG): theo lần nạp 54% bị rút ≤ 10 phút, theo giá trị chỉ 4,2% (hai ví giữ 83% tiền); ✅ BSC xong (NodeReal, 3.495 ví): theo lần nạp 70,8% bị rút ≤ 10 phút, theo giá trị 52,4%, trung vị ví 36% (FINDINGS_LOG).
   **Bước kế tiếp:** hết txlist OP (dừng 402 ở 5.149/7.615, chạy lại sau khi credit reset) → `l2_misuse rules --chain op --focus author`; khung paper.
-  **Chặn bởi người dùng (quyết định 2026-10-25):** ✅ pilot 1 xong: κ(is_misuse) = 0,615 (< 0,8), κ(type) = 0,823; 7 bất đồng, 6/7 do định nghĩa T2/PCD (FINDINGS_LOG 2026-10-25). ✅ CODEBOOK v0.4.1 (advisor Opus duyệt có sửa; §4.1 quy trình từng bước + ví dụ). Cột `leak_list` đã thử rồi BỎ (làm lộ nhãn 60/60 KEY; KEY nay gán theo mẫu hình rút nhanh, hạn chế ở CODEBOOK §10.3). Người dùng KHÔNG muốn pilot 2: κ chính thức lấy từ 200 mẫu gán đôi, gán theo lô, kiểm κ lô đầu trước khi gán tiếp. ⏳ A xác nhận v0.4.1 → rồi MỚI sinh Excel mẫu chính (`sample_gold sheet B --set main`, `--only-double` cho A). Mẫu chính 605 < mục tiêu ~2.000 của GOALS vì dataset_v2 chỉ có 42 dương mới và ~450 dương test (biện luận trong paper).
+  **Chặn bởi người dùng (quyết định 2026-10-25):** ✅ pilot 1 xong: κ(is_misuse) = 0,615 (< 0,8), κ(type) = 0,823; 7 bất đồng, 6/7 do định nghĩa T2/PCD (FINDINGS_LOG 2026-10-25). ✅ CODEBOOK v0.4.1 (advisor Opus duyệt có sửa; §4.1 quy trình từng bước + ví dụ). Cột `leak_list` đã thử rồi BỎ (làm lộ nhãn 60/60 KEY; KEY nay gán theo mẫu hình rút nhanh, hạn chế ở CODEBOOK §10.3). Người dùng KHÔNG muốn pilot 2: κ chính thức lấy từ 200 mẫu gán đôi, gán theo lô, kiểm κ lô đầu trước khi gán tiếp. ⏳ A xác nhận v0.4.1 → rồi MỚI sinh Excel mẫu chính (`sample_gold sheet B --set main`, `--only-double` cho A). **Thiết kế mẫu đổi 2026-10-25 (FINDINGS_LOG, CODEBOOK §7.6):** lô 1 = 758 mẫu (gán hết 442 dương + 3 N8 có cờ + 316 âm lấy mẫu, 200 gán đôi) + 922 âm dự phòng đã xáo cho lô 2 (19 lô × 50, tuỳ thời gian). Khung chỉ có 2.010 dòng nên "~2.000" = gán toàn khung; biện luận trong paper. Trọng số đã sửa (theo chain, theo dòng), thêm `gold_eval.py`; `main_items.csv` đã sinh lại, vẫn CHƯA sinh Excel.
 
 - 🔄 **Dataset v2 (DATASHEET §8):** code xong, chạy thử QA đạt. v2 = v1 + N5 (118; 42 contract recovery bị tác giả
   gắn cờ PCD chuyển sang âm) + 42 dương mới D6 + cột `label_source`, `needs_review`, `key_value0`. Dựng bản cuối sau
@@ -90,7 +90,7 @@
     địa chỉ). ✅ `sample_gold main` (code + test, chưa chạy): ~600 mẫu phân tầng từ test ∪ out_of_time, có `weight`
     (= cỡ tầng / số rút) để ước lượng precision/recall không lệch, 200 mẫu gán đôi tính κ, bằng chứng theo thời điểm `at`;
     `sheet B --set main [--only-double]`. Cỡ ~600 (không phải ~2.000) vì dataset_v2 chỉ có 42 dương mới và ~450 dương test.
-    ✅ Đã chạy (2026-10-25, seed 0): 605 mẫu (D6 42, ADDR 60, KEY 60, NCD 80, PCD 50, N1 40, N2 60, N3 40, N4 30, N5 39, N6 5, N7 19, N8 80),
+    ✅ (thiết kế cũ, đã thay bằng 758 mẫu cùng ngày, xem mục đầu) Đã chạy (2026-10-25, seed 0): 605 mẫu (D6 42, ADDR 60, KEY 60, NCD 80, PCD 50, N1 40, N2 60, N3 40, N4 30, N5 39, N6 5, N7 19, N8 80),
     200 gán đôi → `data/gold/main_items.csv` (đưa người gán) + `main_key.csv` (nhãn, KHÔNG commit, đã gitignore). Sinh file Excel:
     `sample_gold sheet B --set main`. Chờ annotator_A (pilot, κ) trước khi giao khối lượng lớn.
   - ✅ Codebook v0.3, script lấy mẫu pilot 50 + tính κ; file mẫu đã làm mù (bằng chứng tra cùng một cách cho mọi tầng).

@@ -112,21 +112,73 @@ def test_ablation_without_history_drops_sweeper_rule():
     assert no_hist["sets"]["test"]["warn"]["hard_only"]["tp"] == 0
 
 
-def test_draw_main_uses_eval_split_weights_and_unique_addresses():
-    from address_misuse import sample_gold as sg
+def _gold_ds():
     rows = []
-    for i in range(300):
+    for i in range(300):                                    # +NCD: 150 địa chỉ, 100 địa chỉ có 2 dòng test, 50 có 1
         rows.append({"chain": "eth" if i % 2 else "bsc", "address": f"0x{i % 150:03d}", "grp": "+NCD",
-                     "label_source": "author", "split": "test" if i < 250 else "train", "out_of_time": False})
+                     "label_source": "author", "split": "test" if i < 250 else "train", "out_of_time": False, "flag": False})
     rows += [{"chain": "eth", "address": "0xex", "grp": "+NCD", "label_source": "author", "split": "excluded",
-              "out_of_time": False}]
+              "out_of_time": False, "flag": False}]
     rows += [{"chain": "eth", "address": f"0xd{i}", "grp": "+KEY", "label_source": "d6_rule", "split": "test",
-              "out_of_time": True} for i in range(5)]
-    ds = pd.DataFrame(rows)
+              "out_of_time": True, "flag": False} for i in range(5)]
+    for i in range(200):                                    # -N3: 100 eth + 100 bsc, 2 địa chỉ eth bị engine gắn cờ
+        rows.append({"chain": "eth" if i < 100 else "bsc", "address": f"0xn{i:03d}", "grp": "-N3", "label_source": "scan",
+                     "split": "test", "out_of_time": False, "flag": i in (3, 4)})
+    return pd.DataFrame(rows)
+
+
+def test_draw_main_census_for_positives_and_flagged_negatives_with_chain_weights():
+    from address_misuse import sample_gold as sg
+    ds = _gold_ds()
     out = sg.draw_main(ds, seed=1, n_double=10)
     assert not out.duplicated(["chain", "address"]).any()
     assert "0xex" not in set(out.address) and (out.split != "train").all()
     assert set(out.loc[out.stratum == "+D6", "address"]) == {f"0xd{i}" for i in range(5)}   # d6_rule thành tầng riêng
     assert out.double.sum() == 10 and out.item_id.is_unique
     ncd = out[out.stratum == "+NCD"]
-    assert abs(ncd.weight.iloc[0] * len(ncd) - 150) < 1e-9          # 150 địa chỉ test duy nhất ở tầng +NCD (không tính excluded)
+    assert len(ncd) == 150 and (ncd.w_addr == 1).all()                  # dương: lấy hết, trọng số 1
+    assert ncd.w_row.sum() == 250                                        # tổng dòng khung: 100 địa chỉ × 2 dòng + 50 × 1
+    n3 = out[out.stratum == "-N3"]
+    flagged = n3[n3.flag]
+    assert set(flagged.address) == {"0xn003", "0xn004"} and (flagged.w_addr == 1).all()   # âm có cờ: lấy hết
+    # âm không cờ: 40 địa chỉ chia đều eth/bsc, trọng số theo từng chain (eth còn 98 địa chỉ không cờ, bsc 100)
+    un = n3[~n3.flag]
+    assert len(un) == 40 and un.groupby("chain").size().to_dict() == {"bsc": 20, "eth": 20}
+    for chain, size in (("eth", 98), ("bsc", 100)):
+        w = un[un.chain == chain].w_addr
+        assert abs(w.iloc[0] - size / 20) < 1e-9
+        assert abs(w.sum() - size) < 1e-9                                # Σ w_addr = cỡ ô
+
+
+def test_draw_reserve_continues_cell_order_and_is_disjoint_from_core():
+    from address_misuse import sample_gold as sg
+    ds = _gold_ds()
+    core, res = sg.draw_main(ds, seed=1), sg.draw_reserve(ds, seed=1)
+    assert not (set(zip(core.chain, core.address)) & set(zip(res.chain, res.address)))
+    assert (res.stratum == "-N3").all() and (~res.flag).all()
+    assert len(res) == 98 + 100 - 40
+    assert res.item_id.is_unique and res.batch.max() == -(-len(res) // sg.RESERVE_BATCH)
+    first = res.head(sg.RESERVE_BATCH)                                   # tiền tố ≈ tỉ lệ cỡ ô (eth 78 : bsc 80)
+    assert abs((first.chain == "eth").sum() - 25) <= 2
+    assert sg.draw_reserve(ds, seed=1).equals(res)                       # thứ tự cố định theo seed
+
+
+def test_gold_eval_weights_ci_and_hidden_positive_bound():
+    from address_misuse import gold_eval as ge
+    # 1) census (w = 1) thì khớp công thức đếm
+    c = ge.confusion_w([1, 1, 0, 0], [1, 0, 1, 0], [1, 1, 1, 1])
+    assert c["tp"] == 1 and c["fp"] == 1 and c["fn"] == 1 and c["tn"] == 1 and abs(c["precision"] - .5) < 1e-12
+    # 2) cận Clopper–Pearson: k = 0 có công thức đóng; k > 0 lớn hơn tỉ lệ mẫu
+    assert abs(ge.cp_upper(0, 59) - (1 - 0.05 ** (1 / 59))) < 1e-12 and ge.cp_upper(2, 50) > 2 / 50
+    # 3) bảng nhỏ: ô dương gán hết (cell_n = n), ô âm 4 trong 40 địa chỉ, không dương ẩn
+    rows = [{"cell": "+A|eth|u", "stratum": "+A", "flag": f, "gold": g, "n_rows": 1, "cell_n": 4, "cell_rows": 4}
+            for f, g in ((1, 1), (1, 1), (1, 0), (0, 1))]
+    rows += [{"cell": "-N|eth|u", "stratum": "-N", "flag": 0, "gold": 0, "n_rows": 2, "cell_n": 40, "cell_rows": 80}] * 4
+    df = pd.DataFrame(rows)
+    w = ge.gold_weights(df)
+    assert (w.w_row[w.stratum == "+A"] == 1).all() and (w.w_row[w.stratum == "-N"] == 20).all()
+    r = ge.evaluate(df, boot=50, seed=0)
+    assert abs(r["precision"] - 2 / 3) < 1e-9 and abs(r["recall"] - 2 / 3) < 1e-9
+    assert r["fpr"] == 1 / (1 + 80) and r["precision_ci"][0] <= r["precision"] <= r["precision_ci"][1]
+    assert r["hidden_positive_rows_point"] == 0 and r["hidden_positive_rows_upper"] > 0    # 0/4 vẫn có cận trên > 0
+    assert 0 < r["recall_lower_bound"] < r["recall"]

@@ -179,8 +179,15 @@ Trạng thái code là **hiện tại**, không phải lúc tx. Khi kết luận
 1. **Pilot 50 mẫu** (`data/gold/pilot50_items.csv`): mỗi người gán riêng vào `annotator_A.csv` / `annotator_B.csv`, không trao đổi.
 2. Tính κ trên `is_misuse` và trên `type`. Liệt kê các mẫu bất đồng.
 3. Họp phân xử: thống nhất nhãn cuối vào `adjudicated.csv`, rồi **sửa codebook** cho các điểm gây bất đồng (tăng phiên bản, ghi lại thay đổi ở §9).
-4. Nếu κ(`is_misuse`) < 0,8: làm thêm một pilot nhỏ (khoảng 30 mẫu **chưa ai thấy**, làm giàu PCD/KEY/7702) với codebook mới. Nếu κ ≥ 0,8: gán mẫu chính. κ tính lại sau khi đã biết bất đồng **không được báo**; κ báo trong paper là của pilot 2 và của 200 mẫu gán đôi.
-5. Mỗi lô khoảng 10% mẫu được gán trùng để theo dõi κ.
+4. **Không có pilot 2** (quyết định 2026-10-25). Sau khi A xác nhận v0.4.1, gán 200 mẫu gán đôi theo lô và kiểm κ(`is_misuse`) của ~50 mẫu đầu trước khi gán tiếp. Nếu κ lô đầu < 0,8: dừng, họp phân xử, sửa codebook, rồi gán lại lô đó; κ của lô đã dùng để sửa codebook chỉ là κ hiệu chỉnh (không báo như κ chính thức) và phải bù thêm mẫu gán đôi mới cho đủ 200. κ tính lại sau khi đã biết bất đồng **không được báo**. κ báo trong paper (kèm CI) là của các mẫu gán đôi sau khi chốt codebook; κ pilot 1 (0,615) chỉ báo là mốc 'trước khi sửa codebook'.
+5. Gán đôi: 200 mẫu rút ngẫu nhiên từ lô 1 (khoảng 26% của 758 mẫu) để tính κ; lô 2 có thêm khoảng 10% gán đôi để theo dõi lệch dần, báo riêng.
+6. **Thiết kế mẫu (tiền đăng ký, chốt TRƯỚC khi gán; `sample_gold.py`, hash ở FINDINGS_LOG 2026-10-25):**
+   - Khung: test ∪ out_of_time của `dataset_v2` (bỏ `excluded`), 2.010 dòng / 1.680 địa chỉ. Đơn vị lấy mẫu là địa chỉ; mỗi địa chỉ thuộc đúng một tầng (tầng đầu tiên có địa chỉ đó). Dòng đại diện là dòng engine gắn cờ nếu có.
+   - Dương (mọi tầng `+`, 442 địa chỉ) và âm bị engine gắn cờ (luật cứng hoặc R ≥ τ_warn; 3 mẫu N8): **lấy hết** (điều tra toàn bộ, trọng số 1). Âm không cờ: mẫu ngẫu nhiên đơn giản trong từng ô (tầng × chain), chia đều eth/bsc. Lô 1 = 758 mẫu (442 dương + 316 âm), 200 mẫu gán đôi.
+   - Một file duy nhất, dương và âm xáo lẫn (giữ mù). Người thiết kế (B) biết thiết kế này nên phải ghi vào hạn chế (§10.3).
+   - Trọng số: `w_addr` = cỡ ô / số địa chỉ đã gán trong ô; `w_row` = `w_addr` × số dòng của địa chỉ trong khung (đơn vị của các chỉ số engine). Tính lại theo số mẫu đã gán thực tế (`gold_eval.gold_weights`).
+   - **Lô 2 (tuỳ thời gian):** danh sách 922 âm dự phòng đã xáo cố định (`main_reserve_key.csv`, hash ở FINDINGS_LOG), chia lô 50 mẫu; trong từng ô là tiếp nối thứ tự xáo của lô 1 nên tập đã gán của ô luôn là mẫu ngẫu nhiên đơn giản; giữa các ô xen kẽ theo tỉ lệ cỡ ô. **Chỉ dừng ở ranh giới lô, theo ngân sách hoặc hạn chót, không theo kết quả engine.** Nên giao lô 2 cho người chưa xem thiết kế (A) hoặc xen khoảng 10% mẫu đã gán (đổi mã) để đo độ nhất quán của chính người gán.
+   - Quy tắc báo: (a) κ chính thức tính trên mẫu gán đôi gán SAU khi chốt codebook; nếu sửa codebook sau lô đầu thì κ lô đó chỉ là κ hiệu chỉnh và bù thêm mẫu gán đôi cho đủ 200; (b) báo κ kèm CI (n = 200, κ ≈ 0,8 thì CI ≈ ±0,08, nên điểm 0,80 chưa chứng minh κ ≥ 0,8); (c) chỉ số engine dùng ước lượng có trọng số và bootstrap phân tầng (`gold_eval`), ô 0 sự kiện dùng cận Clopper–Pearson; (d) dấu `?` báo hai kịch bản (tính là 0 và tính là 1); (e) không chọn thêm tầng để gán sau khi đã xem chỉ số engine theo nhãn vàng.
 
 ## 8. Đạo đức và an toàn
 
@@ -192,6 +199,7 @@ Trạng thái code là **hiện tại**, không phải lúc tx. Khi kết luận
 
 - **v0.1 (2026-10-16):** bản nháp đầu, trước pilot.
 - **v0.2 (2026-10-19):** bỏ các cột `n_tx`, `n_misuse_tx`, `cost_native` khỏi file mẫu (làm lộ nhãn: chỉ có ở mẫu thuộc dữ liệu tác giả); ô không tra được ghi `-` thay vì để trống.
+- **Thiết kế mẫu (2026-10-25, không đổi quy tắc gán):** §7 bước 5–6: lấy hết dương và âm bị engine gắn cờ, âm lấy mẫu có trọng số theo (tầng, chain) và theo dòng, danh sách âm dự phòng cho lô 2.
 - **v0.4.1 (2026-10-25):** thêm §4.1 (quy trình từng bước, định nghĩa dùng chung, mặc định khi phân vân, bảng ví dụ pilot); KEY chỉ gán dương khi thấy mẫu hình rút nhanh (≥ 2 lần, ≤ 10 phút, về cùng ví lạ) trong tx; **không** có cột danh sách khoá lộ (đã thử, bỏ vì làm lộ nhãn 60/60 mẫu KEY).
 - **v0.4 (2026-10-25):** áp dụng §10.1 (điểm 1–5, đã sửa theo advisor) và §10.2: T2 cần tx thành công và sai ý định (cờ symexec chỉ gợi ý); KEY gán dương theo tx rút nhanh (xem v0.4.1); `malicious` có 4 giá trị; ca khó 10–15; bỏ điều kiện `delegate_known_wallet = -` làm bằng chứng độc. PCD của mình **hẹp hơn** PCD của tác giả (có chủ ý), paper báo cả hai cách đọc.
 - **v0.3 (2026-10-19):**

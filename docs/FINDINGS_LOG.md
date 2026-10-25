@@ -2,6 +2,29 @@
 
 Ghi lại mọi quan sát có thể đưa vào paper, kèm cách tái tạo. Mới nhất ở trên.
 
+## 2026-10-25 — D5: đổi thiết kế mẫu vàng (tiền đăng ký, TRƯỚC khi ai gán): lấy hết dương, 758 mẫu lô 1 + 922 âm dự phòng
+
+Tái tạo: `PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.sample_gold main` (seed 0); mô phỏng: `-m address_misuse.gold_power`. Chưa có nhãn nào do người gán, nên đổi thiết kế lúc này không phải chỉnh sau khi thấy kết quả.
+- Lý do: 605 mẫu < ~2.000 của GOALS. Khung đánh giá (test ∪ out_of_time, bỏ `excluded`) chỉ có **2.010 dòng / 1.680 địa chỉ** (442 dương, 1.568 âm), nên "~2.000" chính là gán toàn bộ khung. Dương không tăng được bằng cách cào (dataset_v2 chỉ có 42 dương mới D6).
+- Thiết kế mới (CODEBOOK §7.6): gán HẾT 442 dương và các âm engine gắn cờ (3 dòng N8 luật cứng); âm không cờ lấy mẫu ngẫu nhiên đơn giản trong ô (tầng × chain). Lô 1 = **758 mẫu** (442 dương, 316 âm; 200 gán đôi). Engine mức warn chỉ gắn cờ 299 dòng (296 dương tác giả + 3 N8), âm có R p99 = 32 ≪ τ_warn = 63: gán hết dương và cờ gần như là gán hết mọi cảnh báo, nên precision và tử số FP không còn sai số lấy mẫu.
+- Lô 2 (tuỳ thời gian): 922 âm dự phòng đã xáo cố định, 19 lô × 50 (N8 344, N3 303, N2 170, N1 54, N4 51), chỉ dừng ở ranh giới lô theo ngân sách / hạn chót, không theo kết quả.
+- Sửa 3 lỗi trọng số do advisor Opus phát hiện (đã sửa trong `sample_gold` và `gold_eval`): (1) trọng số tính chung eth/bsc dù lấy đều 50/50 — nay theo (tầng, chain); (2) trọng số tính theo địa chỉ nhưng chỉ số engine tính theo dòng (N3 559 dòng / 343 địa chỉ) — nay `w_row = w_addr × n_rows`; (3) ước lượng nhãn vàng phải có trọng số và bootstrap phân tầng, ô 0 sự kiện dùng cận Clopper–Pearson (`gold_eval.py`; `engine.metrics.with_ci` vẫn đúng cho nhãn tạm vì chấm toàn tập, không lấy mẫu con).
+- Mô phỏng độ rộng CI 95% (nửa độ rộng, điểm %; CHỈ sai số lấy mẫu, có GIẢ ĐỊNH về tỉ lệ nhãn vàng khác nhãn tác giả: S1 "vừa" ADDR 15% / KEY 30% / NCD 10% / PCD 40% / D6 20% bị gán âm, dương ẩn ở N1 3%, N5 5%, N7 2%, N4 1%, N8 1%, N2/N3 0,5%; không phải kết quả đo):
+
+  | Thiết kế | n | Precision | Recall | FPR |
+  |---|---|---|---|---|
+  | Cũ (605) | 606 | ±3,64 | ±3,33 | ±0,63 |
+  | Phân bổ lại cùng 605 | 604 | 0 | ±3,23 | ±0,05 |
+  | **Lô 1 mới** | 758 | 0 | ±2,55 | ±0,04 |
+  | + 250 âm (lô 2) | 1.009 | 0 | ±1,62 | ±0,02 |
+  | + 500 âm | 1.258 | 0 | ±1,14 | ±0,02 |
+
+  Thêm âm chỉ để thu hẹp recall (dương ẩn trong tầng âm). Với 0 dương ẩn quan sát được, cận trên 95% của số dương ẩn (cộng cận từng ô) là khoảng 25–86 dòng ở lô 1, 9–39 với +250 âm, 6–27 với +500 âm (advisor, tính theo n hiệu dụng).
+- Mù: dương và âm xáo lẫn trong một file; B (người thiết kế) biết thiết kế nên ghi vào hạn chế. Lô 2 chỉ toàn âm nên giao A hoặc xen ~10% mẫu đã gán (đổi mã).
+- Silver: nhãn theo luật tác giả trên cả dataset_v2 gọi là *silver*, báo riêng, KHÔNG cộng vào số nhãn vàng. `key_sweep` là phép đo tự động, không phải nhãn.
+- Chỉ số này không thay đổi 605 → 758 cho những ai chờ ~2.000: paper viết "nhãn vàng phủ 100% dương và 100% cảnh báo của engine, âm lấy mẫu có trọng số n/1.568 (lô 2 tới 1.568 nếu đủ thời gian)".
+- Hash tiền đăng ký (sha256, commit cùng mục này): main_items.csv `a65c74a24d95c784358f0051e4654f4640b45978f2e3e1be9a902adcb5dc50c0`; main_key.csv `c31b7c6a24c6fb1b747de8bde390b952d69a43e79752b7bcebbc07d8a3c06fa0` và main_reserve_key.csv `f7ad4d5d39f5cbf628cc1ef8b03278cac1c9087f5930e7e01ff58901999ec77a` (hai file khoá không commit; hash để chứng minh danh sách có trước khi gán).
+
 ## 2026-10-25 — D2/KEY trên BSC: ví lộ khoá bị rút nhanh hơn ETH nhiều (62.527 lần nạp, 1.813 ví)
 
 Tái tạo: `PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.key_sweep --chain bsc --fetch` (tải txlist NodeReal cho 3.495 ví KEY BSC có `cost_native > 0` theo dữ liệu tác giả, ~3.461 ví mới, không lỗi, 3 ví bị cắt ở 10.000 tx), rồi `... --chain bsc`.
