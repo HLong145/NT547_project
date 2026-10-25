@@ -179,6 +179,54 @@ def test_gold_eval_weights_ci_and_hidden_positive_bound():
     assert (w.w_row[w.stratum == "+A"] == 1).all() and (w.w_row[w.stratum == "-N"] == 20).all()
     r = ge.evaluate(df, boot=50, seed=0)
     assert abs(r["precision"] - 2 / 3) < 1e-9 and abs(r["recall"] - 2 / 3) < 1e-9
-    assert r["fpr"] == 1 / (1 + 80) and r["precision_ci"][0] <= r["precision"] <= r["precision_ci"][1]
-    assert r["hidden_positive_rows_point"] == 0 and r["hidden_positive_rows_upper"] > 0    # 0/4 vẫn có cận trên > 0
+    assert abs(r["fpr"] - 1 / (1 + 40)) < 1e-9 and abs(ge.evaluate(df, boot=5, unit="row")["fpr"] - 1 / (1 + 80)) < 1e-9 and r["precision_ci"][0] <= r["precision"] <= r["precision_ci"][1]
+    assert r["hidden_positive_point"] >= 0 and r["hidden_positive_upper"] > 0              # 0/4 vẫn có cận trên > 0
+    assert r["hidden_positive_upper_cp"] >= r["hidden_positive_upper"] * 0.8               # CP không nhỏ hơn Jeffreys nhiều
     assert 0 < r["recall_lower_bound"] < r["recall"]
+
+
+def test_gold_eval_string_flags_census_cells_and_row_unit():
+    from address_misuse import gold_eval as ge
+    base = [{"cell": "+A|eth|u", "stratum": "+A", "flag": f, "gold": g, "n_rows": 3 if i == 0 else 1, "cell_n": 4, "cell_rows": 6}
+            for i, (f, g) in enumerate(((1, 1), (1, 1), (1, 0), (0, 1)))]
+    num, txt = pd.DataFrame(base), pd.DataFrame(base).astype({"flag": str, "gold": str})   # CSV đọc ra "1"/"True"…
+    txt["flag"] = txt.flag.map({"1": "True", "0": "False"})
+    a, b = ge.evaluate(num, boot=20), ge.evaluate(txt, boot=20)
+    assert abs(a["precision"] - 2 / 3) < 1e-9 and a["precision"] == b["precision"] and a["recall"] == b["recall"]
+    assert a["precision_ci"] == [a["precision"]] * 2                                   # ô điều tra toàn bộ: không có sai số lấy mẫu
+    row = ge.evaluate(num, boot=20, unit="row")
+    assert abs(row["precision"] - 4 / 5) < 1e-9                                         # tp = 3 + 1 dòng, fp = 1
+    bad = txt.copy()
+    bad.loc[0, "flag"] = "maybe"
+    try:
+        ge.evaluate(bad, boot=5)
+        raise AssertionError("phải báo lỗi cờ không hợp lệ")
+    except ValueError:
+        pass
+    q = txt.copy()
+    q.loc[3, "gold"] = "?"
+    assert ge.evaluate(q, boot=5, unknown="zero")["recall"] > ge.evaluate(q, boot=5, unknown="one")["recall"]   # ? chưa cờ: tính 1 làm recall giảm
+    assert ge.evaluate(q, boot=5, unknown="drop")["n_labelled"] == 3
+
+
+def test_final_gold_requires_adjudication_for_double_items():
+    from address_misuse import gold_eval as ge
+    df = pd.DataFrame({"double": [True, False, True], "gold_B": [1, 0, 1], "gold_adj": [0, None, None]})
+    try:
+        ge.final_gold(df)
+        raise AssertionError("mẫu gán đôi thiếu nhãn thống nhất phải báo lỗi")
+    except ValueError:
+        pass
+    df.loc[2, "gold_adj"] = 1
+    assert ge.final_gold(df).tolist() == [0, 0, 1]
+
+
+def test_n_rows_counts_whole_frame_and_extra_double_rank():
+    from address_misuse import sample_gold as sg
+    ds = _gold_ds()
+    u = sg._units(ds, seed=1)
+    pool = ds[((ds.split == "test") | ds.out_of_time) & (ds.split != "excluded")]
+    assert u.n_rows.sum() == len(pool)                                                  # Σ n_rows = cỡ khung (không mất dòng)
+    out = sg.draw_main(ds, seed=1, n_double=10)
+    ex = out.loc[~out.double, "double_extra_rank"]
+    assert sorted(ex) == list(range(len(ex))) and (out.loc[out.double, "double_extra_rank"] == -1).all()

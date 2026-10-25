@@ -3,7 +3,7 @@
 python -X utf8 -m address_misuse.sample_gold pilot [--seed 0]
 python -X utf8 -m address_misuse.sample_gold main [--seed 0] [--double 200]   → mẫu vàng chính từ dataset_v2 (sau freeze)
 python -X utf8 -m address_misuse.sample_gold sheet B      → data/gold/annotator_B.xlsx (file Excel để gán)
-python -X utf8 -m address_misuse.sample_gold sheet B --set main [--only-double]   → annotator_main_B.xlsx
+python -X utf8 -m address_misuse.sample_gold sheet B --set main [--only-double | --only-single]   → annotator_main[_double|_single]_B.xlsx
 python -X utf8 -m address_misuse.sample_gold check data/gold/annotator_B.xlsx   (kiểm tra hình thức trước khi tính κ)
 python -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_A.csv data/gold/annotator_B.csv
 
@@ -362,12 +362,13 @@ def _units(ds: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
     pool["flag"] = pool["flag"].fillna(False).astype(bool) if "flag" in pool else False
     pool = pool.sample(frac=1, random_state=int(rng.integers(2**31)))        # xáo trước khi bỏ trùng
     pool = pool.sort_values("flag", ascending=False, kind="stable")           # dòng có cờ lên trước → làm dòng đại diện
+    # số dòng của địa chỉ trong TOÀN khung (không chỉ trong tầng của nó): Σ n_rows = cỡ khung; nhãn là của địa chỉ
+    rows_all = pool.groupby(["chain", "address"]).size().rename("n_rows").reset_index()
     taken, parts = set(), []
     for stratum, n in MAIN_PLAN.items():
         d = pool[pool.stratum == stratum]
         d = d[np.array([k not in taken for k in zip(d.chain, d.address)], dtype=bool)]   # np: list rỗng sẽ chọn 0 cột
-        rows = d.groupby(["chain", "address"]).size().rename("n_rows").reset_index()
-        u = d.drop_duplicates(["chain", "address"]).merge(rows, on=["chain", "address"], how="left")
+        u = d.drop_duplicates(["chain", "address"]).merge(rows_all, on=["chain", "address"], how="left")
         taken |= set(zip(u.chain, u.address))
         u["cell"] = stratum + "|" + u.chain + "|" + np.where(u.flag, "F", "u")
         u["rank"] = u.groupby("cell").cumcount()
@@ -397,6 +398,11 @@ def draw_main(ds: pd.DataFrame, seed: int = 0, n_double: int = 200) -> pd.DataFr
     out = out.iloc[np.random.default_rng(seed + 1).permutation(len(out))].reset_index(drop=True)
     out["double"] = False
     out.loc[out.sample(min(n_double, len(out)), random_state=seed + 2).index, "double"] = True
+    # Danh sách bù (rút sẵn, thứ tự cố định): nếu cổng κ ở 50 mẫu đầu bị dừng thì 50 mẫu gán đôi đã dùng để sửa codebook bị bỏ,
+    # và thay bằng các mẫu đơn có `double_extra_rank` nhỏ nhất (CODEBOOK §7.4). -1 = đã là mẫu gán đôi.
+    rest = out.index[~out.double.to_numpy()]
+    out["double_extra_rank"] = -1
+    out.loc[rest[np.random.default_rng(seed + 4).permutation(len(rest))], "double_extra_rank"] = np.arange(len(rest))
     out.insert(0, "item_id", [f"G{i + 1:03d}" for i in range(len(out))])
     return out
 
@@ -467,6 +473,23 @@ def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame]) -> pd.DataFr
     return items.astype(object).where(items.notna() & (items != ""), "-")
 
 
+MAIN_DROP_COLS = ["redeploy", "delegate_symexec_transfer", "delegate_known_wallet"]
+
+
+def write_delegate_lookup(items: pd.DataFrame) -> pd.DataFrame:
+    """Bảng tra delegate EIP-7702 (CODEBOOK §5 ca 13): mỗi (chain, delegate) xuất hiện trong mẫu chính một dòng. A và B cùng phân loại
+    TRƯỚC khi gán, mỗi người một cột (class_A, class_B), đọc mã nguồn đã verify hoặc nhãn explorer, KHÔNG dùng symexec; bất đồng thì
+    thống nhất vào final_class. Lớp: legit_wallet / forwarder_sweeper / unknown. Không chứa nhãn mẫu."""
+    d = items[items.delegate_7702.notna() & (items.delegate_7702 != "-")]
+    t = (d.groupby(["chain", "delegate_7702"]).agg(n_items=("item_id", "size"))
+         .reset_index().rename(columns={"delegate_7702": "delegate"}).sort_values("n_items", ascending=False))
+    t["explorer_url"] = [EXPLORERS[c] + a for c, a in zip(t.chain, t.delegate)]
+    for c in ("class_A", "class_B", "final_class", "source", "note"):
+        t[c] = ""
+    t.to_csv(GOLD_DIR / "delegate_lookup.csv", index=False, encoding="utf-8")
+    return t
+
+
 def cmd_main(seed: int = 0, n_double: int = 200) -> pd.DataFrame:
     import hashlib
     from address_misuse.config import FINAL_DIR
@@ -479,12 +502,17 @@ def cmd_main(seed: int = 0, n_double: int = 200) -> pd.DataFrame:
     reserve = draw_reserve(ds, seed)
     items = main_evidence(sample, load_sources())
     GOLD_DIR.mkdir(parents=True, exist_ok=True)
+    write_delegate_lookup(items)
+    # Bỏ cột không giúp gán nhãn mà chỉ lặp lại đặc trưng của engine hoặc chỉ có ở dương:
+    # `redeploy` (không giải thích ở codebook, 20% dương / 1% âm), `delegate_symexec_transfer` (True ở cả 264 mẫu 7702, là đặc trưng
+    # DELEGATE_TRANSFER của engine), `delegate_known_wallet` (rỗng ở mọi mẫu; thay bằng bảng tra delegate_lookup.csv).
+    items = items.drop(columns=MAIN_DROP_COLS)
     items.to_csv(GOLD_DIR / "main_items.csv", index=False, encoding="utf-8")
     keycols = ["item_id", "sample_id", "stratum", "grp", "chain", "address", "label", "label_source", "split",
                "out_of_time", "needs_review", "flag", "cell", "cell_n", "cell_rows", "k", "n_rows", "w_addr", "w_row",
-               "double"]
+               "double", "double_extra_rank"]
     sample[keycols].to_csv(GOLD_DIR / "main_key.csv", index=False, encoding="utf-8")
-    reserve[keycols[:-3] + ["batch", "double"]].to_csv(GOLD_DIR / "main_reserve_key.csv", index=False, encoding="utf-8")
+    reserve[keycols[:-4] + ["batch", "double"]].to_csv(GOLD_DIR / "main_reserve_key.csv", index=False, encoding="utf-8")
     print(f"Ghi {len(items)} mẫu lô 1 ({int(sample.double.sum())} gán đôi để tính κ) → {GOLD_DIR / 'main_items.csv'} "
           f"(+ main_key.csv); dự phòng lô 2: {len(reserve)} âm ({reserve.batch.max()} lô × {RESERVE_BATCH}) → main_reserve_key.csv")
     for f in ("main_items.csv", "main_key.csv", "main_reserve_key.csv"):
@@ -501,43 +529,44 @@ CHOICES = {"is_misuse": ["1", "0", "?"], "type": ["T1", "T2", "T3", "T4", "T5", 
            "confidence": ["high", "medium", "low"]}
 SHEET = "Gan_nhan"
 GUIDE = [
-    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.4 §2–§6; đọc bản đầy đủ nếu phân vân)",
+    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.5 §2–§6; đọc bản đầy đủ nếu phân vân)",
     "",
-    "Quy tắc: gán ĐỘC LẬP. Không xem pilot50_key.csv, file của người gán kia, hay CODEBOOK §10 trước khi xong.",
+    "Quy tắc: gán ĐỘC LẬP. Không xem *_key.csv, file của người gán kia, dataset_v2.parquet, engine_eval.parquet hay CODEBOOK §10 trước khi xong.",
     "Chỉ điền các cột màu vàng ở sheet Gan_nhan. Các cột còn lại là bằng chứng; ô '-' = không tra được, không suy ra gì.",
-    "Trạng thái code là HIỆN TẠI. Khi kết luận phụ thuộc thời điểm (T4, PCD) hãy xem first_tx_date hoặc mở explorer_url.",
+    "Các cột code_<chain> là trạng thái HIỆN TẠI. Khi kết luận phụ thuộc thời điểm (T4, NCD/PCD) hãy dùng code_at_event / own_create_date hoặc mở explorer.",
     "",
-    "is_misuse: 1 / 0 / ?   (? chỉ khi thiếu bằng chứng, tối đa 5 mẫu)",
+    "is_misuse: 1 / 0 / ?   (? chỉ khi không mở được explorer; tối đa khoảng 10% số mẫu của bạn)",
     "type: một type chính T1…T6, hoặc NONE khi is_misuse = 0",
-    "  T1 gọi hàm tới địa chỉ không có code (NCD), không có contract cùng địa chỉ ở chain khác deploy TRƯỚC tx",
-    "  T2 PCD: tx THÀNH CÔNG tới contract người dùng không định gọi (hố đen hoặc cài sẵn chiếm tiền); cờ symexec chỉ là gợi ý",
+    "  T1 gọi hàm tới địa chỉ không có code tại at (NCD, hoặc PCD của tác giả: contract chỉ xuất hiện SAU tx), không có contract cùng địa chỉ ở chain khác deploy TRƯỚC tx",
+    "  T2 tx THÀNH CÔNG tới địa chỉ CÓ code tại at mà người dùng không định gọi (hố đen hoặc cài sẵn chiếm tiền); cờ symexec chỉ là gợi ý",
     "  T3 gửi token vào chính contract token đó",
     "  T4 NCD trên chain này + cùng địa chỉ có code ở chain khác, deploy TRƯỚC tx đầu tiên (ghi xc_chain)",
     "  T5 key lộ / sweeper / EIP-7702 delegate độc (ADDR cũng T5 nếu tiền bị sweeper rút)",
     "  T6 address poisoning (trùng 4 ký tự đầu + 4 cuối, có tx mồi giá trị 0)",
     "  Ưu tiên: T4 > T1; T5 > T6",
-    "subtype: NCD / PCD / KEY / ADDR / 7702 / -",
+    "subtype: NCD / PCD / KEY / ADDR / 7702 / -   (T1/T4: PCD nếu contract tại địa chỉ này được tạo SAU tx, NCD nếu không; T2 thường '-')",
     "xc_chain: chỉ với T4, tên chain có contract gốc (eth, bsc, arb, op, base, polygon…); còn lại '-'",
     "malicious: 1 = đã thấy tiền về ví bên thứ ba; 0 = đã kiểm tra và không có; ? = chưa thấy nhưng có dấu hiệu; - = mẫu âm",
-    "confidence: high / medium / low (mức chắc chắn của chính bạn)",
+    "confidence: high / medium / low (mức chắc chắn của chính bạn). high chỉ khi đã mở explorer xem tx; chỉ dựa vào cột bằng chứng thì tối đa medium",
     "evidence: bằng chứng đã dùng, ví dụ: code, timing, tx, symexec, label",
     "note: BẮT BUỘC khi confidence = low, is_misuse = ?, hoặc mẫu là ca khó (CODEBOOK §5)",
     "",
     "Cây quyết định (CODEBOOK §4):",
-    "1. Địa chỉ có code trên chain này lúc tx?  Không → 2;  Có → 4",
-    "2. Tx gọi hàm / hành vi chỉ hợp lý với contract?  Không → 5;  Có → 3",
-    "3. Cùng địa chỉ có code ở chain khác deploy TRƯỚC tx đầu tiên?  Có → T4;  deploy SAU → T1 (note 'xc deployed_after');  không rõ → T1",
+    "1. Địa chỉ có code trên chain này lúc tx (code_at_event)?  Không → 2;  Có → 4",
+    "2. Tx gọi hàm thật (selector 4 byte)?  Không (chuyển coin thuần, event topic, văn bản) → 5;  Có → 3",
+    "3. Cùng địa chỉ có code ở chain khác deploy TRƯỚC tx đầu tiên?  Có → T4;  deploy SAU → T1 (note 'xc deployed_after');  không có contract ở chain khác → T1;",
+    "   có contract ở chain khác nhưng không tra được ngày tạo → T4, confidence low",
     "4. Code là contract người dùng định gọi và gọi đúng hàm → NONE;  là 7702 (0xef0100…) → 5;",
-    "   không phải contract định gọi: tx THÀNH CÔNG (Status = Success) mà tiền bị giữ/chuyển đi → T2 (PCD);  tx lỗi (Fail) → NONE",
+    "   không phải contract định gọi: tx THÀNH CÔNG (Status = Success) mà tiền bị giữ/chuyển đi → T2;  tx lỗi (Fail) → NONE",
     "   Cờ symexec KHÔNG đủ để gán T2. Token / proxy / LP được gọi đúng hàm (approve, transfer, swap…) → NONE",
-    "5. EOA: thấy tiền vào rồi bị rút ≤ 10 phút về ví lạ (≥ 2 lần) / delegate độc → T5;  giống địa chỉ quen + tx mồi → T6;  ví thường/sàn/smart wallet hợp lệ → NONE",
+    "5. EOA: thấy tiền vào rồi bị rút ≤ 10 phút về ví lạ (≥ 2 lần, xét cả lịch sử SAU at) → T5/KEY;  delegate 7702: theo bảng delegate_lookup.csv;",
+    "   giống địa chỉ quen + tx mồi → T6;  ví thường/sàn/smart wallet hợp lệ → NONE",
     "",
     "Ca khó hay gặp (CODEBOOK §5):",
     "- xc_timing = deployed_after → T1, không phải T4.  xc_timing = unknown → mở explorer chain kia; vẫn không biết → T4, confidence low.",
     "- Cùng contract trên mọi chain kể cả chain này (Multicall3, Permit2, Safe, EntryPoint…) → âm.",
     "- Gửi nhầm tới predeploy của chain KHÁC (ví dụ 0x4200…0006 trên ETH) → T4.  Precompile/system contract của chính chain → thường âm.",
-    "- 7702 tới smart wallet hợp lệ (delegate_known_wallet có tên) và chủ ví vẫn rút tiền bình thường → âm.",
-    "  delegate_symexec_transfer = True KHÔNG có nghĩa là độc; phải xem tiền thực tế đi đâu.",
+    "- 7702 tới smart wallet hợp lệ và chủ ví vẫn rút tiền bình thường → âm.  Phải xem tiền thực tế đi đâu, không suy ra từ symexec.",
     "- Ví sàn auto-sweep về ví tổng của sàn → âm.  Tx chỉ mất gas tới NCD vẫn là misuse.  Calldata là văn bản hoặc event topic → xét như chuyển tiền thường (bước 5).",
     "Chi tiết từng bước, ví dụ mẫu đã gán và quy tắc mặc định khi phân vân: CODEBOOK §4.1.",
     "",
@@ -546,30 +575,34 @@ GUIDE = [
 
 
 GUIDE_MAIN = [
-    "MẪU CHÍNH: mỗi dòng là một địa chỉ TẠI THỜI ĐIỂM at_date (không phải trạng thái hôm nay). Hãy xét đúng tx có tx_hash.",
-    "tx_hash / selector / value_native = tx đi vào địa chỉ tại at_date (selector '-' nghĩa là chuyển coin thuần, không calldata).",
+    "MẪU CHÍNH (CODEBOOK v0.5): mỗi dòng là một địa chỉ TẠI THỜI ĐIỂM at_date. Xét tx có tx_hash (cột tx_url mở thẳng tx).",
+    "tx_hash / selector / value_native = tx đi vào địa chỉ tại at_date (selector '-' = chuyển coin thuần, không calldata).",
     "code_at_event = trạng thái code lúc at_date (none / code / 7702); own_create_date = ngày contract được tạo trên chain này.",
-    "Contract tạo SAU at_date nghĩa là lúc đó địa chỉ chưa có code: tx lúc đó là gọi tới địa chỉ trống (CODEBOOK §3).",
-    "LƯU Ý: với mẫu chính, dùng code_at_event. Các cột code_eth, code_bsc… vẫn là trạng thái HIỆN TẠI (dòng 'Trạng thái code là HIỆN TẠI'",
-    "bên dưới chỉ áp dụng cho các cột đó). first_tx_date / xc_timing có thể '-': mở explorer_url để xem.",
-    "Dấu '?' ở mẫu chính: tối đa khoảng 10% số mẫu bạn gán (không phải 5 mẫu như pilot).",
+    "Contract tạo SAU at_date: lúc đó địa chỉ chưa có code → nhánh NCD (T1/T4); subtype PCD nếu contract xuất hiện sau (CODEBOOK §4.1 bước B).",
+    "Với EOA (KEY/ADDR/7702): được dùng TOÀN BỘ lịch sử của địa chỉ, kể cả sau at_date, để nhận ra sweeper; nhãn áp cho địa chỉ tại at_date.",
+    "7702: tra data/gold/delegate_lookup.csv (đã phân loại delegate) trước khi quyết định (CODEBOOK §5 ca 13).",
+    "Thứ tự: làm file 'double' TRƯỚC; file 'single' chỉ làm sau khi κ của 50 mẫu đầu được kiểm (CODEBOOK §7.4). Mỗi phiên tối đa ~40 mẫu.",
     "",
 ]
 
 
-def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False) -> None:
+def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_single: bool = False) -> None:
     """File Excel cho người gán `who`: bằng chứng (đã làm mù) + cột nhãn có danh sách chọn + sheet hướng dẫn."""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.datavalidation import DataValidation
     items = pd.read_csv(GOLD_DIR / ("pilot50_items.csv" if which == "pilot" else "main_items.csv"), dtype=str).fillna("-")
-    if only_double:                                      # người gán thứ hai chỉ làm tập gán đôi (để tính κ)
+    if only_double and only_single:
+        raise SystemExit("chọn một trong --only-double / --only-single")
+    if only_double or only_single:                       # cả hai người làm tập gán đôi trước; tập đơn chỉ làm sau khi kiểm κ 50 mẫu đầu
         key = pd.read_csv(GOLD_DIR / "main_key.csv", dtype=str)
-        items = items[items.item_id.isin(key[key.double == "True"].item_id)].reset_index(drop=True)
+        dbl = key.double == "True"
+        items = items[items.item_id.isin(key[dbl if only_double else ~dbl].item_id)].reset_index(drop=True)
     evidence = [c for c in items.columns if c not in ("item_id", "chain", "address")]
     cols = ["item_id", "chain", "address", *LABEL_COLS, *evidence]
-    out = GOLD_DIR / (f"annotator_{who}.xlsx" if which == "pilot" else f"annotator_main_{who}.xlsx")
+    part = "_double" if only_double else "_single" if only_single else ""
+    out = GOLD_DIR / (f"annotator_{who}.xlsx" if which == "pilot" else f"annotator_main{part}_{who}.xlsx")
     if out.exists():
         raise SystemExit(f"{out} đã có, không ghi đè (có thể đã có nhãn). Xoá/đổi tên trước nếu muốn tạo lại.")
     wb = Workbook()
@@ -673,7 +706,35 @@ def cohen_kappa(a: list, b: list) -> float:
     return 1.0 if pe == 1 else (po - pe) / (1 - pe)
 
 
-def cmd_kappa(path_a: str, path_b: str) -> dict[str, float]:
+def pabak(a: list, b: list) -> float:
+    """Prevalence-adjusted bias-adjusted κ = 2·po − 1 (hai lớp). κ thấp giả khi tỉ lệ dương lệch (ở đây ~58% dương)."""
+    return 2 * sum(x == y for x, y in zip(a, b)) / len(a) - 1
+
+
+def gwet_ac1(a: list, b: list) -> float:
+    """Gwet's AC1 cho hai người gán, nhãn danh định: bền hơn κ khi mẫu lệch lớp."""
+    cats = sorted(set(a) | set(b), key=str)
+    n, q = len(a), len(cats)
+    po = sum(x == y for x, y in zip(a, b)) / n
+    pi = [(a.count(c) + b.count(c)) / (2 * n) for c in cats]
+    pe = sum(p * (1 - p) for p in pi) / (q - 1) if q > 1 else 0.0
+    return 1.0 if pe == 1 else (po - pe) / (1 - pe)
+
+
+def cluster_boot_ci(a: list, b: list, clusters: list, stat=cohen_kappa, boot: int = 2000, seed: int = 0) -> list[float]:
+    """CI 95% (percentile) của `stat` khi lấy lại mẫu THEO CỤM (ví dụ cùng delegate 7702 hoặc cùng deployer): mẫu cùng cụm không độc lập."""
+    rng = np.random.default_rng(seed)
+    codes = pd.factorize(pd.Series(clusters))[0]
+    idx = [np.flatnonzero(codes == c) for c in range(codes.max() + 1)]
+    a, b = np.array(a, dtype=object), np.array(b, dtype=object)
+    out = []
+    for _ in range(boot):
+        i = np.concatenate([idx[j] for j in rng.integers(0, len(idx), len(idx))])
+        out.append(stat(a[i].tolist(), b[i].tolist()))
+    return [float(np.quantile(out, .025)), float(np.quantile(out, .975))]
+
+
+def cmd_kappa(path_a: str, path_b: str, items_csv: str | None = None, key_csv: str | None = None) -> dict[str, float]:
     a = read_labels(path_a)
     b = read_labels(path_b)
     j = a.merge(b, on="item_id", suffixes=("_A", "_B"))
@@ -681,13 +742,34 @@ def cmd_kappa(path_a: str, path_b: str) -> dict[str, float]:
         diff = j[j.address_A.str.lower() != j.address_B.str.lower()]
         if len(diff):
             raise SystemExit(f"{len(diff)} item_id trỏ tới địa chỉ khác nhau, ví dụ {diff.item_id.iloc[0]}: hai file không cùng bộ mẫu")
-    j = j[(j.is_misuse_A != "") & (j.is_misuse_B != "")]
+    j = j[(j.is_misuse_A != "") & (j.is_misuse_B != "")].reset_index(drop=True)
+    clusters = list(range(len(j)))                               # mặc định: từng mẫu là một cụm
+    if items_csv:                                                # cụm = delegate 7702, rồi deployer, rồi từng địa chỉ
+        it = pd.read_csv(items_csv, dtype=str).set_index("item_id")
+        def cl(i):
+            r = it.loc[i] if i in it.index else None
+            for c in ("delegate_7702", "deployer"):
+                if r is not None and str(r.get(c, "-")) not in ("-", "nan"):
+                    return f"{c}:{r[c]}"
+            return f"item:{i}"
+        clusters = [cl(i) for i in j.item_id]
     out = {}
     for col in ("is_misuse", "type"):
         x = j[f"{col}_A"].str.strip().str.upper().tolist()
         y = j[f"{col}_B"].str.strip().str.upper().tolist()
         out[col] = cohen_kappa(x, y)
-        print(f"κ({col}) = {out[col]:.3f} trên {len(j)} mẫu, đồng ý {sum(p == q for p, q in zip(x, y))}/{len(j)}")
+        ci = cluster_boot_ci(x, y, clusters)
+        print(f"κ({col}) = {out[col]:.3f} [CI95 theo cụm {ci[0]:.3f}–{ci[1]:.3f}] trên {len(j)} mẫu, đồng ý {sum(p == q for p, q in zip(x, y))}/{len(j)}"
+              f"; Gwet AC1 {gwet_ac1(x, y):.3f}" + (f"; PABAK {pabak(x, y):.3f}" if col == "is_misuse" else ""))
+    q = (j.is_misuse_A.str.upper() == "?") | (j.is_misuse_B.str.upper() == "?")
+    if q.any():
+        x, y = j.loc[~q, "is_misuse_A"].str.upper().tolist(), j.loc[~q, "is_misuse_B"].str.upper().tolist()
+        print(f"  bỏ {int(q.sum())} mẫu có '?': κ(is_misuse) = {cohen_kappa(x, y):.3f} trên {len(x)} mẫu")
+    if key_csv:                                                  # % đồng ý theo tầng (chỉ người thiết kế mới được mở file khoá)
+        k = pd.read_csv(key_csv, dtype=str)[["item_id", "stratum"]]
+        g = j.merge(k, on="item_id")
+        g["same"] = g.is_misuse_A.str.upper() == g.is_misuse_B.str.upper()
+        print("  % đồng ý is_misuse theo tầng: " + ", ".join(f"{s} {m.mean():.0%} ({len(m)})" for s, m in g.groupby("stratum").same))
     dis = j[(j.is_misuse_A.str.upper() != j.is_misuse_B.str.upper()) | (j.type_A.str.upper() != j.type_B.str.upper())]
     if len(dis):
         print("\nBất đồng cần phân xử:")
@@ -706,12 +788,15 @@ def main():
     sh.add_argument("who", nargs="?", default="B")
     sh.add_argument("--set", choices=["pilot", "main"], default="pilot")
     sh.add_argument("--only-double", action="store_true")
+    sh.add_argument("--only-single", action="store_true")
     mn = sub.add_parser("main")
     mn.add_argument("--seed", type=int, default=0)
     mn.add_argument("--double", type=int, default=200)
     k = sub.add_parser("kappa")
     k.add_argument("a")
     k.add_argument("b")
+    k.add_argument("--items", help="main_items.csv: bootstrap CI theo cụm delegate/deployer")
+    k.add_argument("--key", help="main_key.csv: thêm % đồng ý theo tầng (chỉ người thiết kế)")
     args = ap.parse_args()
     if args.cmd == "pilot":
         cmd_pilot(args.seed)
@@ -720,9 +805,9 @@ def main():
     elif args.cmd == "main":
         cmd_main(args.seed, args.double)
     elif args.cmd == "sheet":
-        cmd_sheet(args.who, args.set, args.only_double)
+        cmd_sheet(args.who, args.set, args.only_double, args.only_single)
     else:
-        cmd_kappa(args.a, args.b)
+        cmd_kappa(args.a, args.b, args.items, args.key)
 
 
 if __name__ == "__main__":
