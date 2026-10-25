@@ -153,3 +153,21 @@ Danh sách điểm mơ hồ gặp khi gán pilot. Chưa sửa quy tắc; cần t
 3. **Calldata là event payload có tính là "gọi hàm" không?** Ví dụ `0xddf252ad…` là topic của event `Transfer`, không phải selector hàm. Gợi ý: không tính, nên một tx như vậy không đủ để gán misuse theo §1 ("≥ 1 tx misuse rõ ràng"). Dẫn chứng: P009.
 4. **Thứ tự ưu tiên KEY và 7702** khi EOA vừa lộ key vừa bị gắn delegate sweeper (các tx rút ký bằng key, delegation gắn sau). Gợi ý: `subtype = 7702` nếu địa chỉ hiện đang delegate (code `0xef0100…`), kèm note "KEY?" nếu tx rút ký bằng key chủ. Cả hai đều là T5 nên không ảnh hưởng κ của `type`, chỉ ảnh hưởng κ của `subtype`.
 5. **Tiêu chí `malicious = 1` khi chưa thấy tx rút.** (a) Delegate độc nhưng chưa có sweep thực tế; (b) ví delegate vẫn hoạt động bình thường (DEX, bridge) và không có dấu hiệu rút về ví lạ. Cần quy tắc rõ khi nào vẫn gán T5 và `confidence` mặc định là gì. Dẫn chứng: P030, P034, P045, P050 (và P020, P043 ở mức nhẹ hơn).
+
+### 10.1. Đề xuất xử lý cho agenda trên (2026-10-25, **chưa áp dụng**, chờ buổi phân xử)
+
+Nên chốt 5 điểm này TRƯỚC khi gán 605 mẫu chính, vì chúng đổi nhãn của một số mẫu (đặc biệt PCD, 7702 và T4 testnet).
+Mỗi đề xuất cố ý khớp với cách engine và đặc tả đang làm, để nhãn người và nhãn máy không lệch vì định nghĩa.
+
+1. **T2:** định nghĩa lại là "địa chỉ có code mà người dùng không định gọi, và tiền gửi vào không về lại cho người dùng"
+   (hố đen HOẶC contract cài sẵn rút về ví kẻ cài). Phân biệt hai trường hợp bằng `malicious`: `0` = hố đen không đường rút,
+   `1` = cài sẵn chiếm tiền. `type` giữ nguyên là T2 nên không ảnh hưởng κ(type); §3 và §4 hết mâu thuẫn.
+2. **Testnet làm chain gốc cho T4:** có tính (khớp RISK_SCORE §2.2 và `crosschain_matrix`, có `bsc_testnet`, `sepolia` trong 8 mạng).
+   Ghi `xc_chain` là tên testnet; không tra được ngày tạo thì `confidence = low`.
+3. **Calldata là event topic hay văn bản** (ví dụ `0xddf252ad…`, hoặc ASCII như `0x64617461` = "data"): không tính là gọi hàm
+   (khớp bộ lọc IDM của tác giả trong engine). Tx như vậy không đủ để gán misuse; nếu đó là tx duy nhất trong mẫu thì `is_misuse = 0`.
+4. **KEY và 7702:** `subtype = 7702` nếu địa chỉ đang delegate (code `0xef0100…`) tại thời điểm xét; ghi note "KEY?" nếu tx rút ký bằng
+   key chủ. `type` luôn là T5.
+5. **`malicious` khi chưa thấy tx rút:** gán `T5` khi delegate nằm trong danh sách đen hoặc không có tên ví hợp lệ (`delegate_known_wallet = -`).
+   `malicious = 1` chỉ khi thấy tiền thực sự bị rút về ví lạ; nếu không thấy thì `malicious = 0` và `confidence = low`, kèm note.
+   Delegate có tên ví hợp lệ mà chủ ví dùng bình thường (DEX, bridge) → âm (§5 ca 6).

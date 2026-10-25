@@ -872,3 +872,12 @@ Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn
 - Rà soát nốt: `wallet/proxy.py` (giải mã RLP các loại tx 0–4 đúng; sửa: lỗi `store.check` giờ chuyển tiếp thay vì làm ví mất
   kết nối), `wallet/bench.py`, `reproduce_symexec.py`, `seed.py`, `etherscan.py`, `bq_fetch.py` không có lỗi. README ghi sai
   "39 passed" và thiếu module (đã sửa); DATASHEET ghi rõ mục 2–7 là v1.
+
+## 2026-10-25 — Rà soát lần 5: tài liệu lệch code, hướng dẫn mẫu chính tự mâu thuẫn
+- `RISK_SCORE.md` lỗi thời (S_osint nhị phân, τ_warn trên N2+N3+N8, w không xác định, các mục cần làm đã xong): đã cập nhật.
+- Sheet hướng dẫn của Excel mẫu chính vừa nói "tại thời điểm at_date" vừa nói "trạng thái code là HIỆN TẠI", và giới hạn dấu `?`
+  là 5 mẫu (đúng với pilot 50, quá chặt với 605). Đã sửa `GUIDE_MAIN`, giải thích `tx_hash/selector/value_native`, nói rõ chỉ cột
+  `code_<chain>` mới là trạng thái hiện tại. Chưa gửi file Excel chính nào nên không cần sinh lại.
+- `CODEBOOK.md` §10 còn 5 điểm mơ hồ chưa chốt (T2 §3 vs §4, testnet, event topic, KEY vs 7702, `malicious`): thêm §10.1 đề xuất;
+  **nên chốt trước khi gán 605 mẫu**. Đính chính: trước đó mình nói có thể gán ngay mà không cần đợi pilot κ, nhưng 5 điểm này
+  ảnh hưởng nhãn một số mẫu, nên cần chốt codebook v0.4 trước.

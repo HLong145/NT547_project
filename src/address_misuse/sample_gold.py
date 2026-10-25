@@ -468,9 +468,13 @@ GUIDE = [
 
 
 GUIDE_MAIN = [
-    "MẪU CHÍNH: mỗi dòng là một địa chỉ TẠI THỜI ĐIỂM at_date (không phải trạng thái hôm nay). Nếu có tx_hash, hãy xét đúng tx đó.",
+    "MẪU CHÍNH: mỗi dòng là một địa chỉ TẠI THỜI ĐIỂM at_date (không phải trạng thái hôm nay). Hãy xét đúng tx có tx_hash.",
+    "tx_hash / selector / value_native = tx đi vào địa chỉ tại at_date (selector '-' nghĩa là chuyển coin thuần, không calldata).",
     "code_at_event = trạng thái code lúc at_date (none / code / 7702); own_create_date = ngày contract được tạo trên chain này.",
     "Contract tạo SAU at_date nghĩa là lúc đó địa chỉ chưa có code: tx lúc đó là gọi tới địa chỉ trống (CODEBOOK §3).",
+    "LƯU Ý: với mẫu chính, dùng code_at_event. Các cột code_eth, code_bsc… vẫn là trạng thái HIỆN TẠI (dòng 'Trạng thái code là HIỆN TẠI'",
+    "bên dưới chỉ áp dụng cho các cột đó). first_tx_date / xc_timing có thể '-': mở explorer_url để xem.",
+    "Dấu '?' ở mẫu chính: tối đa khoảng 10% số mẫu bạn gán (không phải 5 mẫu như pilot).",
     "",
 ]
 

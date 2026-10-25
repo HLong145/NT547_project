@@ -1,4 +1,6 @@
-# Đặc tả Risk Score R(A, C) — Module 2 (bản nháp v0.1, 2026-10-19)
+# Đặc tả Risk Score R(A, C) — Module 2 (v0.1 2026-10-19; trạng thái cài đặt cập nhật 2026-10-25)
+
+> **Đọc trước:** bảng thành phần dưới đây là đặc tả ban đầu. Bản đang chạy khác ở ba điểm: (1) `S_osint` nhị phân (khoá lộ = 1, có trong `candidate_addresses` = 1 − e^(−1/k), còn lại 0); đặc trưng GitHub D7 không được nối vì AUC ≈ 0,5 và đổi dấu giữa train/val/test (FINDINGS_LOG 2026-10-25); (2) τ_warn chọn trên N2 + N3 + N8, không chỉ N8; (3) `w` học trên mẫu không dính luật cứng và **không xác định duy nhất** (đổi l2 thì w đổi mạnh, kết quả test gần như không đổi: `engine.verify_independent`).
 
 Công thức theo [requirements.md](requirements.md) §3.2 và [PLAN_V2.md](PLAN_V2.md) §3:
 
@@ -92,8 +94,8 @@ Phụ thuộc D1 (tx thô ETH qua BigQuery hoặc Etherscan, BSC qua NodeReal). 
    - Báo cáo thêm bản xác suất đã hiệu chỉnh `σ(β₀ + Σβ_i S_i)` để so sánh.
    - Nếu một β về 0, ghi nhận thành phần đó không đóng góp.
 4. **Ngưỡng (trên val):**
-   - `τ_warn`: FPR ≤ 1% trên N8 (giao dịch bình thường).
-   - `τ_block`: precision ≥ 0,95 (*).
+   - `τ_warn`: FPR ≤ 1% trên lưu lượng bình thường N2 + N3 + N8 (không dính luật cứng).
+   - `τ_block`: nhỏ nhất sao cho precision ≥ 0,95 và không báo nhầm âm val nào (FPR ≤ 0,1%).
 5. **Ablation:** bỏ từng S_i; chỉ dùng S_cross (tương đương heuristic cross-chain); chỉ dùng rule gốc của Shao et al.
 6. **Chỉ số trên test:** P/R/F1/FPR theo Type và chain, ROC/PR, bootstrap CI (PLAN_V2 §4).
 
@@ -139,11 +141,14 @@ def score(address: str, chain: str, at: int | None = None, ctx: TxContext | None
   - [x] So contract giữa các chain: trùng hash **hoặc** Jaccard selector dispatcher ≥ 0,8 (`same_contract`). S_cross trung bình của N7 từ 0,17–0,20 về 0.
   - [x] Hoá ra 100% PCD có symexec; 258 contract thiếu là địa chỉ **NCD về sau mới được deploy**. `engine.prepare creation` lấy thời điểm tạo (Etherscan cho ETH, NodeReal cho BSC, 258/258) → `engine_creation.parquet`; khi `at` trước thời điểm tạo, địa chỉ được coi là chưa có code.
 - [x] Bước 2 (2026-10-23): lịch sử BSC (NodeReal), tập âm N2/N3/N4/N8, `engine/evaluate.py` chấm 4.364 mẫu theo thời gian (dương và âm cùng quy trình chọn `at`). Rà soát sửa 5 lỗi: BigQuery chỉ dùng cho địa chỉ đã truy vấn, bộ lọc IDM, 7702 trước kích hoạt, `at` của PCD, khoá lịch sử theo chain (FINDINGS_LOG 2026-10-23).
-- [ ] Trước khi học `w`: dựng lại danh sách đen delegate chỉ từ train; báo cáo KEY riêng (luật cứng); OSINT cùng quy trình cho mọi mẫu (D7) hoặc báo cáo kèm bản bỏ S_osint. ✅ Mốc chia D8 đã chốt (A + B, 2026-10-23).
-- [ ] Sau D5 + D8: học `w`, chọn ngưỡng, ablation.
-- [ ] Sau D7: S_osint có số repo và ngữ cảnh.
+- [x] Danh sách đen delegate: **không dựng được chỉ từ train** vì EIP-7702 kích hoạt 2025-05 (mọi mẫu 7702 nằm ở tập ngoài thời gian); nên luật cứng `malicious_delegate` ≈ định nghĩa nhãn ADDR, đã ghi trong `features.default_malicious_delegates` và báo cáo "R-only".
+- [x] Báo cáo KEY/ADDR riêng (luật cứng) và "R-only" (mẫu không dính luật cứng) trong `engine.metrics`. ✅ Mốc chia D8 chốt (2026-10-23).
+- [x] D8 xong: học `w`, chọn ngưỡng, ablation, GoPlus, replay ví (nhãn tạm = nhãn luật của tác giả).
+- [x] D7: tra GitHub xong; kết luận không nối vào S_osint (không phân biệt dương/âm).
+- [ ] Chạy lại toàn bộ với nhãn vàng D5 (605 mẫu) và dương D6 đã duyệt tay.
 
 ## Lịch sử
 
 - **v0.1 (2026-10-19):** bản nháp đầu.
 - **2026-10-22:** cài đặt `engine/` theo v0.1.
+- **2026-10-25:** cập nhật trạng thái; thêm ghi chú lệch giữa đặc tả và bản chạy (S_osint, τ_warn, w).
