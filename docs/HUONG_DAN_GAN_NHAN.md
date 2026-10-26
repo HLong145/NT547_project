@@ -1,5 +1,7 @@
 # Hướng dẫn gán nhãn (pilot 50 mẫu)
 
+> **ĐÃ CŨ, KHÔNG DÙNG cho mẫu chính.** Trang này chỉ dùng cho pilot (codebook v0.3) và mâu thuẫn với quy tắc hiện hành (ví dụ T2/PCD, `deployed_before`, `first_tx_date`). Mẫu chính dùng [CODEBOOK.md](CODEBOOK.md) v0.6.
+
 Tóm tắt một trang cho người gán nhãn. Định nghĩa đầy đủ và các ca khó: [CODEBOOK.md](CODEBOOK.md) (đọc §3, §4, §5 trước khi bắt đầu).
 
 ## Mục đích

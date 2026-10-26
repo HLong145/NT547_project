@@ -209,6 +209,26 @@ def test_gold_eval_string_flags_census_cells_and_row_unit():
     assert ge.evaluate(q, boot=5, unknown="drop")["n_labelled"] == 3
 
 
+def test_gold_eval_exclude_delegate_decided_keeps_weights():
+    from address_misuse import gold_eval as ge
+    rows = [{"item_id": f"P{i}", "cell": "+A|eth|u", "stratum": "+A", "flag": f, "gold": g, "n_rows": 1, "cell_n": 4,
+             "cell_rows": 4} for i, (f, g) in enumerate(((1, 1), (1, 1), (1, 0), (0, 1)))]
+    rows += [{"item_id": f"N{i}", "cell": "-N|eth|u", "stratum": "-N", "flag": int(i == 0), "gold": 0, "n_rows": 2,
+              "cell_n": 40, "cell_rows": 80} for i in range(4)]
+    df = pd.DataFrame(rows)
+    items = pd.DataFrame({"item_id": ["P0", "P1", "N0", "N1"], "code_at_event": ["7702", "none", "7702", "code"]})
+    ex = ge.delegate_decided(items)
+    assert ex == ["P0", "N0"]
+    d = ge.restrict_domain(ge.prepare(df), df.item_id.isin(ex))
+    w = ge.gold_weights(d)
+    assert set(w.item_id) == {"P1", "P2", "P3", "N1", "N2", "N3"}
+    assert (w.w_addr[w.stratum == "+A"] == 1).all() and w.census[w.stratum == "+A"].all()      # ô điều tra toàn bộ: vẫn w = 1
+    assert (w.w_addr[w.stratum == "-N"] == 10).all() and w.cell_n[w.stratum == "-N"].iloc[0] == 30   # trọng số không đổi
+    r = ge.evaluate(df, boot=10, exclude_items=ex)
+    assert r["n_labelled"] == 6 and abs(r["precision"] - 1 / 2) < 1e-9 and abs(r["fpr"] - 1 / 31) < 1e-9   # tn = 3 × 10
+    assert ge.evaluate(df, boot=10)["n_labelled"] == 8
+
+
 def test_final_gold_requires_adjudication_for_double_items():
     from address_misuse import gold_eval as ge
     df = pd.DataFrame({"double": [True, False, True], "gold_B": [1, 0, 1], "gold_adj": [0, None, None]})

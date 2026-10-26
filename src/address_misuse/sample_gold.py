@@ -11,7 +11,7 @@ python -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_A.csv dat
 - pilot50_items.csv       danh sách đã làm mù (không có tầng/nhãn tác giả), thứ tự xáo trộn, kèm bằng chứng
 - pilot50_key.csv         tầng lấy mẫu + nhãn tác giả (RQ1) — người gán KHÔNG mở file này
 - annotator_template.csv  cột cần điền theo docs/CODEBOOK.md §2
-Định nghĩa nhãn: docs/CODEBOOK.md.
+Định nghĩa nhãn (cho người gán): docs/CODEBOOK.md. Thiết kế mẫu, quy trình, báo cáo, hạn chế: docs/GOLD_PROTOCOL.md.
 """
 
 import argparse
@@ -244,7 +244,10 @@ def _transfer(flags: dict | None) -> bool | None:
 XC_ORIGIN_COLS = ["deployer", "create_kind", "origin_net", "first_create_ts", "first_tx_ts", "xc_timing", "redeploy"]
 
 
-def add_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], run_symexec: bool = True) -> pd.DataFrame:
+def add_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], run_symexec: bool = True,
+                 fallback: bool = True) -> pd.DataFrame:
+    """`fallback=False` (mẫu chính): KHÔNG điền sẵn trạng thái code từ ma trận / N7 khi RPC lỗi, vì hai nguồn đó chỉ có cho một số
+    tầng (ma trận = địa chỉ misuse của tác giả) nên ô được điền hay không sẽ làm lộ tầng. Lỗi RPC để None, nơi gọi phải xử lý."""
     keys = ["chain", "address"]
     m = s["matrix"].copy()
     ev = sample[keys].copy()
@@ -259,12 +262,15 @@ def add_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], run_symexec: 
     ev = ev.reindex(columns=keys + list(code_cols.values()) + ["xc_nets", "same_code_elsewhere", "delegate_7702"]
                     + XC_ORIGIN_COLS).astype(object)
 
-    n7 = s["n7"].set_index("address")
-    for i, r in ev.iterrows():                           # dự phòng khi RPC lỗi: N7 không nằm trong ma trận misuse
-        if r.address in n7.index and pd.isna(r.code_eth):
-            nets = n7.loc[r.address, "networks_with_code"].split(",")
-            for n in NETWORKS:
-                ev.at[i, f"code_{n}"] = "code" if n in nets else "none"
+    if fallback:
+        n7 = s["n7"].set_index("address")
+        for i, r in ev.iterrows():                       # dự phòng khi RPC lỗi: N7 không nằm trong ma trận misuse
+            if r.address in n7.index and pd.isna(r.code_eth):
+                nets = n7.loc[r.address, "networks_with_code"].split(",")
+                for n in NETWORKS:
+                    ev.at[i, f"code_{n}"] = "code" if n in nets else "none"
+    else:
+        ev[list(code_cols.values())] = None
     own_code = _probe_live(ev)
     own_state = [ev.at[i, f"code_{c}"] for i, c in zip(ev.index, ev.chain)]
 
@@ -327,7 +333,7 @@ def cmd_pilot(seed: int = 0) -> pd.DataFrame:
 
 # ---------------------------------------------------------------- mẫu vàng chính (từ dataset_v2)
 
-# Kế hoạch mẫu (tiền đăng ký, CODEBOOK §7.6). Đơn vị lấy mẫu là địa chỉ (chain, address); mỗi địa chỉ thuộc đúng một tầng
+# Kế hoạch mẫu (tiền đăng ký, GOLD_PROTOCOL §1). Đơn vị lấy mẫu là địa chỉ (chain, address); mỗi địa chỉ thuộc đúng một tầng
 # (tầng đầu tiên trong kế hoạch có địa chỉ đó). Tầng "+D6" = dương mới D6 (label_source == d6_rule).
 # Khung = test ∪ out_of_time của dataset_v2 (bỏ excluded): nhãn vàng dùng để chấm engine nên phải ở tập đánh giá.
 # - Dương (mọi tầng "+"): lấy HẾT (điều tra toàn bộ, trọng số 1).
@@ -399,7 +405,7 @@ def draw_main(ds: pd.DataFrame, seed: int = 0, n_double: int = 200) -> pd.DataFr
     out["double"] = False
     out.loc[out.sample(min(n_double, len(out)), random_state=seed + 2).index, "double"] = True
     # Danh sách bù (rút sẵn, thứ tự cố định): nếu cổng κ ở 50 mẫu đầu bị dừng thì 50 mẫu gán đôi đã dùng để sửa codebook bị bỏ,
-    # và thay bằng các mẫu đơn có `double_extra_rank` nhỏ nhất (CODEBOOK §7.4). -1 = đã là mẫu gán đôi.
+    # và thay bằng các mẫu đơn có `double_extra_rank` nhỏ nhất (GOLD_PROTOCOL §2.4). -1 = đã là mẫu gán đôi.
     rest = out.index[~out.double.to_numpy()]
     out["double_extra_rank"] = -1
     out.loc[rest[np.random.default_rng(seed + 4).permutation(len(rest))], "double_extra_rank"] = np.arange(len(rest))
@@ -446,51 +452,138 @@ def event_tx(chain: str, address: str, at) -> dict | None:
     return hit[0] if hit else None
 
 
-def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """Bằng chứng theo địa chỉ (`add_evidence`) + bằng chứng THEO THỜI ĐIỂM `at` của mẫu: ngày xét, trạng thái code lúc đó
-    (một PCD chưa có contract lúc `at` thì trạng thái là none), ngày tạo contract, tx (hash, selector, value) nếu là mẫu
-    theo tx. Không đưa nhãn, tầng, điểm R hay số liệu của tác giả cho người gán."""
-    from address_misuse.engine.features import FeatureStore
-    ev = add_evidence(sample[["chain", "address"]].drop_duplicates(), s)
-    fs = FeatureStore(load_history=False)
+SYMEXEC_COLS = [f"symexec_{f}" for f in SYMEXEC_FLAGS]
+LIVE_COLS = [f"code_{n}" for n in NETWORKS] + ["xc_nets", "same_code_elsewhere", "delegate_7702"] + SYMEXEC_COLS
+# Cột của main_items.csv (v0.6), đúng thứ tự. Mọi cột theo thời điểm tính bằng `gold_evidence` cho MỌI mẫu theo cùng quy tắc
+# (GOLD_PROTOCOL §3); cột có điều kiện chỉ phụ thuộc vào các cột khác người gán cũng thấy, không phụ thuộc tầng.
+MAIN_COLS = (["item_id", "chain", "address", "at_time", "tx_hash", "tx_url", "tx_status", "selector", "calldata_kind",
+              "calldata_len", "value_native", "code_at_event", "own_create_time", "creator"] + [f"code_{n}" for n in NETWORKS]
+             + ["xc_nets", "same_code_elsewhere", "delegate_7702", "xc_timing", "xc_create_time", "origin_net", "deployer"]
+             + SYMEXEC_COLS + ["explorer_url", "explorer_url_xc"])
+XC_COLS = ["xc_timing", "xc_create_time", "origin_net", "deployer", "explorer_url_xc"]
+
+
+def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], live_from: str | None = None) -> pd.DataFrame:
+    """Bằng chứng cho mẫu chính (CODEBOOK v0.6 §6, GOLD_PROTOCOL §3). Không đưa nhãn, tầng, điểm R hay số liệu của tác giả.
+
+    - Theo địa chỉ, trạng thái HÔM NAY (`LIVE_COLS`): getCode 8 mạng + symexec (`add_evidence`, không dùng nguồn dự phòng chỉ có ở
+      một số tầng). `live_from` = một main_items.csv cũ: dùng lại đúng các cột này (cùng một ảnh chụp cho mọi mẫu) thay vì tra lại,
+      để bảng tra delegate không đổi giữa hai phiên bản.
+    - Theo tx tại `at` (`gold_evidence`): giờ tx, trạng thái, selector, loại calldata, value; trạng thái code NGAY TRƯỚC tx
+      (`code_at_event`) và lúc tạo contract trên chain này (`own_create_time`, `creator`) tra cho MỌI mẫu;
+      contract cùng địa chỉ ở mạng khác so với tx tại `at` (`xc_*`) cho MỌI mẫu chain này không có code lúc tx mà mạng khác có code.
+    """
+    from address_misuse import gold_evidence as ge
+    keys = ["chain", "address"]
+    addrs = sample[keys].drop_duplicates()
+    if live_from:
+        old = pd.read_csv(live_from, dtype=str).fillna("-")
+        live = addrs.merge(old[keys + LIVE_COLS].drop_duplicates(keys), on=keys, how="left")
+        if live[LIVE_COLS].isna().any().any():
+            raise SystemExit(f"{live_from} thiếu cột trạng thái hôm nay cho một số địa chỉ: tra lại (bỏ --live-from)")
+    else:
+        live = add_evidence(addrs, s, fallback=False)[keys + LIVE_COLS]
+        bad = live[[f"code_{n}" for n in NETWORKS]].isna().any(axis=1)
+        if bad.any():                                    # không để ô trống không đều giữa các tầng: chạy lại khi RPC ổn định
+            raise SystemExit(f"getCode lỗi cho {int(bad.sum())} địa chỉ: chạy lại `sample_gold main`")
+    live = live.astype(object).where(live.notna() & (live != ""), "-")
+    sample = sample.merge(live, on=keys, how="left")
+    # dòng của dataset theo địa chỉ không lưu hash: khôi phục tx đi vào tại đúng `at` từ txlist (mọi mẫu đều phải có tx_hash)
+    sample["tx_hash"] = [h if isinstance(h, str) else ((event_tx(c, a, at) or {}).get("hash"))
+                         for h, c, a, at in zip(sample.tx_hash, sample.chain, sample.address, sample["at"])]
+
+    txs = ge.fetch_event_txs([(c, h) for c, h in zip(sample.chain, sample.tx_hash) if isinstance(h, str)])
+    own = ge.fetch_creations(list(zip(sample.chain, sample.address)))
     rows = []
-    for r in sample.itertuples():
-        f = fs.features(r.address, r.chain, int(r.at))
-        cts = fs.own_create.get((r.chain, r.address))
-        tx_hash, selector, value = (r.tx_hash if isinstance(r.tx_hash, str) else None, r.selector,
-                                    None if pd.isna(r.value_wei) else int(r.value_wei) / 1e18)
-        if tx_hash is None and (t := event_tx(r.chain, r.address, r.at)):       # mẫu theo địa chỉ: khôi phục tx tại `at`
-            inp = t.get("input") or "0x"
-            tx_hash, selector, value = t["hash"], inp[:10] if len(inp) >= 10 else None, int(t["value"]) / 1e18
-        rows.append({"item_id": r.item_id, "at_date": _date(r.at), "code_at_event": f.state() or "-",
-                     "own_create_date": _date(cts) if cts else None, "tx_hash": tx_hash, "selector": selector,
-                     "value_native": value})
-    items = sample[["item_id", "chain", "address"]].merge(pd.DataFrame(rows), on="item_id").merge(
-        ev, on=["chain", "address"], how="left")
-    # liên kết thẳng tới tx cần xem (tiết kiệm bước tìm tx trong danh sách của địa chỉ); mọi mẫu đều có tx_hash nên không lộ nhãn
-    items["tx_url"] = [EXPLORERS[c].replace("/address/", "/tx/") + h if isinstance(h, str) else None
-                       for c, h in zip(items.chain, items.tx_hash)]
+    for r in sample.to_dict("records"):
+        c, a, h, at = r["chain"], r["address"], r["tx_hash"], int(r["at"])
+        t = txs.get((c, h)) if isinstance(h, str) else None
+        cr = own.get((c, a))
+        if cr and cr.get("status") == "found" and t and cr.get("block") == t["block"]:
+            cr = ge.creation_index(c, cr)                # cùng block: cần vị trí trong block để biết cái nào trước
+        cae = ge.state_at_event(c, r[f"code_{c}"], at, t, cr)
+        found = bool(cr) and cr.get("status") == "found"
+        inp = t["input"] if t else None
+        row = {"item_id": r["item_id"], "at_time": ge.utc(at), "tx_hash": h if isinstance(h, str) else None,
+               "tx_url": EXPLORERS[c].replace("/address/", "/tx/") + h if isinstance(h, str) else None,
+               "tx_status": None if not t else ("success" if t["status"] == 1 else "fail"),
+               "selector": inp[:10] if inp and len(inp) >= 10 else None, "calldata_kind": ge.calldata_kind(inp),
+               "calldata_len": ge.calldata_len(inp),
+               "value_native": int(t["value"]) / 1e18 if t else None, "code_at_event": cae,
+               "own_create_time": ge.utc(cr["ts"]) if found else None, "creator": cr.get("creator") if found else None}
+        nets = [n for n in str(r["xc_nets"]).split(",") if n and n != "-"]
+        if nets and cae not in ("code", "7702"):         # điều kiện chỉ dựa vào hai cột người gán cũng thấy
+            xc = ge.fetch_creations([(n, a) for n in nets])
+            f = ge.xc_fields(at, nets, {n: xc.get((n, a)) for n in nets})
+            link = f.pop("xc_net_link")
+            row.update(f, explorer_url_xc=EXPLORERS[link] + a if link in EXPLORERS else None)
+        rows.append(row)
+    items = sample[["item_id", "chain", "address"]].merge(pd.DataFrame(rows), on="item_id").merge(live, on=keys, how="left")
+    items["explorer_url"] = [EXPLORERS[c] + a for c, a in zip(items.chain, items.address)]
+    items = items.reindex(columns=MAIN_COLS)
+    items["calldata_len"] = items.calldata_len.map(lambda v: None if pd.isna(v) else str(int(v)))   # không thành "64.0"
     return items.astype(object).where(items.notna() & (items != ""), "-")
 
 
-MAIN_DROP_COLS = ["redeploy", "delegate_symexec_transfer", "delegate_known_wallet"]
+DELEGATE_KEEP = ["class_A", "class_B", "final_class", "source", "note"]
 
 
 def write_delegate_lookup(items: pd.DataFrame) -> pd.DataFrame:
-    """Bảng tra delegate EIP-7702 (CODEBOOK §5 ca 13): mỗi (chain, delegate) xuất hiện trong mẫu chính một dòng. A và B cùng phân loại
-    TRƯỚC khi gán, mỗi người một cột (class_A, class_B), đọc mã nguồn đã verify hoặc nhãn explorer, KHÔNG dùng symexec; bất đồng thì
-    thống nhất vào final_class. Lớp: legit_wallet / forwarder_sweeper / unknown. Không chứa nhãn mẫu."""
+    """Bảng tra delegate EIP-7702 (CODEBOOK ca khó 13, GOLD_PROTOCOL §2.3): mỗi (chain, delegate) trong mẫu chính một dòng.
+    Từ v0.6 người điều phối điền sẵn `final_class` và `source` từ bằng chứng khách quan (mã nguồn đã verify hoặc bytecode);
+    A và B chỉ RÀ SOÁT: để trống `class_A` / `class_B` = đồng ý, ghi lớp khác kèm `note` = phản đối. Lớp: legit_wallet /
+    forwarder_sweeper / unknown. Chạy lại GIỮ NGUYÊN các ô đã điền; delegate mới thêm dòng trống. Không chứa nhãn mẫu."""
     d = items[items.delegate_7702.notna() & (items.delegate_7702 != "-")]
     t = (d.groupby(["chain", "delegate_7702"]).agg(n_items=("item_id", "size"))
-         .reset_index().rename(columns={"delegate_7702": "delegate"}).sort_values("n_items", ascending=False))
+         .reset_index().rename(columns={"delegate_7702": "delegate"}).sort_values("n_items", ascending=False, kind="stable"))
     t["explorer_url"] = [EXPLORERS[c] + a for c, a in zip(t.chain, t.delegate)]
-    for c in ("class_A", "class_B", "final_class", "source", "note"):
-        t[c] = ""
-    t.to_csv(GOLD_DIR / "delegate_lookup.csv", index=False, encoding="utf-8")
+    p = GOLD_DIR / "delegate_lookup.csv"
+    if p.exists():
+        old = pd.read_csv(p, dtype=str, keep_default_na=False)
+        old["_pos"] = range(len(old))                    # giữ thứ tự dòng cũ (chỉ khác ở các dòng bằng n_items)
+        t = t.merge(old[["chain", "delegate", "_pos", *DELEGATE_KEEP]], on=["chain", "delegate"], how="left")
+        t = t.sort_values(["_pos", "n_items"], ascending=[True, False], na_position="last", kind="stable")
+        gone = set(zip(old.chain, old.delegate)) - set(zip(t.chain, t.delegate))
+        if gone:
+            print(f"  cảnh báo: {len(gone)} delegate cũ không còn trong mẫu (bỏ khỏi bảng): {sorted(gone)[:3]}")
+    t = t.reindex(columns=["chain", "delegate", "n_items", "explorer_url", *DELEGATE_KEEP]).fillna("")
+    new = int((t.final_class == "").sum())
+    if new:
+        print(f"  {new} delegate chưa có final_class: người điều phối phải phân loại trước khi giao Excel")
+    t.to_csv(p, index=False, encoding="utf-8", lineterminator="\n")
     return t
 
 
-def cmd_main(seed: int = 0, n_double: int = 200) -> pd.DataFrame:
+DELEGATE_CLASSES = ("legit_wallet", "forwarder_sweeper", "unknown")
+
+
+def check_delegates(t: pd.DataFrame) -> list[str]:
+    """Bảng delegate đã được A và B rà chưa (CODEBOOK ca 13): mỗi dòng `class_A`, `class_B` phải là `ok` (đồng ý) hoặc một lớp
+    khác `final_class` kèm `note` (phản đối). Ô trống = chưa rà. `final_class` phải là một lớp hợp lệ."""
+    errs = []
+    for r in t.fillna("").itertuples(index=False):
+        g = r._asdict()
+        if g["final_class"] not in DELEGATE_CLASSES:
+            errs.append(f"{r.chain} {r.delegate}: final_class = {g['final_class']!r} không hợp lệ")
+        for c in ("class_A", "class_B"):
+            v = str(g[c]).strip().lower()
+            if not v:
+                errs.append(f"{r.chain} {r.delegate}: {c} trống (chưa rà)")
+            elif v != "ok" and v not in DELEGATE_CLASSES:
+                errs.append(f"{r.chain} {r.delegate}: {c} = {g[c]!r} (chỉ nhận ok / {' / '.join(DELEGATE_CLASSES)})")
+            elif v not in ("ok", g["final_class"]) and not str(g["note"]).strip():
+                errs.append(f"{r.chain} {r.delegate}: {c} phản đối ({v}) nhưng chưa có note")
+    return errs
+
+
+def cmd_check_delegates(path: str | None = None) -> list[str]:
+    t = pd.read_csv(path or GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False)
+    errs = check_delegates(t)
+    print("Bảng delegate đã rà đủ." if not errs else f"{len(errs)} lỗi:\n  " + "\n  ".join(errs))
+    return errs
+
+
+def cmd_main(seed: int = 0, n_double: int = 200, live_from: str | None = None) -> pd.DataFrame:
     import hashlib
     from address_misuse.config import FINAL_DIR
     p = FINAL_DIR / "dataset_v2.parquet"
@@ -500,13 +593,11 @@ def cmd_main(seed: int = 0, n_double: int = 200) -> pd.DataFrame:
     ds["flag"] = engine_flag(ds)
     sample = draw_main(ds, seed, n_double)
     reserve = draw_reserve(ds, seed)
-    items = main_evidence(sample, load_sources())
+    items = main_evidence(sample, None if live_from else load_sources(), live_from)
     GOLD_DIR.mkdir(parents=True, exist_ok=True)
     write_delegate_lookup(items)
-    # Bỏ cột không giúp gán nhãn mà chỉ lặp lại đặc trưng của engine hoặc chỉ có ở dương:
-    # `redeploy` (không giải thích ở codebook, 20% dương / 1% âm), `delegate_symexec_transfer` (True ở cả 264 mẫu 7702, là đặc trưng
-    # DELEGATE_TRANSFER của engine), `delegate_known_wallet` (rỗng ở mọi mẫu; thay bằng bảng tra delegate_lookup.csv).
-    items = items.drop(columns=MAIN_DROP_COLS)
+    # Từ v0.5 không có `redeploy`, `delegate_symexec_transfer`, `delegate_known_wallet`; từ v0.6 không có `create_kind`,
+    # `first_tx_date` (T4 so với tx tại `at`, không so với tx đầu tiên) và các cột ngày được thay bằng giờ UTC (GOLD_PROTOCOL §3).
     items.to_csv(GOLD_DIR / "main_items.csv", index=False, encoding="utf-8")
     keycols = ["item_id", "sample_id", "stratum", "grp", "chain", "address", "label", "label_source", "split",
                "out_of_time", "needs_review", "flag", "cell", "cell_n", "cell_rows", "k", "n_rows", "w_addr", "w_row",
@@ -529,59 +620,58 @@ CHOICES = {"is_misuse": ["1", "0", "?"], "type": ["T1", "T2", "T3", "T4", "T5", 
            "confidence": ["high", "medium", "low"]}
 SHEET = "Gan_nhan"
 GUIDE = [
-    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.5 §2–§6; đọc bản đầy đủ nếu phân vân)",
+    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.6; đọc bản đầy đủ nếu phân vân)",
     "",
-    "Quy tắc: gán ĐỘC LẬP. Không xem *_key.csv, file của người gán kia, dataset_v2.parquet, engine_eval.parquet hay CODEBOOK §10 trước khi xong.",
-    "Chỉ điền các cột màu vàng ở sheet Gan_nhan. Các cột còn lại là bằng chứng; ô '-' = không tra được, không suy ra gì.",
-    "Các cột code_<chain> là trạng thái HIỆN TẠI. Khi kết luận phụ thuộc thời điểm (T4, NCD/PCD) hãy dùng code_at_event / own_create_date hoặc mở explorer.",
+    "Gán ĐỘC LẬP. Không mở *_key.csv, file của người gán kia, dataset_v2.parquet, engine_eval.parquet; không đọc GOLD_PROTOCOL.md, FINDINGS_LOG.md, PROGRESS.md trước khi xong.",
+    "Chỉ điền các cột màu vàng ở sheet Gan_nhan. Các cột còn lại là bằng chứng, tính cùng một cách cho mọi mẫu; ô '-' = không áp dụng / không tra được, không suy ra gì.",
+    "code_<chain> là trạng thái HÔM NAY. Trạng thái lúc tx trên chain này: code_at_event. Chain khác so với tx: xc_timing.",
     "",
     "is_misuse: 1 / 0 / ?   (? chỉ khi không mở được explorer; tối đa khoảng 10% số mẫu của bạn)",
     "type: một type chính T1…T6, hoặc NONE khi is_misuse = 0",
-    "  T1 gọi hàm tới địa chỉ không có code tại at (NCD, hoặc PCD của tác giả: contract chỉ xuất hiện SAU tx), không có contract cùng địa chỉ ở chain khác deploy TRƯỚC tx",
-    "  T2 tx THÀNH CÔNG tới địa chỉ CÓ code tại at mà người dùng không định gọi (hố đen hoặc cài sẵn chiếm tiền); cờ symexec chỉ là gợi ý",
-    "  T3 gửi token vào chính contract token đó",
-    "  T4 NCD trên chain này + cùng địa chỉ có code ở chain khác, deploy TRƯỚC tx đầu tiên (ghi xc_chain)",
-    "  T5 key lộ / sweeper / EIP-7702 delegate độc (ADDR cũng T5 nếu tiền bị sweeper rút)",
-    "  T6 address poisoning (trùng 4 ký tự đầu + 4 cuối, có tx mồi giá trị 0)",
+    "  T1 gọi hàm (calldata_kind = call) tới địa chỉ không có code ngay trước tx; không có contract ở chain khác tạo trước tx",
+    "  T2 tx THÀNH CÔNG tới địa chỉ có code mà người dùng không định gọi, tiền không quay lại (hố đen); cờ symexec chỉ là gợi ý",
+    "  T3 transfer/transferFrom tới contract token với người nhận = chính contract token đó, tx thành công",
+    "  T4 như T1 + cùng địa chỉ có contract ở chain khác tạo TRƯỚC tx (xc_timing = before; ghi xc_chain = origin_net)",
+    "  T5 KEY (≥ 2 lần rút nhanh về ví lạ) / ADDR bị rút / 7702 tới delegate sweeper",
+    "  T6 address poisoning: đủ 3 dấu hiệu ở CODEBOOK ca 18",
     "  Ưu tiên: T4 > T1; T5 > T6",
-    "subtype: NCD / PCD / KEY / ADDR / 7702 / -   (T1/T4: PCD nếu contract tại địa chỉ này được tạo SAU tx, NCD nếu không; T2 thường '-')",
-    "xc_chain: chỉ với T4, tên chain có contract gốc (eth, bsc, arb, op, base, polygon…); còn lại '-'",
+    "subtype: NCD / PCD / KEY / ADDR / 7702 / -   (T1/T4: PCD nếu own_create_time có giá trị, tức contract tạo SAU tx; NCD nếu '-'. T2/T3/T6/âm: '-')",
+    "xc_chain: chỉ với T4; còn lại '-'",
     "malicious: 1 = đã thấy tiền về ví bên thứ ba; 0 = đã kiểm tra và không có; ? = chưa thấy nhưng có dấu hiệu; - = mẫu âm",
-    "confidence: high / medium / low (mức chắc chắn của chính bạn). high chỉ khi đã mở explorer xem tx; chỉ dựa vào cột bằng chứng thì tối đa medium",
-    "evidence: bằng chứng đã dùng, ví dụ: code, timing, tx, symexec, label",
+    "confidence: high / medium / low. high chỉ khi đã mở tx_url; chỉ dựa vào cột bằng chứng thì tối đa medium",
+    "evidence: bằng chứng đã dùng, ví dụ: code, tx, timing, xc, delegate, history",
     "note: BẮT BUỘC khi confidence = low, is_misuse = ?, hoặc mẫu là ca khó (CODEBOOK §5)",
     "",
-    "Cây quyết định (CODEBOOK §4):",
-    "1. Địa chỉ có code trên chain này lúc tx (code_at_event)?  Không → 2;  Có → 4",
-    "2. Tx gọi hàm thật (selector 4 byte)?  Không (chuyển coin thuần, event topic, văn bản) → 5;  Có → 3",
-    "3. Cùng địa chỉ có code ở chain khác deploy TRƯỚC tx đầu tiên?  Có → T4;  deploy SAU → T1 (note 'xc deployed_after');  không có contract ở chain khác → T1;",
-    "   có contract ở chain khác nhưng không tra được ngày tạo → T4, confidence low",
-    "4. Code là contract người dùng định gọi và gọi đúng hàm → NONE;  là 7702 (0xef0100…) → 5;",
-    "   không phải contract định gọi: tx THÀNH CÔNG (Status = Success) mà tiền bị giữ/chuyển đi → T2;  tx lỗi (Fail) → NONE",
-    "   Cờ symexec KHÔNG đủ để gán T2. Token / proxy / LP được gọi đúng hàm (approve, transfer, swap…) → NONE",
-    "5. EOA: thấy tiền vào rồi bị rút ≤ 10 phút về ví lạ (≥ 2 lần, xét cả lịch sử SAU at) → T5/KEY;  delegate 7702: theo bảng delegate_lookup.csv;",
-    "   giống địa chỉ quen + tx mồi → T6;  ví thường/sàn/smart wallet hợp lệ → NONE",
+    "Quy trình (CODEBOOK §4.1):",
+    "0. Mở tx_url (Status, From, To, Value, Method, token chuyển).",
+    "A. code_at_event: none → B;  code / destroyed → C;  7702 → D;  unknown → xem tx tạo contract trên explorer rồi chọn B/C/D.",
+    "B. calldata_kind ≠ call ('-' chuyển coin thuần, text văn bản, short), hoặc calldata_len = 32 mà Method trên tx là mã thô 0x… → D.",
+    "   calldata_kind = call: xc_timing before → T4;  after → T1;  unknown → mở explorer_url_xc, vẫn không biết → T4 low;  '-' → T1.",
+    "C. transfer/transferFrom với người nhận = chính address, thành công → T3.  Contract định gọi, gọi đúng hàm → NONE.",
+    "   T2 chỉ khi đủ 3: tx success; contract không phải thứ định gọi; tiền không quay lại. Thiếu một → NONE. Tx fail → NONE.",
+    "D. 7702: tra data/gold/delegate_lookup.csv (final_class) và CODEBOOK ca 13; ủy quyền xảy ra SAU tx thì xét như EOA thường.",
+    "   Đếm lần rút nhanh (vào rồi ≤ 10 phút ra ≥ 90% về ví lạ) trong toàn lịch sử: ≥ 2 → T5/KEY;  đúng 1 → NONE, low;  0 → T6 nếu đủ dấu hiệu, còn lại NONE.",
+    "   Rút về ví sàn có nhãn hoặc ví gom của sàn KHÔNG tính (CODEBOOK ca 7a–c).",
     "",
     "Ca khó hay gặp (CODEBOOK §5):",
-    "- xc_timing = deployed_after → T1, không phải T4.  xc_timing = unknown → mở explorer chain kia; vẫn không biết → T4, confidence low.",
-    "- Cùng contract trên mọi chain kể cả chain này (Multicall3, Permit2, Safe, EntryPoint…) → âm.",
-    "- Gửi nhầm tới predeploy của chain KHÁC (ví dụ 0x4200…0006 trên ETH) → T4.  Precompile/system contract của chính chain → thường âm.",
-    "- 7702 tới smart wallet hợp lệ và chủ ví vẫn rút tiền bình thường → âm.  Phải xem tiền thực tế đi đâu, không suy ra từ symexec.",
-    "- Ví sàn auto-sweep về ví tổng của sàn → âm.  Tx chỉ mất gas tới NCD vẫn là misuse.  Calldata là văn bản hoặc event topic → xét như chuyển tiền thường (bước 5).",
-    "Chi tiết từng bước, ví dụ mẫu đã gán và quy tắc mặc định khi phân vân: CODEBOOK §4.1.",
+    "- selector 0x64617461 là chữ \"data\" (inscription): calldata_kind = text, không phải gọi hàm.",
+    "- Cùng giây giữa hai chain = không trước → xc_timing after → T1.",
+    "- Cùng contract trên mọi chain kể cả chain này (Multicall3, Permit2, Safe…) → âm. Gọi hàm tới predeploy của chain KHÁC khi chain này không có code → T4.",
+    "- 7702 tới ví thông minh hợp lệ, chủ ví vẫn rút bình thường → âm. Xem tiền thực tế đi đâu, không suy ra từ symexec.",
+    "- Tx chỉ mất gas hoặc tx lỗi tới địa chỉ không có code mà có gọi hàm vẫn là T1/T4.",
+    "Chi tiết, ví dụ đã chốt và quy tắc mặc định khi phân vân: CODEBOOK §4.",
     "",
-    "Xong thì lưu file (giữ nguyên tên sheet Gan_nhan) và báo lại để tính κ.",
+    "Xong thì lưu file (giữ nguyên tên sheet Gan_nhan), chạy `sample_gold check <file>` và báo người điều phối.",
 ]
 
 
 GUIDE_MAIN = [
-    "MẪU CHÍNH (CODEBOOK v0.5): mỗi dòng là một địa chỉ TẠI THỜI ĐIỂM at_date. Xét tx có tx_hash (cột tx_url mở thẳng tx).",
-    "tx_hash / selector / value_native = tx đi vào địa chỉ tại at_date (selector '-' = chuyển coin thuần, không calldata).",
-    "code_at_event = trạng thái code lúc at_date (none / code / 7702); own_create_date = ngày contract được tạo trên chain này.",
-    "Contract tạo SAU at_date: lúc đó địa chỉ chưa có code → nhánh NCD (T1/T4); subtype PCD nếu contract xuất hiện sau (CODEBOOK §4.1 bước B).",
-    "Với EOA (KEY/ADDR/7702): được dùng TOÀN BỘ lịch sử của địa chỉ, kể cả sau at_date, để nhận ra sweeper; nhãn áp cho địa chỉ tại at_date.",
-    "7702: tra data/gold/delegate_lookup.csv (đã phân loại delegate) trước khi quyết định (CODEBOOK §5 ca 13).",
-    "Thứ tự: làm file 'double' TRƯỚC; file 'single' chỉ làm sau khi κ của 50 mẫu đầu được kiểm (CODEBOOK §7.4). Mỗi phiên tối đa ~40 mẫu.",
+    "MẪU CHÍNH (CODEBOOK v0.6): mỗi dòng là MỘT TX (tx_hash, tx_url) tới address trên chain. Nhãn áp cho TX NÀY.",
+    "\"Trước tx\" = trước tx này trên chuỗi (block, rồi vị trí trong block); không dùng ngày hay tx đầu tiên. at_time là giờ UTC của tx.",
+    "code_at_event = code ngay trước tx (none / code / destroyed / 7702 / unknown); own_create_time = lúc tạo contract trên chain này, nếu có.",
+    "Với EOA (KEY/ADDR/7702) được dùng TOÀN BỘ lịch sử của địa chỉ, kể cả sau tx, để nhận ra sweeper; nhãn vẫn là của tx.",
+    "7702: TRƯỚC KHI GÁN, rà data/gold/delegate_lookup.csv: điền class_A/class_B = ok (đã xem, đồng ý) hoặc lớp khác + note (phản đối). Ô trống = chưa rà.",
+    "Thứ tự: làm file 'double' TRƯỚC; file 'single' chỉ làm khi người điều phối báo. Mỗi phiên tối đa ~40 mẫu.",
     "",
 ]
 
@@ -707,7 +797,7 @@ def cohen_kappa(a: list, b: list) -> float:
 
 
 def pabak(a: list, b: list) -> float:
-    """Prevalence-adjusted bias-adjusted κ = 2·po − 1 (hai lớp). κ thấp giả khi tỉ lệ dương lệch (ở đây ~58% dương)."""
+    """Prevalence-adjusted bias-adjusted κ = 2·po − 1 (hai lớp). κ thấp giả khi tỉ lệ dương lệch xa 50%."""
     return 2 * sum(x == y for x, y in zip(a, b)) / len(a) - 1
 
 
@@ -744,11 +834,11 @@ def cmd_kappa(path_a: str, path_b: str, items_csv: str | None = None, key_csv: s
             raise SystemExit(f"{len(diff)} item_id trỏ tới địa chỉ khác nhau, ví dụ {diff.item_id.iloc[0]}: hai file không cùng bộ mẫu")
     j = j[(j.is_misuse_A != "") & (j.is_misuse_B != "")].reset_index(drop=True)
     clusters = list(range(len(j)))                               # mặc định: từng mẫu là một cụm
-    if items_csv:                                                # cụm = delegate 7702, rồi deployer, rồi từng địa chỉ
+    if items_csv:                     # cụm = delegate 7702, rồi người tạo contract trên chain này, rồi deployer ở mạng khác, rồi từng mẫu
         it = pd.read_csv(items_csv, dtype=str).set_index("item_id")
         def cl(i):
             r = it.loc[i] if i in it.index else None
-            for c in ("delegate_7702", "deployer"):
+            for c in ("delegate_7702", "creator", "deployer"):
                 if r is not None and str(r.get(c, "-")) not in ("-", "nan"):
                     return f"{c}:{r[c]}"
             return f"item:{i}"
@@ -761,6 +851,18 @@ def cmd_kappa(path_a: str, path_b: str, items_csv: str | None = None, key_csv: s
         ci = cluster_boot_ci(x, y, clusters)
         print(f"κ({col}) = {out[col]:.3f} [CI95 theo cụm {ci[0]:.3f}–{ci[1]:.3f}] trên {len(j)} mẫu, đồng ý {sum(p == q for p, q in zip(x, y))}/{len(j)}"
               f"; Gwet AC1 {gwet_ac1(x, y):.3f}" + (f"; PABAK {pabak(x, y):.3f}" if col == "is_misuse" else ""))
+    if items_csv:                     # tiền đăng ký: báo thêm κ khi bỏ mẫu do phân loại delegate quyết định (GOLD_PROTOCOL §4 j)
+        from address_misuse.gold_eval import delegate_decided
+        dd = set(delegate_decided(it.reset_index()))
+        keep = ~j.item_id.isin(dd).to_numpy()
+        for col in ("is_misuse", "type"):
+            x = [v for v, k in zip(j[f"{col}_A"].str.strip().str.upper(), keep) if k]
+            y = [v for v, k in zip(j[f"{col}_B"].str.strip().str.upper(), keep) if k]
+            if x:
+                out[f"{col}_no_delegate"] = cohen_kappa(x, y)
+                ci = cluster_boot_ci(x, y, [c for c, k in zip(clusters, keep) if k])
+                print(f"  bỏ {int((~keep).sum())} mẫu do delegate quyết định: κ({col}) = {out[f'{col}_no_delegate']:.3f} "
+                      f"[CI95 theo cụm {ci[0]:.3f}–{ci[1]:.3f}] trên {len(x)} mẫu")
     q = (j.is_misuse_A.str.upper() == "?") | (j.is_misuse_B.str.upper() == "?")
     if q.any():
         x, y = j.loc[~q, "is_misuse_A"].str.upper().tolist(), j.loc[~q, "is_misuse_B"].str.upper().tolist()
@@ -792,6 +894,9 @@ def main():
     mn = sub.add_parser("main")
     mn.add_argument("--seed", type=int, default=0)
     mn.add_argument("--double", type=int, default=200)
+    mn.add_argument("--live-from", help="main_items.csv cũ: dùng lại ảnh chụp getCode/symexec hôm nay thay vì tra lại")
+    cd = sub.add_parser("check-delegates")
+    cd.add_argument("path", nargs="?")
     k = sub.add_parser("kappa")
     k.add_argument("a")
     k.add_argument("b")
@@ -803,7 +908,9 @@ def main():
     elif args.cmd == "check":
         cmd_check(args.path)
     elif args.cmd == "main":
-        cmd_main(args.seed, args.double)
+        cmd_main(args.seed, args.double, args.live_from)
+    elif args.cmd == "check-delegates":
+        cmd_check_delegates(args.path)
     elif args.cmd == "sheet":
         cmd_sheet(args.who, args.set, args.only_double, args.only_single)
     else:

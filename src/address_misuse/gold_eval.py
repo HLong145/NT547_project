@@ -1,4 +1,4 @@
-"""D5 — đo engine bằng nhãn vàng từ mẫu phân tầng (CODEBOOK §7.6): ước lượng có trọng số, CI bootstrap phân tầng, cận cho ô 0 sự kiện.
+"""D5 — đo engine bằng nhãn vàng từ mẫu phân tầng (GOLD_PROTOCOL §1, §4): ước lượng có trọng số, CI bootstrap phân tầng, cận cho ô 0 sự kiện.
 
 Bảng đầu vào (mỗi dòng một địa chỉ đã gán), cột bắt buộc:
     cell      ô lấy mẫu (tầng|chain|F/u, xem `sample_gold._units`)
@@ -172,13 +172,41 @@ def hidden_positive_bound(df: pd.DataFrame, alpha: float = 0.05, unit: str = "ad
             "recall_lower_bound_cp": tp / (tp + fn_known + seen_total + upper_cp) if tp else 0.0}
 
 
+def delegate_decided(items: pd.DataFrame) -> list[str]:
+    """item_id của các mẫu mà nhãn do phân loại delegate quyết định (CODEBOOK ca 13): `code_at_event = 7702` trong
+    main_items.csv. Phân loại do người điều phối điền sẵn và trùng một phần danh sách đen của engine, nên chỉ số trên các mẫu
+    này gần như trùng engine theo cách xây dựng (GOLD_PROTOCOL §2.3, §4 j)."""
+    return items.loc[items.code_at_event.astype(str) == "7702", "item_id"].astype(str).tolist()
+
+
+def restrict_domain(d: pd.DataFrame, drop: pd.Series) -> pd.DataFrame:
+    """Bỏ các mẫu `drop` khỏi miền đánh giá (ước lượng theo miền con): cỡ ô (`cell_n`, `cell_rows`) giảm theo tỉ lệ phần đã gán
+    bị bỏ, nên trọng số của mẫu còn lại KHÔNG đổi; ô điều tra toàn bộ giảm đúng số mẫu bị bỏ."""
+    drop = drop.astype(bool)
+    g = d.groupby("cell")
+    n_lab, n_ex = g.cell.transform("size"), drop.groupby(d.cell).transform("sum")
+    r_lab, r_ex = g.n_rows.transform("sum"), (d.n_rows * drop).groupby(d.cell).transform("sum")
+    out = d.copy()
+    census = n_lab >= out.cell_n
+    out["cell_n"] = np.where(census, out.cell_n - n_ex, out.cell_n * (n_lab - n_ex) / n_lab)
+    out["cell_rows"] = np.where(census, out.cell_rows - r_ex, out.cell_rows * (r_lab - r_ex) / r_lab)
+    return out[~drop.to_numpy()]
+
+
 def evaluate(df: pd.DataFrame, boot: int = 1000, seed: int = 0, unknown: str = "zero", unit: str = "addr",
-             exclude_strata: tuple[str, ...] = ()) -> dict:
+             exclude_strata: tuple[str, ...] = (), exclude_items=()) -> dict:
     """Báo cáo gộp theo `unit` ('addr' chính; 'row' phụ). `unknown`: '?' tính 0 / 1 / bỏ ('drop'); báo cả ba kịch bản.
-    `exclude_strata`: bỏ các tầng (ví dụ ('+KEY', '+ADDR') vì nhãn KEY/ADDR là cận dưới, CODEBOOK §10.3); ô còn lại tự tính lại trọng số."""
+    `exclude_strata`: bỏ các tầng (ví dụ ('+KEY', '+ADDR') vì nhãn KEY/ADDR là cận dưới, GOLD_PROTOCOL §6); ô còn lại tự tính lại trọng số.
+    `exclude_items`: bỏ các item_id (ví dụ `delegate_decided(items)`) theo miền con, trọng số mẫu còn lại giữ nguyên.
+    Tiền đăng ký: báo cả đầy đủ và bỏ mẫu do delegate quyết định (GOLD_PROTOCOL §4 j)."""
     d = prepare(df, unknown)
     if exclude_strata:
         d = d[~d.stratum.isin(exclude_strata)]
+    ex = set(map(str, exclude_items))
+    if ex:
+        if "item_id" not in d:
+            raise ValueError("exclude_items cần cột item_id")
+        d = restrict_domain(d, d.item_id.astype(str).isin(ex))
     d = gold_weights(d)
     out = stratified_boot(d, boot, seed, unit)
     out.update(hidden_positive_bound(d, unit=unit, seed=seed))
