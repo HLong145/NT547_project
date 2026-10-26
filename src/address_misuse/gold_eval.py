@@ -174,9 +174,22 @@ def hidden_positive_bound(df: pd.DataFrame, alpha: float = 0.05, unit: str = "ad
 
 def delegate_decided(items: pd.DataFrame) -> list[str]:
     """item_id của các mẫu mà nhãn do phân loại delegate quyết định (CODEBOOK ca 13): `code_at_event = 7702` trong
-    main_items.csv. Phân loại do người điều phối điền sẵn và trùng một phần danh sách đen của engine, nên chỉ số trên các mẫu
-    này gần như trùng engine theo cách xây dựng (GOLD_PROTOCOL §2.3, §4 j)."""
+    main_items.csv, tức hôm nay là 7702, tx sau ngày kích hoạt và contract delegate đã có trước tx (v0.6.2). Thời điểm ủy quyền
+    không được tra, nên tập này có thể còn mẫu ủy quyền sau tx (người gán khi đó theo bước D2). Phân loại do người điều phối
+    điền sẵn và trùng một phần danh sách đen của engine (GOLD_PROTOCOL §2.3, §4 j)."""
     return items.loc[items.code_at_event.astype(str) == "7702", "item_id"].astype(str).tolist()
+
+
+_CA7_UNLABELLED = r"ca\s*7\s*[bc]\b"
+
+
+def ca7_unlabelled(labels: pd.DataFrame) -> list[str]:
+    """item_id có `note` nhắc "ca 7b" hoặc "ca 7c" (CODEBOOK ca 7: lần rút nhanh về ví gom KHÔNG có nhãn sàn vẫn được tính,
+    `confidence = low`). Dùng cho phân tích độ nhạy đăng ký trước (GOLD_PROTOCOL §4 k)."""
+    if "note" not in labels:
+        return []
+    m = labels.note.fillna("").astype(str).str.contains(_CA7_UNLABELLED, case=False, regex=True)
+    return labels.loc[m, "item_id"].astype(str).tolist()
 
 
 def restrict_domain(d: pd.DataFrame, drop: pd.Series) -> pd.DataFrame:
@@ -194,12 +207,18 @@ def restrict_domain(d: pd.DataFrame, drop: pd.Series) -> pd.DataFrame:
 
 
 def evaluate(df: pd.DataFrame, boot: int = 1000, seed: int = 0, unknown: str = "zero", unit: str = "addr",
-             exclude_strata: tuple[str, ...] = (), exclude_items=()) -> dict:
+             exclude_strata: tuple[str, ...] = (), exclude_items=(), flip_to_negative=()) -> dict:
     """Báo cáo gộp theo `unit` ('addr' chính; 'row' phụ). `unknown`: '?' tính 0 / 1 / bỏ ('drop'); báo cả ba kịch bản.
     `exclude_strata`: bỏ các tầng (ví dụ ('+KEY', '+ADDR') vì nhãn KEY/ADDR là cận dưới, GOLD_PROTOCOL §6); ô còn lại tự tính lại trọng số.
     `exclude_items`: bỏ các item_id (ví dụ `delegate_decided(items)`) theo miền con, trọng số mẫu còn lại giữ nguyên.
-    Tiền đăng ký: báo cả đầy đủ và bỏ mẫu do delegate quyết định (GOLD_PROTOCOL §4 j)."""
+    `flip_to_negative`: đặt nhãn vàng = 0 cho các item_id này (độ nhạy ca 7b/7c: `ca7_unlabelled`), trước khi tính.
+    Tiền đăng ký: báo cả đầy đủ và bỏ mẫu do delegate quyết định (GOLD_PROTOCOL §4 j); ca 7b/7c: đầy đủ, lật về 0, và bỏ (§4 k)."""
     d = prepare(df, unknown)
+    fl = set(map(str, flip_to_negative))
+    if fl:
+        if "item_id" not in d:
+            raise ValueError("flip_to_negative cần cột item_id")
+        d.loc[d.item_id.astype(str).isin(fl), "gold"] = 0
     if exclude_strata:
         d = d[~d.stratum.isin(exclude_strata)]
     ex = set(map(str, exclude_items))

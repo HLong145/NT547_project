@@ -1,6 +1,6 @@
 # Codebook gán nhãn vàng (D5)
 
-Bản v0.6.1 (2026-10-26). **Tài liệu này chỉ dành cho người gán nhãn.** Thiết kế mẫu, quy trình phân xử, cách báo kết quả và hạn chế nằm ở [GOLD_PROTOCOL.md](GOLD_PROTOCOL.md). Người gán **không đọc** GOLD_PROTOCOL.md trước khi gán xong (nó có thông tin làm mất tính mù).
+Bản v0.6.2 (2026-10-26). **Tài liệu này chỉ dành cho người gán nhãn.** Thiết kế mẫu, quy trình phân xử, cách báo kết quả và hạn chế nằm ở [GOLD_PROTOCOL.md](GOLD_PROTOCOL.md). Người gán **không đọc** GOLD_PROTOCOL.md trước khi gán xong (nó có thông tin làm mất tính mù).
 
 Chưa gán mẫu chính cho tới khi người gán A xác nhận bản này. Taxonomy theo [requirements.md](requirements.md) §3.1.
 
@@ -44,6 +44,7 @@ CA misuse (T1, T4) chỉ xét khi tx **gọi hàm**. Cột `calldata_kind`:
 | `-` | Không có calldata (chuyển coin thuần) | **Không bao giờ** |
 | `text` | Calldata đọc được thành văn bản (tin nhắn, inscription). Ví dụ `selector = 0x64617461` là chữ ASCII "data" (inscription `data:...`) | Không |
 | `short` | 1–3 byte calldata | Không |
+| `unknown` | Không tra được tx | Tự xem Input Data trên `tx_url` |
 
 Cột `selector` = 4 byte đầu của calldata, kể cả khi là văn bản. Đừng đọc `selector` một mình: luôn xem `calldata_kind`. Cột `calldata_len` = số byte calldata; lời gọi hàm chuẩn có 4 + 32·k byte (4, 36, 68, …), còn **đúng 32 byte** là một từ dữ liệu (ví dụ event topic), xem ca 10.
 
@@ -61,7 +62,7 @@ Cột `selector` = 4 byte đầu của calldata, kể cả khi là văn bản. �
 
 ### 3.4. EOA misuse: người dùng gửi tài sản tới ví họ không kiểm soát an toàn
 
-- **Một lần rút nhanh:** một lần tiền (coin hoặc token) **vào** địa chỉ, rồi trong **≤ 10 phút** có tx **ra** chuyển **≥ 90%** khoản đó (cùng tài sản) tới một **ví lạ**. *Ví lạ* = không phải người gửi khoản vào, không phải ví sàn / router / bridge có nhãn trên explorer, và **không** phải ví gom của sàn theo ca 7.
+- **Một lần rút nhanh:** một lần tiền (coin hoặc token) **vào** địa chỉ, rồi trong **≤ 10 phút** có tx **ra** chuyển **≥ 90%** khoản đó (cùng tài sản) tới một **ví lạ**. *Ví lạ* = không phải người gửi khoản vào, và không phải ví có **nhãn** sàn / custodian / router / bridge trên explorer (ca 7a). Ví nhận **không có nhãn** vẫn là ví lạ, kể cả khi nghi là ví gom của sàn (ca 7b, 7c).
 - **KEY:** ví có private key đã lộ. File mẫu **không** cho biết ví có lộ key hay không. Gán **T5/KEY khi thấy ≥ 2 lần rút nhanh** (hai khoản vào khác nhau, xét cả lịch sử, ví lạ có thể khác nhau). Chỉ thấy **1 lần** → `NONE`, `confidence = low`, note "1 lần rút nhanh". Không thấy lần nào → không phải KEY.
 - **ADDR:** người dùng gửi tới một địa chỉ ví công khai (trong tài liệu, code mẫu) không phải của họ, và tiền bị rút về ví lạ. Chỉ chọn `ADDR` (thay vì `KEY`) khi explorer ghi rõ đó là ví ví dụ công khai; cả hai đều là T5.
 - **7702:** EOA đã ủy quyền EIP-7702 (code bắt đầu `0xef0100…`) tới một delegate. Tiền gửi tới bị delegate xử lý. Dùng **bảng tra delegate** (ca 13).
@@ -77,7 +78,7 @@ Cột `selector` = 4 byte đầu của calldata, kể cả khi là văn bản. �
 | **T5** | Key lộ / sweeper / EIP-7702 độc | KEY (≥ 2 lần rút nhanh), ADDR bị rút, hoặc 7702 tới delegate sweeper |
 | **T6** | Address poisoning | Định nghĩa vận hành ở ca 18. Hiếm; chỉ gán khi đủ cả ba dấu hiệu |
 
-Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được gọi đúng; contract deploy cùng địa chỉ trên nhiều chain kể cả chain này; 7702 tới ví thông minh hợp lệ; ví sàn / địa chỉ nạp auto-sweep về ví tổng của sàn; tin nhắn/inscription gửi tới EOA; giao dịch thường.
+Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được gọi đúng; contract deploy cùng địa chỉ trên nhiều chain kể cả chain này; 7702 tới ví thông minh hợp lệ; địa chỉ nạp của sàn tự gom về ví có nhãn sàn trên explorer (ca 7a); tin nhắn/inscription gửi tới EOA; giao dịch thường.
 
 ## 4. Quy trình
 
@@ -90,9 +91,10 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được g�
 - `code` hoặc `destroyed` → **C**. (`destroyed` = có code lúc tx, nay đã tự huỷ.)
 - `7702` → **D**.
 - `unknown` → mở explorer của địa chỉ, xem tx tạo contract (Contract Creator) và so với tx theo §1. Có code trước tx → C; không → B; EOA không code → D; vẫn không biết → `?` nếu là điểm quyết định, ghi note.
+- `unknown` **và** `delegate_7702` có giá trị: delegate hôm nay được tạo **sau** tx, nên lúc tx địa chỉ là EOA thường **hoặc** đang ủy quyền cho một delegate **khác** (đổi ủy quyền sau đó). Mở tab Authorizations: không có ủy quyền nào còn hiệu lực lúc tx → **D2** (EOA thường; không dùng bảng delegate); có ủy quyền tới delegate X lúc tx → **D** với delegate X: X có trong bảng delegate thì dùng `final_class` của X, không có thì xét như `unknown` (ca 13c). Ghi delegate X vào note. Không xem được → `?`, ghi note.
 
 **Bước B. Không có code ngay trước tx.**
-1. `calldata_kind` khác `call` (`-`, `text`, `short`) → không phải CA misuse → **D** (xét như chuyển tiền tới EOA).
+1. `calldata_kind` khác `call` (`-`, `text`, `short`) → không phải CA misuse → **D** (xét như chuyển tiền tới EOA). `calldata_kind = unknown` (không tra được tx): mở `tx_url`, xem Input Data, rồi xét như trên.
 2. `calldata_kind = call` nhưng `calldata_len = 32` và Method trên trang tx là mã thô `0x…` (ca 10) → **D**.
 3. Còn lại là gọi hàm. `subtype`: `PCD` nếu `own_create_time` có giá trị, ngược lại `NCD`.
 4. Chain khác (`xc_timing`):
@@ -109,15 +111,15 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được g�
 4. Thiếu điều kiện nào → **NONE**. Tx lỗi (`fail`) tới địa chỉ có code → NONE.
 
 **Bước D. EOA (kể cả 7702 và chuyển tiền thường từ bước B).**
-1. `code_at_event = 7702` (có `delegate_7702`): tra delegate trong `data/gold/delegate_lookup.csv` và theo **ca 13**. Mở tab Authorizations của địa chỉ: nếu ủy quyền tới delegate này xảy ra **sau** tx thì lúc tx địa chỉ là EOA thường → làm tiếp D2.
+1. `code_at_event = 7702` (có `delegate_7702`): tra delegate trong `data/gold/delegate_lookup.csv` và theo **ca 13**. Mở tab Authorizations của địa chỉ: nếu ủy quyền tới delegate này xảy ra **sau** tx thì lúc tx địa chỉ là EOA thường → làm tiếp D2. Với `forwarder_sweeper`: xem ví đích mà forwarder chuyển tiền tới; nếu ví đích có **nhãn** sàn / custodian trên explorer (ca 7a) → **NONE** (địa chỉ nạp của sàn), không phải T5.
 2. Mở tab Transactions (và Token Transfers) của địa chỉ, đếm số **lần rút nhanh** (§3.4) trong toàn lịch sử:
-   - Trước khi đếm, xét ví nhận của từng lần rút theo **ca 7**: rút về ví sàn có nhãn hoặc ví gom của sàn thì **không** tính.
+   - Trước khi đếm, xét ví nhận của từng lần rút theo **ca 7**: chỉ lần rút về ví có **nhãn** sàn / custodian trên explorer (7a) là **không** tính. Rút về ví không nhãn (7b, 7c) **vẫn tính**; nếu kết luận T5 có dùng lần rút như vậy thì `confidence = low`, note "ca 7b" hoặc "ca 7c".
    - ≥ 2 lần → **T5/KEY**, `malicious = 1`. (`ADDR` thay cho `KEY` nếu explorer ghi rõ là ví ví dụ công khai.)
    - đúng 1 lần → **NONE**, `confidence = low`, note "1 lần rút nhanh".
    - 0 lần → tiếp D3.
 3. Có đủ dấu hiệu address poisoning (ca 18) → **T6**.
 4. Còn lại (ví thường, sàn, ví thông minh hợp lệ, inscription) → **NONE**.
-5. Tiền bị chuyển nhanh nhưng **về ví tổng / ví gom của sàn** (ca 7) → NONE.
+5. Tiền bị chuyển nhanh nhưng **về ví có nhãn sàn / custodian** (ca 7a) → NONE.
 
 **Bước E. Điền ô.** Mẫu âm: `type = NONE`, `subtype = xc_chain = malicious = -`. `confidence = high` chỉ khi đã mở `tx_url`; chỉ dựa vào cột bằng chứng thì tối đa `medium`. `evidence` ghi đủ nguồn đã dùng. `note` bắt buộc khi `low`, `?` hoặc ca khó.
 
@@ -147,19 +149,19 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được g�
 4. **Địa chỉ hệ thống / precompile** (`0x000…000X`, predeploy OP-stack `0x4200…`, system contract BSC `0x…1000`): thường âm. Gọi hàm tới predeploy của chain *khác* (ví dụ `0x4200…0006` trên ETH, chain này không có code) → T4.
 5. **Người gửi là chính deployer** (đội dự án gửi nhầm chain): vẫn T4. Note `self-misuse`.
 6. **7702 tới ví thông minh hợp lệ** (MetaMask Delegator, Safe, Coinbase…) và chủ ví vẫn rút tiền bình thường: **âm**. Nếu thấy ≥ 2 lần rút nhanh về ví lạ thì vẫn T5/KEY (sweeper rút bằng chính key).
-7. **Ví sàn / địa chỉ nạp auto-sweep** (địa chỉ nạp của sàn tự gom tiền về ví nóng, nhìn giống sweeper). Với ví nhận của các lần rút nhanh, xét theo thứ tự, chỉ dùng thông tin thấy trên explorer:
-    - (a) Ví nhận có **nhãn sàn / custodian** trên explorer (ví dụ "Binance 14", "Binance: Hot Wallet 6", "Coinbase 10") → địa chỉ nạp của sàn → **NONE**, `confidence = high`.
-    - (b) Ví nhận **không có nhãn**, nhưng: ≥ 90% tx ra của địa chỉ này đều về **một** ví nhận đó, **và** trang của ví nhận cho thấy nó chuyển tiếp phần lớn tiền tới một ví sàn có nhãn → ví gom của sàn → **NONE**, `confidence = medium`, note "ca 7b".
-    - (c) Ví nhận không nhãn và nhận từ rất nhiều địa chỉ khác (hàng chục trở lên) cũng có mẫu hình "vào rồi ra hết về nó", nhưng không thấy chuyển tới sàn có nhãn → không kết luận được là sàn hay kẻ gom tiền: **NONE**, `confidence = low`, note "ca 7c".
-    - Không thỏa (a)–(c) → lần rút đó tính là rút nhanh (bước D2).
+7. **Ví sàn / địa chỉ nạp auto-sweep** (địa chỉ nạp của sàn tự gom tiền về ví nóng, nhìn giống sweeper). Ví gom của kẻ trộm cũng nhận từ nhiều nạn nhân và cũng chuyển tiếp sang sàn để rút tiền mặt, nên **chỉ nhãn trên explorer** mới loại được một lần rút. Với ví nhận của từng lần rút nhanh, chỉ dùng thông tin thấy trên explorer:
+    - (a) Ví nhận **chính nó** có **nhãn sàn / custodian** trên explorer (ví dụ "Binance 14", "Binance: Hot Wallet 6", "Coinbase 10") → lần rút này **không** tính. Nếu mọi lần rút đều như vậy → địa chỉ nạp của sàn → **NONE**, `confidence = high`.
+    - (b) Ví nhận **không có nhãn**, ≥ 90% tx ra của địa chỉ này đều về **một** ví nhận đó, và ví nhận chuyển tiếp phần lớn tiền tới một ví sàn có nhãn → **vẫn tính** là rút nhanh (có thể là ví gom của sàn, cũng có thể là kẻ trộm đổi ra tiền). Nếu nhãn T5 dựa vào lần rút này: `confidence = low`, note "ca 7b".
+    - (c) Ví nhận không nhãn và nhận từ rất nhiều địa chỉ khác (hàng chục trở lên) theo cùng mẫu hình "vào rồi ra hết về nó", không thấy liên kết sàn → **vẫn tính** là rút nhanh (mẫu hình này chính là ví gom của sweeper bot). Nếu nhãn T5 dựa vào lần rút này: `confidence = low`, note "ca 7c".
+    - Ví nhận không thỏa (a) → lần rút đó tính là rút nhanh (bước D2). Ghi "ca 7b" / "ca 7c" vào note mỗi khi nhãn T5 có dùng lần rút loại (b) / (c).
 8. **Tx chỉ mất gas** (value = 0) hoặc **tx lỗi** tới địa chỉ không có code mà có gọi hàm: vẫn T1/T4.
 9. **Vừa có contract tạo sau tx trên chain này vừa có contract ở chain khác** (PCD-XC): theo bước B4 với `xc_timing`; `subtype = PCD`.
 10. **Calldata là văn bản hoặc một từ dữ liệu 32 byte.** `calldata_kind = text` → không phải gọi hàm. `calldata_kind = call` và `calldata_len = 32`: mở `tx_url`, xem dòng Method: hiện **tên hàm** giải mã được → coi là gọi hàm (bước B3); hiện **mã thô** `0x…` → không phải gọi hàm (event topic hay dữ liệu, ví dụ `0xddf252ad…`) → bước D. Không có dấu hiệu ở bước D → âm.
 11. **Contract xuất hiện SAU tx:** nhánh B (T1/T4, PCD), kể cả khi contract cài sau rút đúng khoản đó (P024).
 12. **Testnet làm chain gốc cho T4:** có tính. Ghi `xc_chain` là tên testnet; không tra được giờ tạo → `confidence = low`.
-13. **7702: bảng tra delegate.** `data/gold/delegate_lookup.csv` có sẵn `final_class` và `source` do người điều phối điền từ bằng chứng khách quan (mã nguồn đã verify, hoặc bytecode). Ba lớp: `legit_wallet` / `forwarder_sweeper` / `unknown`. **Bắt buộc trước khi gán mẫu nào**, A và B mỗi người tự mở `explorer_url` của từng delegate và điền cột của mình (`class_A` / `class_B`): `ok` = đã xem và đồng ý; tên lớp khác (`legit_wallet` / `forwarder_sweeper` / `unknown`) kèm lý do ở `note` = phản đối. **Ô trống = chưa rà**, không phải đồng ý; `sample_gold check-delegates` báo lỗi nếu còn ô trống. Phản đối thì người điều phối và hai người gán thống nhất lại `final_class` trước khi gán. Đừng chỉ đọc lại `source`: tự xem mã nguồn hoặc bytecode. Khi gán, dùng `final_class`:
+13. **7702: bảng tra delegate.** `data/gold/delegate_lookup.csv` có sẵn `final_class` và `source` do người điều phối điền từ bằng chứng khách quan (mã nguồn đã verify, hoặc bytecode). Ba lớp: `legit_wallet` / `forwarder_sweeper` / `unknown`. **Bắt buộc trước khi gán mẫu nào**, A và B mỗi người rà trên **bản sao riêng** (`data/gold/delegate_review_A.csv` / `..._B.csv`, chỉ có cột của mình; hướng dẫn ở `data/gold/DELEGATE_REVIEW.md`): tự mở `explorer_url` của từng delegate rồi điền `class_X`: `ok` = đã xem và đồng ý; tên lớp khác (`legit_wallet` / `forwarder_sweeper` / `unknown`) kèm lý do ở `note_X` của mình = phản đối. Cột `note` là lý do của người điều phối, không sửa. **Ô trống = chưa rà**, không phải đồng ý. File Excel để gán **chỉ được tạo** sau khi cả hai đã rà xong (`sample_gold check-delegates` báo 0 lỗi). Phản đối thì người điều phối và hai người gán thống nhất lại `final_class` trước khi gán. Đừng chỉ đọc lại `source`: tự xem mã nguồn hoặc bytecode. Khi gán, dùng `final_class`:
     - (a) `legit_wallet` → NONE, trừ khi thấy ≥ 2 lần rút nhanh về ví lạ (ca 6: T5/KEY).
-    - (b) `forwarder_sweeper` → T5/7702; `malicious = 1` nếu thấy tiền của tx này (hoặc của địa chỉ) bị chuyển ra ví lạ, `?` nếu chưa thấy (khi đó `confidence` tối đa `medium`).
+    - (b) `forwarder_sweeper` → T5/7702, **trừ khi** ví đích của forwarder có nhãn sàn / custodian trên explorer (ca 7a) → NONE (forwarder có ví đích cố định cũng là cách sàn làm địa chỉ nạp). Ví đích không nhãn → vẫn T5/7702. `malicious = 1` nếu thấy tiền của tx này (hoặc của địa chỉ) bị chuyển ra ví lạ, `?` nếu chưa thấy (khi đó `confidence` tối đa `medium`).
     - (c) `unknown` → theo tx thực tế: thấy tiền bị chuyển ra ví lạ → T5/7702, `malicious = 1`; không thấy → NONE, `confidence = low`.
     - Ủy quyền xảy ra sau tx → bỏ qua delegate, theo bước D2.
 14. **ADDR không bị rút:** không type nào áp dụng → âm, `confidence = low`.
@@ -179,15 +181,15 @@ Mọi cột dưới đây được tính **cùng một cách cho mọi mẫu**. 
 | `tx_hash`, `tx_url` | Tx cần xét; `tx_url` mở thẳng tx |
 | `tx_status` | `success` / `fail` |
 | `selector` | 4 byte đầu calldata (`-` nếu < 4 byte). Đọc cùng `calldata_kind` |
-| `calldata_kind` | `call` / `-` / `text` / `short` (§3.1) |
+| `calldata_kind` | `call` / `-` / `text` / `short` / `unknown` (§3.1; `unknown` = không tra được tx, xem `tx_url`) |
 | `calldata_len` | Số byte calldata (0 = chuyển coin thuần); đúng 32 → ca 10 |
 | `value_native` | Số coin gốc (ETH/BNB) gửi kèm tx |
-| `code_at_event` | Code của địa chỉ **ngay trước tx** trên chain này: `none` / `code` / `destroyed` (có lúc tx, nay mất) / `7702` / `unknown`. Tính từ tx tạo contract (block, vị trí trong block) so với tx. `7702` = hôm nay là ủy quyền 7702 và tx sau ngày EIP-7702 có hiệu lực trên chain; **thời điểm ủy quyền không được kiểm**, xem bước D1. Trước ngày đó thì `none` |
+| `code_at_event` | Code của địa chỉ **ngay trước tx** trên chain này: `none` / `code` / `destroyed` (có lúc tx, nay mất) / `7702` / `unknown`. Tính từ tx tạo contract (block, vị trí trong block) so với tx. `7702` = hôm nay là ủy quyền 7702, tx sau ngày EIP-7702 có hiệu lực trên chain, và contract delegate hôm nay đã được tạo trước tx; **thời điểm ủy quyền không được kiểm**, xem bước D1. Hôm nay là 7702 mà tx trước ngày EIP-7702 có hiệu lực → `none`; delegate hôm nay tạo sau tx → `unknown` (xem bước A) |
 | `own_create_time`, `creator` | Giờ UTC và địa chỉ tạo contract ở địa chỉ này **trên chain này**, nếu có. `code_at_event = none` mà ô này có giá trị → contract tạo **sau** tx (PCD) |
 | `code_<chain>` | Code **hôm nay** trên 8 mạng: `none` / `code` / `7702` |
 | `xc_nets` | Các mạng khác hôm nay có code ở cùng địa chỉ |
 | `same_code_elsewhere` | Bytecode hôm nay ở chain này trùng với một mạng khác |
-| `delegate_7702` | Delegate đọc từ code `0xef0100…` hôm nay; phân loại ở `delegate_lookup.csv` (ca 13) |
+| `delegate_7702` | Delegate đọc từ code `0xef0100…` hôm nay; phân loại ở `delegate_lookup.csv` (ca 13). Có giá trị cả khi `code_at_event` là `none` hoặc `unknown`: khi đó delegate hôm nay **không** phải delegate lúc tx, không dùng thẳng bảng delegate (bước A) |
 | `xc_timing` | Có giá trị khi `xc_nets` khác `-` và `code_at_event` không phải `code`/`7702`. `before` = có contract ở mạng khác tạo trước tx; `after` = mọi contract ở mạng khác tạo sau (hoặc cùng giây); `unknown` = không tra được giờ tạo ở ít nhất một mạng và không mạng nào là `before` |
 | `xc_create_time`, `origin_net`, `deployer` | Giờ tạo sớm nhất đã biết ở mạng khác, mạng đó, và người tạo |
 | `symexec_*` | Symbolic execution trên code hôm nay ở chain này (timeout, `False` có thể là chưa tìm hết đường). Chỉ gợi ý, không đủ để gán |

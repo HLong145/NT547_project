@@ -8,7 +8,7 @@ A = "0x" + "ab" * 20
 
 
 def test_calldata_kind():
-    assert ge.calldata_kind(None) is None
+    assert ge.calldata_kind(None) == "unknown"                          # không tra được tx: không phải "-"
     assert ge.calldata_kind("0x") == "-" and ge.calldata_kind("") == "-"
     assert ge.calldata_kind("0xa9059cbb" + "00" * 64) == "call"
     assert ge.calldata_kind("0x64617461" + "3a2c" * 20) == "text"        # "data:,..." (inscription)
@@ -41,6 +41,19 @@ def test_state_at_event_rules():
     assert ge.state_at_event("eth", "code", 0, ev, None) == "unknown"            # lỗi tra cứu
     assert ge.state_at_event("op", "code", 0, ev, {"status": "no_api"}) == "unknown"
     assert ge.state_at_event("eth", None, 0, ev, found(50)) == "unknown"         # getCode lỗi
+
+
+def test_state_at_event_7702_needs_delegate_before_tx():
+    ev = {"hash": "0xe", "block": 100, "index": 5}
+    act = EIP7702_ACTIVATION_TS["eth"]
+    dc = lambda b, i=None: {"status": "found", "block": b, "index": i, "tx_hash": "0xd"}
+    assert ge.state_at_event("eth", "7702", act + 1, ev, None, dc(99)) == "7702"      # delegate có trước tx
+    assert ge.state_at_event("eth", "7702", act + 1, ev, None, dc(101)) == "unknown"  # delegate hôm nay tạo sau tx: lúc tx là EOA hoặc delegate khác
+    assert ge.state_at_event("eth", "7702", act + 1, ev, None, dc(100, 6)) == "unknown"
+    assert ge.state_at_event("eth", "7702", act + 1, ev, None, dc(100, 4)) == "7702"
+    assert ge.state_at_event("eth", "7702", act + 1, ev, None, dc(100)) == "7702"     # cùng block không rõ thứ tự: giữ 7702
+    assert ge.state_at_event("eth", "7702", act + 1, ev, None, {"status": "not_found"}) == "7702"
+    assert ge.state_at_event("eth", "7702", act + 1, ev, None, None) == "7702"        # lỗi tra cứu: như trước
 
 
 def test_xc_fields_rules():
@@ -127,6 +140,12 @@ def test_write_delegate_lookup_keeps_filled_cells(monkeypatch, tmp_path):
     assert t.loc["0xd1", "n_items"] == 2 and t.loc["0xd2", "source"] == "bytecode"
     assert t.loc["0xd3", "final_class"] == ""                  # delegate mới: dòng trống, chờ người điều phối
     assert list(t.index[:2]) == ["0xd1", "0xd2"]               # giữ thứ tự cũ
+    assert list(t.columns[3:]) == sg.DELEGATE_KEEP and t.loc["0xd1", "note"] == "n1"   # bảng cũ chưa có note_A/B
+    t = t.reset_index()
+    t.loc[0, "note_B"] = "lý do của B"
+    t.to_csv(tmp_path / "delegate_lookup.csv", index=False)
+    t2 = sg.write_delegate_lookup(items).set_index("delegate")
+    assert t2.loc["0xd1", "note_B"] == "lý do của B" and t2.loc["0xd1", "class_B"] == "unknown"   # chạy lại giữ cột mới
 
 
 def test_calldata_len():
@@ -157,13 +176,70 @@ def test_check_delegates_requires_explicit_review():
     t = pd.DataFrame({"chain": ["eth"] * 4, "delegate": ["0xd1", "0xd2", "0xd3", "0xd4"],
                       "class_A": ["ok", "", "unknown", "ok"], "class_B": ["ok", "ok", "ok", "legit_wallet"],
                       "final_class": ["forwarder_sweeper", "unknown", "forwarder_sweeper", "legit_wallet"],
-                      "note": ["", "", "", ""]})
+                      "note": ["bằng chứng của người điều phối"] * 4, "note_A": "", "note_B": ""})
     errs = sg.check_delegates(t)
     assert not any("0xd1" in e for e in errs) and not any("0xd4" in e for e in errs)   # ok, hoặc ghi đúng lớp cuối
     assert any("0xd2" in e and "trống" in e for e in errs)                            # ô trống = chưa rà
-    assert any("0xd3" in e and "note" in e for e in errs)                             # phản đối phải có note
-    t.loc[2, "note"] = "bytecode giống ví hợp lệ"
+    assert any("0xd3" in e and "note_A" in e for e in errs)       # phản đối cần lý do ở note_A (note của điều phối không tính)
+    t.loc[2, "note_B"] = "lý do của B"
+    assert any("0xd3" in e for e in sg.check_delegates(t))                            # note của người kia không tính
+    t.loc[2, "note_A"] = "bytecode giống ví hợp lệ"
     assert not any("0xd3" in e for e in sg.check_delegates(t))
+    assert not any("class_B" in e for e in sg.check_delegates(t, ("A",)))             # kiểm bản riêng của A
+
+
+def _delegate_table(tmp_path):
+    t = pd.DataFrame({"chain": ["eth", "bsc"], "delegate": ["0xd1", "0xd2"], "n_items": ["3", "1"],
+                      "explorer_url": ["u", "v"], "class_A": "", "note_A": "", "class_B": "", "note_B": "",
+                      "final_class": ["forwarder_sweeper", "unknown"], "source": ["verified", "bytecode"],
+                      "note": ["Forwarder", "chưa rõ"]})
+    t.to_csv(tmp_path / "delegate_lookup.csv", index=False)
+    return t
+
+
+def test_check_delegates_cli_exits_nonzero(monkeypatch, tmp_path):
+    import pytest
+    monkeypatch.setattr(sg, "GOLD_DIR", tmp_path)
+    _delegate_table(tmp_path)
+    with pytest.raises(SystemExit) as e:
+        sg.cmd_check_delegates()
+    assert e.value.code == 1
+
+
+def test_delegate_copies_are_separate_and_merge_back(monkeypatch, tmp_path):
+    import pytest
+    monkeypatch.setattr(sg, "GOLD_DIR", tmp_path)
+    _delegate_table(tmp_path)
+    pa, pb = sg.cmd_delegate_copy("A"), sg.cmd_delegate_copy("B")
+    a, b = pd.read_csv(pa, dtype=str, keep_default_na=False), pd.read_csv(pb, dtype=str, keep_default_na=False)
+    assert "class_B" not in a and "note_B" not in a and "class_A" not in b and "note_A" not in b   # không thấy cột người kia
+    a["class_A"] = ["ok", "legit_wallet"]
+    a.loc[1, "note_A"] = "MetaMask Delegator"
+    b["class_B"] = ["ok", "ok"]
+    a.to_csv(pa, index=False)
+    b.to_csv(pb, index=False)
+    m = sg.cmd_merge_delegates(pa, pb).set_index("delegate")
+    assert m.loc["0xd2", "class_A"] == "legit_wallet" and m.loc["0xd2", "note_A"] == "MetaMask Delegator"
+    assert m.loc["0xd1", "class_B"] == "ok" and m.loc["0xd2", "note"] == "chưa rõ"
+    assert sg.cmd_check_delegates() == []
+    b.loc[0, "final_class"] = "legit_wallet"                      # người rà sửa cột của người điều phối → từ chối
+    b.to_csv(pb, index=False)
+    with pytest.raises(SystemExit):
+        sg.cmd_merge_delegates(pa, pb)
+
+
+def test_sheet_refuses_until_delegates_reviewed(monkeypatch, tmp_path):
+    import pytest
+    monkeypatch.setattr(sg, "GOLD_DIR", tmp_path)
+    _delegate_table(tmp_path)
+    pd.DataFrame({"item_id": ["G1"], "chain": ["eth"], "address": [A], "code_at_event": ["none"]}).to_csv(
+        tmp_path / "main_items.csv", index=False)
+    with pytest.raises(SystemExit) as e:
+        sg.cmd_sheet("A", "main")
+    assert "delegate" in str(e.value)
+    assert not list(tmp_path.glob("*.xlsx"))
+    sg.cmd_sheet("A", "main", skip_delegate_check=True)           # chỉ cho test / chạy thử
+    assert (tmp_path / "annotator_main_A.xlsx").exists()
 
 
 def test_kappa_reports_without_delegate_decided_items(tmp_path):
@@ -177,3 +253,13 @@ def test_kappa_reports_without_delegate_decided_items(tmp_path):
                                                                                                     index=False)
     out = sg.cmd_kappa(str(tmp_path / "a.csv"), str(tmp_path / "b.csv"), str(tmp_path / "it.csv"))
     assert out["is_misuse"] < 1 and out["is_misuse_no_delegate"] == 1.0          # bất đồng duy nhất ở mẫu 7702
+
+
+def test_kappa_reports_without_ca7_unlabelled_items(tmp_path):
+    lab = lambda m, n: pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4"], "is_misuse": m,
+                                     "type": ["T5", "T1", "NONE", "T1"], "subtype": "-", "xc_chain": "-", "malicious": "-",
+                                     "confidence": "low", "evidence": "history", "note": n})
+    lab(["1", "1", "0", "1"], ["ca 7c: ví gom không nhãn", "", "", ""]).to_csv(tmp_path / "a.csv", index=False)
+    lab(["0", "1", "0", "1"], ["", "", "", ""]).to_csv(tmp_path / "b.csv", index=False)
+    out = sg.cmd_kappa(str(tmp_path / "a.csv"), str(tmp_path / "b.csv"))
+    assert out["is_misuse"] < 1 and out["is_misuse_no_ca7bc"] == 1.0

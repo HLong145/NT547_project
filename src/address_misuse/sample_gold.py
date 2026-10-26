@@ -470,7 +470,8 @@ def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], live_from: s
       một số tầng). `live_from` = một main_items.csv cũ: dùng lại đúng các cột này (cùng một ảnh chụp cho mọi mẫu) thay vì tra lại,
       để bảng tra delegate không đổi giữa hai phiên bản.
     - Theo tx tại `at` (`gold_evidence`): giờ tx, trạng thái, selector, loại calldata, value; trạng thái code NGAY TRƯỚC tx
-      (`code_at_event`) và lúc tạo contract trên chain này (`own_create_time`, `creator`) tra cho MỌI mẫu;
+      (`code_at_event`; với địa chỉ hôm nay là 7702, so thêm lúc tạo contract delegate) và lúc tạo contract trên chain này
+      (`own_create_time`, `creator`) tra cho MỌI mẫu;
       contract cùng địa chỉ ở mạng khác so với tx tại `at` (`xc_*`) cho MỌI mẫu chain này không có code lúc tx mà mạng khác có code.
     """
     from address_misuse import gold_evidence as ge
@@ -494,6 +495,9 @@ def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], live_from: s
 
     txs = ge.fetch_event_txs([(c, h) for c, h in zip(sample.chain, sample.tx_hash) if isinstance(h, str)])
     own = ge.fetch_creations(list(zip(sample.chain, sample.address)))
+    # v0.6.2: bản ghi tạo contract của delegate 7702 (cùng chain), để biết delegate đã tồn tại lúc tx chưa
+    dpairs = sorted({(c, str(d).lower()) for c, d in zip(sample.chain, sample.delegate_7702) if str(d) not in ("-", "nan", "")})
+    dele = ge.fetch_creations(dpairs) if dpairs else {}
     rows = []
     for r in sample.to_dict("records"):
         c, a, h, at = r["chain"], r["address"], r["tx_hash"], int(r["at"])
@@ -501,7 +505,10 @@ def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], live_from: s
         cr = own.get((c, a))
         if cr and cr.get("status") == "found" and t and cr.get("block") == t["block"]:
             cr = ge.creation_index(c, cr)                # cùng block: cần vị trí trong block để biết cái nào trước
-        cae = ge.state_at_event(c, r[f"code_{c}"], at, t, cr)
+        dc = dele.get((c, str(r["delegate_7702"]).lower()))
+        if dc and dc.get("status") == "found" and t and dc.get("block") == t["block"]:
+            dc = ge.creation_index(c, dc)
+        cae = ge.state_at_event(c, r[f"code_{c}"], at, t, cr, dc)
         found = bool(cr) and cr.get("status") == "found"
         inp = t["input"] if t else None
         row = {"item_id": r["item_id"], "at_time": ge.utc(at), "tx_hash": h if isinstance(h, str) else None,
@@ -525,21 +532,24 @@ def main_evidence(sample: pd.DataFrame, s: dict[str, pd.DataFrame], live_from: s
     return items.astype(object).where(items.notna() & (items != ""), "-")
 
 
-DELEGATE_KEEP = ["class_A", "class_B", "final_class", "source", "note"]
+DELEGATE_REVIEW_COLS = {"A": ["class_A", "note_A"], "B": ["class_B", "note_B"]}
+DELEGATE_KEEP = ["class_A", "note_A", "class_B", "note_B", "final_class", "source", "note"]
+DELEGATE_FIXED = ["chain", "delegate", "n_items", "explorer_url", "final_class", "source", "note"]
 
 
 def write_delegate_lookup(items: pd.DataFrame) -> pd.DataFrame:
     """Bảng tra delegate EIP-7702 (CODEBOOK ca khó 13, GOLD_PROTOCOL §2.3): mỗi (chain, delegate) trong mẫu chính một dòng.
-    Từ v0.6 người điều phối điền sẵn `final_class` và `source` từ bằng chứng khách quan (mã nguồn đã verify hoặc bytecode);
-    A và B chỉ RÀ SOÁT: để trống `class_A` / `class_B` = đồng ý, ghi lớp khác kèm `note` = phản đối. Lớp: legit_wallet /
-    forwarder_sweeper / unknown. Chạy lại GIỮ NGUYÊN các ô đã điền; delegate mới thêm dòng trống. Không chứa nhãn mẫu."""
+    Người điều phối điền sẵn `final_class`, `source` và `note` (lý do, từ mã nguồn đã verify hoặc bytecode). A và B RÀ SOÁT
+    trước khi gán: mỗi dòng ghi `class_A` / `class_B` = `ok` (đã xem, đồng ý) hoặc một lớp khác kèm lý do ở cột của chính mình
+    (`note_A` / `note_B`) = phản đối. Ô trống = CHƯA RÀ (không phải đồng ý). Lớp: legit_wallet / forwarder_sweeper / unknown.
+    Chạy lại GIỮ NGUYÊN mọi ô đã điền (kể cả `note_A`, `note_B`); delegate mới thêm dòng trống. Không chứa nhãn mẫu."""
     d = items[items.delegate_7702.notna() & (items.delegate_7702 != "-")]
     t = (d.groupby(["chain", "delegate_7702"]).agg(n_items=("item_id", "size"))
          .reset_index().rename(columns={"delegate_7702": "delegate"}).sort_values("n_items", ascending=False, kind="stable"))
     t["explorer_url"] = [EXPLORERS[c] + a for c, a in zip(t.chain, t.delegate)]
     p = GOLD_DIR / "delegate_lookup.csv"
     if p.exists():
-        old = pd.read_csv(p, dtype=str, keep_default_na=False)
+        old = pd.read_csv(p, dtype=str, keep_default_na=False).reindex(columns=["chain", "delegate", *DELEGATE_KEEP])
         old["_pos"] = range(len(old))                    # giữ thứ tự dòng cũ (chỉ khác ở các dòng bằng n_items)
         t = t.merge(old[["chain", "delegate", "_pos", *DELEGATE_KEEP]], on=["chain", "delegate"], how="left")
         t = t.sort_values(["_pos", "n_items"], ascending=[True, False], na_position="last", kind="stable")
@@ -557,30 +567,76 @@ def write_delegate_lookup(items: pd.DataFrame) -> pd.DataFrame:
 DELEGATE_CLASSES = ("legit_wallet", "forwarder_sweeper", "unknown")
 
 
-def check_delegates(t: pd.DataFrame) -> list[str]:
-    """Bảng delegate đã được A và B rà chưa (CODEBOOK ca 13): mỗi dòng `class_A`, `class_B` phải là `ok` (đồng ý) hoặc một lớp
-    khác `final_class` kèm `note` (phản đối). Ô trống = chưa rà. `final_class` phải là một lớp hợp lệ."""
+def check_delegates(t: pd.DataFrame, who: tuple[str, ...] = ("A", "B")) -> list[str]:
+    """Bảng delegate đã được rà chưa (CODEBOOK ca 13): với mỗi người trong `who`, mỗi dòng `class_X` phải là `ok` (đồng ý) hoặc
+    một lớp khác `final_class` kèm lý do ở `note_X` của chính người đó (phản đối). Ô trống = chưa rà. `final_class` phải hợp lệ."""
     errs = []
+    t = t.reindex(columns=list(dict.fromkeys([*t.columns, "final_class", *(c for w in who for c in DELEGATE_REVIEW_COLS[w])])))
     for r in t.fillna("").itertuples(index=False):
         g = r._asdict()
         if g["final_class"] not in DELEGATE_CLASSES:
             errs.append(f"{r.chain} {r.delegate}: final_class = {g['final_class']!r} không hợp lệ")
-        for c in ("class_A", "class_B"):
+        for w in who:
+            c, n = DELEGATE_REVIEW_COLS[w]
             v = str(g[c]).strip().lower()
             if not v:
                 errs.append(f"{r.chain} {r.delegate}: {c} trống (chưa rà)")
             elif v != "ok" and v not in DELEGATE_CLASSES:
                 errs.append(f"{r.chain} {r.delegate}: {c} = {g[c]!r} (chỉ nhận ok / {' / '.join(DELEGATE_CLASSES)})")
-            elif v not in ("ok", g["final_class"]) and not str(g["note"]).strip():
-                errs.append(f"{r.chain} {r.delegate}: {c} phản đối ({v}) nhưng chưa có note")
+            elif v not in ("ok", g["final_class"]) and not str(g[n]).strip():
+                errs.append(f"{r.chain} {r.delegate}: {c} phản đối ({v}) nhưng chưa có lý do ở {n}")
     return errs
 
 
-def cmd_check_delegates(path: str | None = None) -> list[str]:
+def cmd_check_delegates(path: str | None = None, who: str | None = None, exit_on_error: bool = True) -> list[str]:
+    """In lỗi rà soát; có lỗi thì thoát mã 1 (để chặn quy trình). `who` = A hoặc B khi kiểm bản sao riêng của một người."""
     t = pd.read_csv(path or GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False)
-    errs = check_delegates(t)
+    errs = check_delegates(t, (who,) if who else ("A", "B"))
     print("Bảng delegate đã rà đủ." if not errs else f"{len(errs)} lỗi:\n  " + "\n  ".join(errs))
+    if errs and exit_on_error:
+        raise SystemExit(1)
     return errs
+
+
+def cmd_delegate_copy(who: str, out: str | None = None) -> str:
+    """Bản sao riêng để `who` rà (GOLD_PROTOCOL §2.3): chỉ có cột của người đó, không thấy cột của người kia."""
+    from pathlib import Path
+    full = pd.read_csv(GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False)
+    t = full.reindex(columns=[*DELEGATE_FIXED, *DELEGATE_REVIEW_COLS[who]]).fillna("")
+    p = out or str(GOLD_DIR / f"delegate_review_{who}.csv")
+    if Path(p).exists():
+        raise SystemExit(f"{p} đã có, không ghi đè (có thể đã có ý kiến rà soát)")
+    t.to_csv(p, index=False, encoding="utf-8", lineterminator="\n")
+    print(f"Ghi bản rà của {who} → {p}")
+    return p
+
+
+def cmd_merge_delegates(path_a: str, path_b: str) -> pd.DataFrame:
+    """Gộp hai bản rà riêng vào delegate_lookup.csv: lấy class_A/note_A từ bản của A, class_B/note_B từ bản của B.
+    Từ chối nếu bản sao đổi dòng hoặc đổi cột của người điều phối (`final_class`, `source`, `note`)."""
+    p = GOLD_DIR / "delegate_lookup.csv"
+    m = pd.read_csv(p, dtype=str, keep_default_na=False).reindex(columns=["chain", "delegate", "n_items", "explorer_url",
+                                                                          *DELEGATE_KEEP]).fillna("")
+    for who, path in (("A", path_a), ("B", path_b)):
+        c = pd.read_csv(path, dtype=str, keep_default_na=False)
+        miss = set(["chain", "delegate", "final_class", "source", "note", *DELEGATE_REVIEW_COLS[who]]) - set(c.columns)
+        if miss:
+            raise SystemExit(f"{path}: thiếu cột {sorted(miss)}")
+        j = m[["chain", "delegate", "final_class", "source", "note"]].merge(
+            c, on=["chain", "delegate"], how="outer", suffixes=("", "_copy"), indicator=True)
+        if (j._merge != "both").any():
+            raise SystemExit(f"{path}: tập delegate khác bảng gốc")
+        for col in ("final_class", "source", "note"):
+            if (j[col] != j[f"{col}_copy"]).any():
+                raise SystemExit(f"{path}: cột {col} khác bảng gốc (người rà không được sửa cột của người điều phối)")
+        got = c.set_index(["chain", "delegate"])[DELEGATE_REVIEW_COLS[who]]
+        idx = pd.MultiIndex.from_frame(m[["chain", "delegate"]])
+        for col in DELEGATE_REVIEW_COLS[who]:
+            m[col] = got[col].reindex(idx).to_numpy()
+    m.to_csv(p, index=False, encoding="utf-8", lineterminator="\n")
+    errs = check_delegates(m)
+    print(f"Gộp xong → {p}; " + ("đã rà đủ." if not errs else f"còn {len(errs)} lỗi (chạy check-delegates để xem)."))
+    return m
 
 
 def cmd_main(seed: int = 0, n_double: int = 200, live_from: str | None = None) -> pd.DataFrame:
@@ -620,7 +676,7 @@ CHOICES = {"is_misuse": ["1", "0", "?"], "type": ["T1", "T2", "T3", "T4", "T5", 
            "confidence": ["high", "medium", "low"]}
 SHEET = "Gan_nhan"
 GUIDE = [
-    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.6; đọc bản đầy đủ nếu phân vân)",
+    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.6.2; đọc bản đầy đủ nếu phân vân)",
     "",
     "Gán ĐỘC LẬP. Không mở *_key.csv, file của người gán kia, dataset_v2.parquet, engine_eval.parquet; không đọc GOLD_PROTOCOL.md, FINDINGS_LOG.md, PROGRESS.md trước khi xong.",
     "Chỉ điền các cột màu vàng ở sheet Gan_nhan. Các cột còn lại là bằng chứng, tính cùng một cách cho mọi mẫu; ô '-' = không áp dụng / không tra được, không suy ra gì.",
@@ -645,13 +701,15 @@ GUIDE = [
     "Quy trình (CODEBOOK §4.1):",
     "0. Mở tx_url (Status, From, To, Value, Method, token chuyển).",
     "A. code_at_event: none → B;  code / destroyed → C;  7702 → D;  unknown → xem tx tạo contract trên explorer rồi chọn B/C/D.",
-    "B. calldata_kind ≠ call ('-' chuyển coin thuần, text văn bản, short), hoặc calldata_len = 32 mà Method trên tx là mã thô 0x… → D.",
+    "   unknown mà có delegate_7702: delegate hôm nay tạo SAU tx. Xem tab Authorizations: lúc tx không ủy quyền → D2; ủy quyền tới delegate X → D với X (ghi X vào note).",
+    "B. calldata_kind ≠ call ('-' chuyển coin thuần, text văn bản, short), hoặc calldata_len = 32 mà Method trên tx là mã thô 0x… → D. calldata_kind = unknown: xem Input trên tx_url.",
     "   calldata_kind = call: xc_timing before → T4;  after → T1;  unknown → mở explorer_url_xc, vẫn không biết → T4 low;  '-' → T1.",
     "C. transfer/transferFrom với người nhận = chính address, thành công → T3.  Contract định gọi, gọi đúng hàm → NONE.",
     "   T2 chỉ khi đủ 3: tx success; contract không phải thứ định gọi; tiền không quay lại. Thiếu một → NONE. Tx fail → NONE.",
     "D. 7702: tra data/gold/delegate_lookup.csv (final_class) và CODEBOOK ca 13; ủy quyền xảy ra SAU tx thì xét như EOA thường.",
+    "   forwarder_sweeper → T5/7702, TRỪ KHI ví đích của forwarder là ví có NHÃN sàn trên explorer (ca 7a) → NONE.",
     "   Đếm lần rút nhanh (vào rồi ≤ 10 phút ra ≥ 90% về ví lạ) trong toàn lịch sử: ≥ 2 → T5/KEY;  đúng 1 → NONE, low;  0 → T6 nếu đủ dấu hiệu, còn lại NONE.",
-    "   Rút về ví sàn có nhãn hoặc ví gom của sàn KHÔNG tính (CODEBOOK ca 7a–c).",
+    "   Chỉ rút về ví có NHÃN sàn / custodian trên explorer là KHÔNG tính (ca 7a). Ví nhận không nhãn (ca 7b, 7c) VẪN tính: confidence low, note 'ca 7b' / 'ca 7c'.",
     "",
     "Ca khó hay gặp (CODEBOOK §5):",
     "- selector 0x64617461 là chữ \"data\" (inscription): calldata_kind = text, không phải gọi hàm.",
@@ -666,18 +724,30 @@ GUIDE = [
 
 
 GUIDE_MAIN = [
-    "MẪU CHÍNH (CODEBOOK v0.6): mỗi dòng là MỘT TX (tx_hash, tx_url) tới address trên chain. Nhãn áp cho TX NÀY.",
+    "MẪU CHÍNH (CODEBOOK v0.6.2): mỗi dòng là MỘT TX (tx_hash, tx_url) tới address trên chain. Nhãn áp cho TX NÀY.",
     "\"Trước tx\" = trước tx này trên chuỗi (block, rồi vị trí trong block); không dùng ngày hay tx đầu tiên. at_time là giờ UTC của tx.",
     "code_at_event = code ngay trước tx (none / code / destroyed / 7702 / unknown); own_create_time = lúc tạo contract trên chain này, nếu có.",
     "Với EOA (KEY/ADDR/7702) được dùng TOÀN BỘ lịch sử của địa chỉ, kể cả sau tx, để nhận ra sweeper; nhãn vẫn là của tx.",
-    "7702: TRƯỚC KHI GÁN, rà data/gold/delegate_lookup.csv: điền class_A/class_B = ok (đã xem, đồng ý) hoặc lớp khác + note (phản đối). Ô trống = chưa rà.",
+    "7702: file này chỉ được tạo sau khi A và B đã rà xong bảng delegate (mỗi người một bản riêng: class_X = ok, hoặc lớp khác + lý do ở note_X). Khi gán dùng final_class.",
     "Thứ tự: làm file 'double' TRƯỚC; file 'single' chỉ làm khi người điều phối báo. Mỗi phiên tối đa ~40 mẫu.",
     "",
 ]
 
 
-def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_single: bool = False) -> None:
-    """File Excel cho người gán `who`: bằng chứng (đã làm mù) + cột nhãn có danh sách chọn + sheet hướng dẫn."""
+def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_single: bool = False,
+              skip_delegate_check: bool = False) -> None:
+    """File Excel cho người gán `who`: bằng chứng (đã làm mù) + cột nhãn có danh sách chọn + sheet hướng dẫn.
+    Mẫu chính: từ chối tạo file khi bảng delegate chưa được A và B rà đủ (GOLD_PROTOCOL §2.3). `skip_delegate_check` chỉ cho
+    test / chạy thử, in cảnh báo, không dùng để tạo file thật cho người gán."""
+    if which == "main":
+        errs = check_delegates(pd.read_csv(GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False))
+        if errs and not skip_delegate_check:
+            raise SystemExit(f"Không tạo file gán: bảng delegate chưa rà xong ({len(errs)} lỗi). A và B phải rà hết "
+                             "delegate_lookup.csv (ok hoặc lớp khác + lý do) rồi chạy `sample_gold check-delegates` báo 0 lỗi.")
+        if errs:
+            bar = "!" * 70
+            print(f"{bar}\nCẢNH BÁO: BỎ QUA cổng rà delegate ({len(errs)} lỗi). File này CHỈ để thử, "
+                  f"KHÔNG giao cho người gán.\n{bar}")
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
@@ -851,17 +921,21 @@ def cmd_kappa(path_a: str, path_b: str, items_csv: str | None = None, key_csv: s
         ci = cluster_boot_ci(x, y, clusters)
         print(f"κ({col}) = {out[col]:.3f} [CI95 theo cụm {ci[0]:.3f}–{ci[1]:.3f}] trên {len(j)} mẫu, đồng ý {sum(p == q for p, q in zip(x, y))}/{len(j)}"
               f"; Gwet AC1 {gwet_ac1(x, y):.3f}" + (f"; PABAK {pabak(x, y):.3f}" if col == "is_misuse" else ""))
-    if items_csv:                     # tiền đăng ký: báo thêm κ khi bỏ mẫu do phân loại delegate quyết định (GOLD_PROTOCOL §4 j)
-        from address_misuse.gold_eval import delegate_decided
-        dd = set(delegate_decided(it.reset_index()))
-        keep = ~j.item_id.isin(dd).to_numpy()
+    from address_misuse.gold_eval import ca7_unlabelled, delegate_decided
+    subsets = []                      # tiền đăng ký: κ khi bỏ một nhóm mẫu (GOLD_PROTOCOL §4 j, k)
+    if items_csv:
+        subsets.append(("no_delegate", "do delegate quyết định", set(delegate_decided(it.reset_index()))))
+    ca7 = set(ca7_unlabelled(j.rename(columns={"note_A": "note"}))) | set(ca7_unlabelled(j.rename(columns={"note_B": "note"})))
+    subsets.append(("no_ca7bc", "có note ca 7b/7c ở một trong hai người", ca7))
+    for name, what, drop in subsets:
+        keep = ~j.item_id.isin(drop).to_numpy()
         for col in ("is_misuse", "type"):
             x = [v for v, k in zip(j[f"{col}_A"].str.strip().str.upper(), keep) if k]
             y = [v for v, k in zip(j[f"{col}_B"].str.strip().str.upper(), keep) if k]
             if x:
-                out[f"{col}_no_delegate"] = cohen_kappa(x, y)
+                out[f"{col}_{name}"] = cohen_kappa(x, y)
                 ci = cluster_boot_ci(x, y, [c for c, k in zip(clusters, keep) if k])
-                print(f"  bỏ {int((~keep).sum())} mẫu do delegate quyết định: κ({col}) = {out[f'{col}_no_delegate']:.3f} "
+                print(f"  bỏ {int((~keep).sum())} mẫu {what}: κ({col}) = {out[f'{col}_{name}']:.3f} "
                       f"[CI95 theo cụm {ci[0]:.3f}–{ci[1]:.3f}] trên {len(x)} mẫu")
     q = (j.is_misuse_A.str.upper() == "?") | (j.is_misuse_B.str.upper() == "?")
     if q.any():
@@ -891,12 +965,21 @@ def main():
     sh.add_argument("--set", choices=["pilot", "main"], default="pilot")
     sh.add_argument("--only-double", action="store_true")
     sh.add_argument("--only-single", action="store_true")
+    sh.add_argument("--skip-delegate-check", action="store_true",
+                    help="CHỈ cho test / chạy thử: bỏ cổng rà bảng delegate. KHÔNG dùng để tạo file thật cho người gán")
     mn = sub.add_parser("main")
     mn.add_argument("--seed", type=int, default=0)
     mn.add_argument("--double", type=int, default=200)
     mn.add_argument("--live-from", help="main_items.csv cũ: dùng lại ảnh chụp getCode/symexec hôm nay thay vì tra lại")
     cd = sub.add_parser("check-delegates")
     cd.add_argument("path", nargs="?")
+    cd.add_argument("--who", choices=["A", "B"], help="kiểm bản rà riêng của một người")
+    dc = sub.add_parser("delegate-copy", help="tạo bản rà riêng delegate_review_<A|B>.csv")
+    dc.add_argument("who", choices=["A", "B"])
+    dc.add_argument("--out")
+    dm = sub.add_parser("merge-delegates", help="gộp hai bản rà riêng vào delegate_lookup.csv")
+    dm.add_argument("a")
+    dm.add_argument("b")
     k = sub.add_parser("kappa")
     k.add_argument("a")
     k.add_argument("b")
@@ -910,9 +993,13 @@ def main():
     elif args.cmd == "main":
         cmd_main(args.seed, args.double, args.live_from)
     elif args.cmd == "check-delegates":
-        cmd_check_delegates(args.path)
+        cmd_check_delegates(args.path, args.who)
+    elif args.cmd == "delegate-copy":
+        cmd_delegate_copy(args.who, args.out)
+    elif args.cmd == "merge-delegates":
+        cmd_merge_delegates(args.a, args.b)
     elif args.cmd == "sheet":
-        cmd_sheet(args.who, args.set, args.only_double, args.only_single)
+        cmd_sheet(args.who, args.set, args.only_double, args.only_single, args.skip_delegate_check)
     else:
         cmd_kappa(args.a, args.b, args.items, args.key)
 

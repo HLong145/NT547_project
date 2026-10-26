@@ -229,6 +229,22 @@ def test_gold_eval_exclude_delegate_decided_keeps_weights():
     assert ge.evaluate(df, boot=10)["n_labelled"] == 8
 
 
+def test_gold_eval_ca7_sensitivity_flip_and_exclude():
+    from address_misuse import gold_eval as ge
+    rows = [{"item_id": f"P{i}", "cell": "+A|eth|u", "stratum": "+A", "flag": f, "gold": g, "n_rows": 1, "cell_n": 4,
+             "cell_rows": 4} for i, (f, g) in enumerate(((1, 1), (1, 1), (1, 0), (0, 1)))]
+    rows += [{"item_id": f"N{i}", "cell": "-N|eth|u", "stratum": "-N", "flag": int(i == 0), "gold": 0, "n_rows": 2,
+              "cell_n": 40, "cell_rows": 80} for i in range(4)]
+    df = pd.DataFrame(rows)
+    labels = pd.DataFrame({"item_id": ["P0", "P1", "P2"], "note": ["", "ca 7c: ví gom không nhãn", "Ca 7B"]})
+    ca7 = ge.ca7_unlabelled(labels)
+    assert ca7 == ["P1", "P2"] and ge.ca7_unlabelled(labels.drop(columns="note")) == []
+    assert abs(ge.evaluate(df, boot=10)["precision"] - 2 / 13) < 1e-9                  # tp 2, fp 1 + 10
+    r = ge.evaluate(df, boot=10, flip_to_negative=ca7)                                  # P1 lật về 0 (P2 vốn là 0)
+    assert abs(r["precision"] - 1 / 13) < 1e-9 and r["n_labelled"] == 8
+    assert ge.evaluate(df, boot=10, exclude_items=ca7)["n_labelled"] == 6
+
+
 def test_final_gold_requires_adjudication_for_double_items():
     from address_misuse import gold_eval as ge
     df = pd.DataFrame({"double": [True, False, True], "gold_B": [1, 0, 1], "gold_adj": [0, None, None]})

@@ -51,12 +51,12 @@ def calldata_len(inp: str | None) -> int | None:
     return len(h) // 2
 
 
-def calldata_kind(inp: str | None) -> str | None:
+def calldata_kind(inp: str | None) -> str:
     """'-' khi không có calldata (chuyển coin thuần); 'text' khi calldata đọc được thành văn bản (cùng hàm
     `is_hex_readable` mà luật NCD/PCD của tác giả dùng để loại tx); 'call' khi có ≥ 4 byte và không phải văn bản;
-    'short' khi 1–3 byte. None = không tra được tx."""
+    'short' khi 1–3 byte; 'unknown' khi không tra được tx (v0.6.2: không ghi '-', vì '-' nghĩa là chuyển coin thuần)."""
     if inp is None:
-        return None
+        return "unknown"
     if inp in ("0x", ""):
         return "-"
     if is_hex_readable(inp):
@@ -94,12 +94,16 @@ def _same_tx(c: dict, ev: dict) -> bool:
             and c.get("index") is not None and c.get("index") == ev.get("index"))
 
 
-def state_at_event(chain: str, own_now: str | None, at_ts: int, ev: dict | None, creation: dict | None) -> str:
+def state_at_event(chain: str, own_now: str | None, at_ts: int, ev: dict | None, creation: dict | None,
+                   delegate_creation: dict | None = None) -> str:
     """Trạng thái code của địa chỉ trên chain của mẫu, ngay trước tx tại `at` — một quy tắc cho mọi mẫu:
 
     - getCode hôm nay lỗi → 'unknown'.
-    - Hôm nay là ủy quyền 7702: 'none' nếu tx trước khi EIP-7702 kích hoạt trên chain, ngược lại '7702'
-      (ủy quyền có thể được đặt SAU tx: không tra được lúc đặt, ghi trong hạn chế).
+    - Hôm nay là ủy quyền 7702: 'none' nếu tx trước khi EIP-7702 kích hoạt trên chain. 'unknown' nếu contract delegate HÔM NAY
+      (`delegate_creation`, bản ghi tạo trên cùng chain) được tạo KHÔNG trước tx (v0.6.2): delegate này chưa hoạt động lúc tx,
+      nhưng địa chỉ có thể đã ủy quyền cho một delegate KHÁC (đổi ủy quyền sau đó) hoặc là EOA thường; không có node archive
+      để kiểm, nên người gán xem tab Authorizations. Còn lại '7702' (ủy quyền vẫn có thể đặt sau tx: không tra được lúc đặt,
+      ghi trong hạn chế). Không tra được bản ghi tạo delegate, hoặc cùng block không rõ thứ tự → '7702' như trước.
     - Có bản ghi tạo contract: tạo trước tx → 'code' (hôm nay còn code) hoặc 'destroyed' (hôm nay hết code: đã tự huỷ,
       không rõ lúc nào); tạo sau tx → 'none'; cùng block mà không rõ thứ tự → 'unknown'.
       Tạo NGAY TRONG tx tại `at` → 'unknown' (không phải 'none'/PCD): khi `to` của tx là chính địa chỉ thì điều này không thể
@@ -110,7 +114,12 @@ def state_at_event(chain: str, own_now: str | None, at_ts: int, ev: dict | None,
     if own_now not in ("none", "code", "7702"):
         return "unknown"
     if own_now == "7702":
-        return "none" if at_ts < EIP7702_ACTIVATION_TS.get(chain, 0) else "7702"
+        if at_ts < EIP7702_ACTIVATION_TS.get(chain, 0):
+            return "none"
+        dc = delegate_creation or {}
+        if dc.get("status") == "found" and (_same_tx(dc, ev or {}) or _before(dc, ev or {}) is False):
+            return "unknown"
+        return "7702"
     st = (creation or {}).get("status")
     if st == "found":
         if _same_tx(creation, ev or {}):
