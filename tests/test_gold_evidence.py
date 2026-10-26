@@ -186,6 +186,50 @@ def test_check_delegates_requires_explicit_review():
     t.loc[2, "note_A"] = "bytecode giống ví hợp lệ"
     assert not any("0xd3" in e for e in sg.check_delegates(t))
     assert not any("class_B" in e for e in sg.check_delegates(t, ("A",)))             # kiểm bản riêng của A
+    strict = sg.check_delegates(t, strict=True)                   # cổng trước khi tạo file gán: phản đối phải đã giải quyết
+    assert any("0xd3" in e and "chưa giải quyết" in e for e in strict)
+    assert not any("0xd4" in e for e in strict) and not any("0xd1" in e for e in strict)   # ok hoặc đúng final_class
+
+
+def test_sheet_refuses_while_objection_unresolved(monkeypatch, tmp_path):
+    import pytest
+    monkeypatch.setattr(sg, "GOLD_DIR", tmp_path)
+    t = _delegate_table(tmp_path)
+    t["class_A"], t["class_B"] = ["ok", "legit_wallet"], ["ok", "ok"]
+    t.loc[1, "note_A"] = "MetaMask Delegator"                     # phản đối có lý do: đủ cho rà, chưa đủ cho cổng
+    t.to_csv(tmp_path / "delegate_lookup.csv", index=False)
+    pd.DataFrame({"item_id": ["G1"], "chain": ["eth"], "address": [A], "code_at_event": ["none"]}).to_csv(
+        tmp_path / "main_items.csv", index=False)
+    assert sg.cmd_check_delegates() == []
+    with pytest.raises(SystemExit) as e:
+        sg.cmd_check_delegates(strict=True)
+    assert e.value.code == 1
+    with pytest.raises(SystemExit):
+        sg.cmd_sheet("A", "main")
+    assert not list(tmp_path.glob("*.xlsx"))
+    t.loc[1, "final_class"] = "legit_wallet"                      # thống nhất: điều phối sửa lớp, xoá ý kiến, hai người ghi lại ok
+    t.loc[1, "note"] = "đổi sau phản đối của A"
+    t["class_A"], t["class_B"] = ["ok", "ok"], ["ok", "ok"]
+    t.to_csv(tmp_path / "delegate_lookup.csv", index=False)
+    assert sg.cmd_check_delegates(strict=True) == []
+    sg.cmd_sheet("A", "main")
+    assert (tmp_path / "annotator_main_A.xlsx").exists()
+
+
+def test_delegate_named_detects_table_delegate_in_note():
+    from address_misuse.gold_eval import delegate_named
+    d1, d2 = "0x" + "ab" * 20, "0x" + "cd" * 20
+    items = pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4", "G5"], "chain": ["eth", "eth", "bsc", "eth", "eth"],
+                          "code_at_event": ["unknown", "unknown", "unknown", "7702", "unknown"]})
+    lookup = pd.DataFrame({"chain": ["eth", "eth"], "delegate": [d1, d2]})
+    labels = pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4", "G5"],
+                           "note": [f"Authorizations: delegate {d1.upper().replace('0X', '0x')}",   # hoa thường không quan trọng
+                                    "delegate 0xabab…abab",                                      # viết tắt: không tính
+                                    f"delegate {d1}",                                            # khác chain: không tính
+                                    f"delegate {d2}",                                            # 7702 đã nằm trong (j)
+                                    "không có ủy quyền lúc tx"]})
+    assert delegate_named(labels, items, lookup) == ["G1"]
+    assert delegate_named(labels.drop(columns="note"), items, lookup) == []
 
 
 def _delegate_table(tmp_path):
@@ -255,6 +299,29 @@ def test_kappa_reports_without_delegate_decided_items(tmp_path):
     assert out["is_misuse"] < 1 and out["is_misuse_no_delegate"] == 1.0          # bất đồng duy nhất ở mẫu 7702
 
 
+def test_kappa_reports_without_delegate_named_items(monkeypatch, tmp_path):
+    monkeypatch.setattr(sg, "GOLD_DIR", tmp_path)
+    d1 = "0x" + "ab" * 20
+    pd.DataFrame({"chain": ["eth"], "delegate": [d1]}).to_csv(tmp_path / "delegate_lookup.csv", index=False)
+    lab = lambda m, n: pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4"], "is_misuse": m, "type": ["T5", "T1", "NONE", "T1"],
+                                     "subtype": "-", "xc_chain": "-", "malicious": "-", "confidence": "high",
+                                     "evidence": "tx", "note": n})
+    lab(["1", "1", "0", "1"], ["", "", "", ""]).to_csv(tmp_path / "a.csv", index=False)
+    lab(["0", "1", "0", "1"], [f"Authorizations lúc tx: {d1}", "", "", ""]).to_csv(tmp_path / "b.csv", index=False)
+    pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4"], "chain": "eth", "code_at_event": ["unknown", "none", "code", "none"],
+                  "delegate_7702": ["0xd", "-", "-", "-"], "creator": "-", "deployer": "-"}).to_csv(tmp_path / "it.csv",
+                                                                                                    index=False)
+    out = sg.cmd_kappa(str(tmp_path / "a.csv"), str(tmp_path / "b.csv"), str(tmp_path / "it.csv"))
+    assert out["is_misuse_no_delegate"] < 1 and out["is_misuse_no_delegate_any"] == 1.0   # (j′) bỏ thêm mẫu unknown có delegate trong bảng
+
+
+def test_ca7_unlabelled_covers_7b_7c_7d_only():
+    from address_misuse.gold_eval import ca7_unlabelled
+    labels = pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4", "G5"],
+                           "note": ["ca 7b", "Ca7c ví gom", "ca 7d: 1inch Router", "ca 7a Binance 14", "ca 13b"]})
+    assert ca7_unlabelled(labels) == ["G1", "G2", "G3"]
+
+
 def test_kappa_reports_without_ca7_unlabelled_items(tmp_path):
     lab = lambda m, n: pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4"], "is_misuse": m,
                                      "type": ["T5", "T1", "NONE", "T1"], "subtype": "-", "xc_chain": "-", "malicious": "-",
@@ -262,4 +329,4 @@ def test_kappa_reports_without_ca7_unlabelled_items(tmp_path):
     lab(["1", "1", "0", "1"], ["ca 7c: ví gom không nhãn", "", "", ""]).to_csv(tmp_path / "a.csv", index=False)
     lab(["0", "1", "0", "1"], ["", "", "", ""]).to_csv(tmp_path / "b.csv", index=False)
     out = sg.cmd_kappa(str(tmp_path / "a.csv"), str(tmp_path / "b.csv"))
-    assert out["is_misuse"] < 1 and out["is_misuse_no_ca7bc"] == 1.0
+    assert out["is_misuse"] < 1 and out["is_misuse_no_ca7"] == 1.0

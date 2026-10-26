@@ -567,9 +567,11 @@ def write_delegate_lookup(items: pd.DataFrame) -> pd.DataFrame:
 DELEGATE_CLASSES = ("legit_wallet", "forwarder_sweeper", "unknown")
 
 
-def check_delegates(t: pd.DataFrame, who: tuple[str, ...] = ("A", "B")) -> list[str]:
+def check_delegates(t: pd.DataFrame, who: tuple[str, ...] = ("A", "B"), strict: bool = False) -> list[str]:
     """Bảng delegate đã được rà chưa (CODEBOOK ca 13): với mỗi người trong `who`, mỗi dòng `class_X` phải là `ok` (đồng ý) hoặc
-    một lớp khác `final_class` kèm lý do ở `note_X` của chính người đó (phản đối). Ô trống = chưa rà. `final_class` phải hợp lệ."""
+    một lớp khác `final_class` kèm lý do ở `note_X` của chính người đó (phản đối). Ô trống = chưa rà. `final_class` phải hợp lệ.
+    `strict` (cổng trước khi tạo file gán, GOLD_PROTOCOL §2.3): mọi phản đối phải đã giải quyết, tức `class_X` ∈ {ok, final_class};
+    còn phản đối nào (kể cả có lý do) là lỗi."""
     errs = []
     t = t.reindex(columns=list(dict.fromkeys([*t.columns, "final_class", *(c for w in who for c in DELEGATE_REVIEW_COLS[w])])))
     for r in t.fillna("").itertuples(index=False):
@@ -585,13 +587,18 @@ def check_delegates(t: pd.DataFrame, who: tuple[str, ...] = ("A", "B")) -> list[
                 errs.append(f"{r.chain} {r.delegate}: {c} = {g[c]!r} (chỉ nhận ok / {' / '.join(DELEGATE_CLASSES)})")
             elif v not in ("ok", g["final_class"]) and not str(g[n]).strip():
                 errs.append(f"{r.chain} {r.delegate}: {c} phản đối ({v}) nhưng chưa có lý do ở {n}")
+            elif strict and v not in ("ok", g["final_class"]):
+                errs.append(f"{r.chain} {r.delegate}: {c} phản đối ({v}) chưa giải quyết (cần thống nhất: người điều phối "
+                            f"sửa final_class hoặc người rà ghi lại ok)")
     return errs
 
 
-def cmd_check_delegates(path: str | None = None, who: str | None = None, exit_on_error: bool = True) -> list[str]:
-    """In lỗi rà soát; có lỗi thì thoát mã 1 (để chặn quy trình). `who` = A hoặc B khi kiểm bản sao riêng của một người."""
+def cmd_check_delegates(path: str | None = None, who: str | None = None, exit_on_error: bool = True,
+                        strict: bool = False) -> list[str]:
+    """In lỗi rà soát; có lỗi thì thoát mã 1 (để chặn quy trình). `who` = A hoặc B khi kiểm bản sao riêng của một người.
+    `strict`: thêm lỗi cho phản đối chưa giải quyết (đúng cổng mà `sheet --set main` dùng)."""
     t = pd.read_csv(path or GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False)
-    errs = check_delegates(t, (who,) if who else ("A", "B"))
+    errs = check_delegates(t, (who,) if who else ("A", "B"), strict=strict)
     print("Bảng delegate đã rà đủ." if not errs else f"{len(errs)} lỗi:\n  " + "\n  ".join(errs))
     if errs and exit_on_error:
         raise SystemExit(1)
@@ -700,8 +707,9 @@ GUIDE = [
     "",
     "Quy trình (CODEBOOK §4.1):",
     "0. Mở tx_url (Status, From, To, Value, Method, token chuyển).",
-    "A. code_at_event: none → B;  code / destroyed → C;  7702 → D;  unknown → xem tx tạo contract trên explorer rồi chọn B/C/D.",
-    "   unknown mà có delegate_7702: delegate hôm nay tạo SAU tx. Xem tab Authorizations: lúc tx không ủy quyền → D2; ủy quyền tới delegate X → D với X (ghi X vào note).",
+    "A. code_at_event: none → B;  code / destroyed → C;  7702 → D;  unknown → xét theo cột delegate_7702 (hai dòng dưới, chọn đúng MỘT):",
+    "   unknown, có delegate_7702 (≠ '-'): delegate hôm nay tạo SAU tx. Xem tab Authorizations: lúc tx không ủy quyền → D2; ủy quyền tới delegate X → D với X (ghi địa chỉ ĐẦY ĐỦ 0x… của X vào note).",
+    "   unknown, không có delegate_7702 ('-'): xem tx tạo contract trên explorer rồi chọn B/C/D.",
     "B. calldata_kind ≠ call ('-' chuyển coin thuần, text văn bản, short), hoặc calldata_len = 32 mà Method trên tx là mã thô 0x… → D. calldata_kind = unknown: xem Input trên tx_url.",
     "   calldata_kind = call: xc_timing before → T4;  after → T1;  unknown → mở explorer_url_xc, vẫn không biết → T4 low;  '-' → T1.",
     "C. transfer/transferFrom với người nhận = chính address, thành công → T3.  Contract định gọi, gọi đúng hàm → NONE.",
@@ -709,7 +717,7 @@ GUIDE = [
     "D. 7702: tra data/gold/delegate_lookup.csv (final_class) và CODEBOOK ca 13; ủy quyền xảy ra SAU tx thì xét như EOA thường.",
     "   forwarder_sweeper → T5/7702, TRỪ KHI ví đích của forwarder là ví có NHÃN sàn trên explorer (ca 7a) → NONE.",
     "   Đếm lần rút nhanh (vào rồi ≤ 10 phút ra ≥ 90% về ví lạ) trong toàn lịch sử: ≥ 2 → T5/KEY;  đúng 1 → NONE, low;  0 → T6 nếu đủ dấu hiệu, còn lại NONE.",
-    "   Chỉ rút về ví có NHÃN sàn / custodian trên explorer là KHÔNG tính (ca 7a). Ví nhận không nhãn (ca 7b, 7c) VẪN tính: confidence low, note 'ca 7b' / 'ca 7c'.",
+    "   Chỉ rút về ví có NHÃN sàn / custodian trên explorer là KHÔNG tính (ca 7a). Ví nhận không nhãn (ca 7b, 7c) hoặc có nhãn router / bridge (ca 7d) VẪN tính: confidence low, note 'ca 7b' / 'ca 7c' / 'ca 7d'.",
     "",
     "Ca khó hay gặp (CODEBOOK §5):",
     "- selector 0x64617461 là chữ \"data\" (inscription): calldata_kind = text, không phải gọi hàm.",
@@ -728,7 +736,7 @@ GUIDE_MAIN = [
     "\"Trước tx\" = trước tx này trên chuỗi (block, rồi vị trí trong block); không dùng ngày hay tx đầu tiên. at_time là giờ UTC của tx.",
     "code_at_event = code ngay trước tx (none / code / destroyed / 7702 / unknown); own_create_time = lúc tạo contract trên chain này, nếu có.",
     "Với EOA (KEY/ADDR/7702) được dùng TOÀN BỘ lịch sử của địa chỉ, kể cả sau tx, để nhận ra sweeper; nhãn vẫn là của tx.",
-    "7702: file này chỉ được tạo sau khi A và B đã rà xong bảng delegate (mỗi người một bản riêng: class_X = ok, hoặc lớp khác + lý do ở note_X). Khi gán dùng final_class.",
+    "7702: file này chỉ được tạo sau khi A và B đã rà xong bảng delegate (mỗi người một bản riêng: class_X = ok, hoặc lớp khác + lý do ở note_X) và mọi phản đối đã thống nhất. Khi gán dùng final_class.",
     "Thứ tự: làm file 'double' TRƯỚC; file 'single' chỉ làm khi người điều phối báo. Mỗi phiên tối đa ~40 mẫu.",
     "",
 ]
@@ -740,10 +748,11 @@ def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_si
     Mẫu chính: từ chối tạo file khi bảng delegate chưa được A và B rà đủ (GOLD_PROTOCOL §2.3). `skip_delegate_check` chỉ cho
     test / chạy thử, in cảnh báo, không dùng để tạo file thật cho người gán."""
     if which == "main":
-        errs = check_delegates(pd.read_csv(GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False))
+        errs = check_delegates(pd.read_csv(GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False), strict=True)
         if errs and not skip_delegate_check:
-            raise SystemExit(f"Không tạo file gán: bảng delegate chưa rà xong ({len(errs)} lỗi). A và B phải rà hết "
-                             "delegate_lookup.csv (ok hoặc lớp khác + lý do) rồi chạy `sample_gold check-delegates` báo 0 lỗi.")
+            raise SystemExit(f"Không tạo file gán: bảng delegate chưa rà xong hoặc còn phản đối chưa giải quyết ({len(errs)} lỗi). "
+                             "A và B phải rà hết, mọi phản đối phải thống nhất (class_A, class_B ∈ {ok, final_class}); "
+                             "`sample_gold check-delegates --strict` phải báo 0 lỗi.")
         if errs:
             bar = "!" * 70
             print(f"{bar}\nCẢNH BÁO: BỎ QUA cổng rà delegate ({len(errs)} lỗi). File này CHỈ để thử, "
@@ -921,12 +930,20 @@ def cmd_kappa(path_a: str, path_b: str, items_csv: str | None = None, key_csv: s
         ci = cluster_boot_ci(x, y, clusters)
         print(f"κ({col}) = {out[col]:.3f} [CI95 theo cụm {ci[0]:.3f}–{ci[1]:.3f}] trên {len(j)} mẫu, đồng ý {sum(p == q for p, q in zip(x, y))}/{len(j)}"
               f"; Gwet AC1 {gwet_ac1(x, y):.3f}" + (f"; PABAK {pabak(x, y):.3f}" if col == "is_misuse" else ""))
-    from address_misuse.gold_eval import ca7_unlabelled, delegate_decided
-    subsets = []                      # tiền đăng ký: κ khi bỏ một nhóm mẫu (GOLD_PROTOCOL §4 j, k)
+    from address_misuse.gold_eval import ca7_unlabelled, delegate_decided, delegate_named
+    subsets = []                      # tiền đăng ký: κ khi bỏ một nhóm mẫu (GOLD_PROTOCOL §4 j, j′, k)
     if items_csv:
-        subsets.append(("no_delegate", "do delegate quyết định", set(delegate_decided(it.reset_index()))))
+        dd = set(delegate_decided(it.reset_index()))
+        subsets.append(("no_delegate", "do delegate quyết định", dd))
+        lk = GOLD_DIR / "delegate_lookup.csv"
+        lookup = pd.read_csv(lk, dtype=str, keep_default_na=False) if lk.exists() else pd.DataFrame(columns=["chain", "delegate"])
+        named = set()
+        for w in ("A", "B"):          # (j′) mẫu unknown mà một trong hai người ghi delegate (có trong bảng) vào note
+            if f"note_{w}" in j:
+                named |= set(delegate_named(j.rename(columns={f"note_{w}": "note"}), it.reset_index(), lookup))
+        subsets.append(("no_delegate_any", "do delegate quyết định, kể cả unknown có delegate trong bảng ở note (j′)", dd | named))
     ca7 = set(ca7_unlabelled(j.rename(columns={"note_A": "note"}))) | set(ca7_unlabelled(j.rename(columns={"note_B": "note"})))
-    subsets.append(("no_ca7bc", "có note ca 7b/7c ở một trong hai người", ca7))
+    subsets.append(("no_ca7", "có note ca 7b/7c/7d ở một trong hai người", ca7))
     for name, what, drop in subsets:
         keep = ~j.item_id.isin(drop).to_numpy()
         for col in ("is_misuse", "type"):
@@ -974,6 +991,8 @@ def main():
     cd = sub.add_parser("check-delegates")
     cd.add_argument("path", nargs="?")
     cd.add_argument("--who", choices=["A", "B"], help="kiểm bản rà riêng của một người")
+    cd.add_argument("--strict", action="store_true",
+                    help="cổng trước khi tạo file gán: mọi phản đối phải đã giải quyết (class_X ∈ {ok, final_class})")
     dc = sub.add_parser("delegate-copy", help="tạo bản rà riêng delegate_review_<A|B>.csv")
     dc.add_argument("who", choices=["A", "B"])
     dc.add_argument("--out")
@@ -993,7 +1012,7 @@ def main():
     elif args.cmd == "main":
         cmd_main(args.seed, args.double, args.live_from)
     elif args.cmd == "check-delegates":
-        cmd_check_delegates(args.path, args.who)
+        cmd_check_delegates(args.path, args.who, strict=args.strict)
     elif args.cmd == "delegate-copy":
         cmd_delegate_copy(args.who, args.out)
     elif args.cmd == "merge-delegates":

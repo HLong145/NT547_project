@@ -25,7 +25,7 @@ Kế hoạch gốc: [PLAN_V2.md](PLAN_V2.md) D5. Mục tiêu: Cohen's κ ≥ 0,8
 ### 2.2. Thứ tự
 
 0. Người điều phối hỏi A đã đọc CODEBOOK v0.5 chưa, ghi câu trả lời vào PROGRESS.md (§6, hạn chế 7). Việc này vẫn đang chờ (việc của người điều phối).
-1. A và B rà hết bảng delegate trên bản sao riêng (§2.3); người điều phối gộp; `sample_gold check-delegates` báo 0 lỗi. **Chưa rà xong thì chưa tạo được file Excel**: `sample_gold sheet --set main` từ chối (v0.6.2).
+1. A và B rà hết bảng delegate trên bản sao riêng (§2.3); người điều phối gộp; mọi phản đối được thống nhất; `sample_gold check-delegates --strict` báo 0 lỗi. **Chưa xong thì chưa tạo được file Excel**: `sample_gold sheet --set main` từ chối (v0.6.2).
 2. Cả A và B gán **200 mẫu gán đôi** trước (`annotator_main_double_<A|B>.xlsx`), độc lập. Kiểm cổng (§2.4).
 3. Phân xử (§2.5).
 4. B gán 558 mẫu đơn (`annotator_main_single_B.xlsx`); A gán lại mù 50 mẫu đơn (§2.6).
@@ -38,8 +38,8 @@ v0.5 định A và B cùng phân loại từ đầu. **v0.6:** người điều 
 - **Bản sao riêng** (v0.6.2): `sample_gold delegate-copy A` / `delegate-copy B` tạo `data/gold/delegate_review_<A|B>.csv`, chỉ có cột của người đó, nên không ai thấy ý kiến của người kia. Hướng dẫn cho người rà: `data/gold/DELEGATE_REVIEW.md`.
 - Mỗi dòng ghi rõ `class_X = ok` (đồng ý) hoặc một lớp khác kèm lý do ở `note_X` của chính người đó (phản đối). Cột `note` là lý do của người điều phối, không sửa. **Ô trống = chưa rà**, không phải đồng ý. Mỗi người tự kiểm bản của mình: `check-delegates <file> --who X`.
 - Người điều phối gộp: `sample_gold merge-delegates <bản A> <bản B>`. Lệnh từ chối nếu bản sao đổi tập delegate hoặc đổi `final_class` / `source` / `note`.
-- Phản đối được giải quyết trước khi gán. Người điều phối không sửa `final_class` / `source` nếu chưa có lý do ghi rõ.
-- **Cổng cứng:** `sample_gold check-delegates` thoát mã 1 khi còn lỗi; `sample_gold sheet --set main` gọi cùng kiểm tra và **từ chối tạo file Excel** khi còn lỗi. Cờ `--skip-delegate-check` chỉ cho test / chạy thử (in cảnh báo lớn), **không** dùng để tạo file thật cho người gán. Bảng hiện tại báo 66 lỗi (33 dòng × 2 người, chưa rà), đúng như mong đợi.
+- **Giải quyết phản đối** (trước khi gán, trên `delegate_lookup.csv` đã gộp): ba người bàn. Đổi lớp → người điều phối sửa `final_class`, ghi lý do vào `note`, xoá `class_A`, `class_B` của dòng đó, rồi **cả hai** người rà xem lại và ghi `ok`. Giữ lớp → người phản đối ghi lại `ok` (lý do cũ giữ ở `note_X`). Người điều phối không sửa `final_class` / `source` nếu chưa có lý do ghi rõ. Báo trong paper số dòng bị phản đối và số dòng đổi lớp.
+- **Cổng cứng:** `sample_gold check-delegates` thoát mã 1 khi còn lỗi (ô trống, giá trị lạ, phản đối thiếu lý do). `--strict` thêm lỗi cho mọi phản đối chưa giải quyết, tức đòi `class_A`, `class_B` ∈ {`ok`, `final_class`}. `sample_gold sheet --set main` dùng đúng kiểm tra `--strict` và **từ chối tạo file Excel** khi còn lỗi. Cờ `--skip-delegate-check` chỉ cho test / chạy thử (in cảnh báo lớn), **không** dùng để tạo file thật cho người gán. Bảng hiện tại báo 66 lỗi (33 dòng × 2 người, chưa rà), đúng như mong đợi.
 - Người rà phải mở nguồn (`explorer_url`) và tự kết luận trước khi đọc lớp đã điền (CODEBOOK ca 13).
 
 Lý do điền sẵn: tiết kiệm thời gian và để phân loại dựa trên bằng chứng có nguồn ghi rõ. Cái giá: người điều phối biết thiết kế nên phân loại không mù, và lớp điền sẵn có thể **neo** (anchoring) người rà (§6, hạn chế 14). Vì vậy chỉ số engine và κ được báo cả có và không có các mẫu do bảng delegate quyết định (§4 j). `sample_gold main` chạy lại giữ nguyên các ô đã điền.
@@ -135,8 +135,9 @@ Tỉ lệ vẫn khác nhau theo tầng, nhưng giờ do **tính chất thật** 
   - chỉ số engine: `evaluate(..., exclude_items=delegate_decided(items))`. Ô điều tra toàn bộ trừ đúng số mẫu bị bỏ; ô lấy mẫu co cỡ ô theo tỉ lệ, nên trọng số không đổi (test `test_gold_eval_exclude_delegate_decided_keeps_weights`);
   - κ: `sample_gold kappa --items` in thêm `is_misuse_no_delegate`, `type_no_delegate` kèm CI theo cụm.
   - **Đại lượng ước lượng** của bản "không có" là quần thể (khung) **trừ** các địa chỉ do bảng delegate quyết định. Ở ô lấy mẫu, cỡ miền con chỉ là ước lượng (co theo tỉ lệ đã gán), nhưng bootstrap giữ cỡ miền cố định, nên CI hơi hẹp hơn thật. Ghi rõ điều này khi báo.
+  - **(j′) phụ, đăng ký trước:** mẫu `unknown` có `delegate_7702` mà người gán thấy ở tab Authorizations rằng lúc tx đã ủy quyền tới một delegate **có trong bảng** thì nhãn cũng do bảng quyết định. CODEBOOK bước A bắt người gán ghi địa chỉ đầy đủ (0x + 40 hex) của delegate đó vào `note`. Bộ phát hiện `gold_eval.delegate_named(labels, items, lookup)`: `code_at_event = unknown` và `note` chứa địa chỉ đầy đủ (không phân biệt hoa thường) của một delegate cùng chain trong `delegate_lookup.csv`; viết tắt không được tính. (j′) bỏ `delegate_decided` ∪ `delegate_named`: chỉ số engine dùng `note` của nhãn cuối; κ (`kappa --items` in `is_misuse_no_delegate_any`, `type_no_delegate_any`) bỏ mẫu mà **một trong hai** người ghi như vậy. (j) vẫn là bản chính; (j′) báo kèm.
   - (b) và (j) báo riêng, và báo thêm **một bản kết hợp** (bỏ tầng KEY/ADDR **và** bỏ mẫu do delegate quyết định; `evaluate(exclude_strata=..., exclude_items=...)`). Bỏ KEY/ADDR ở (b) không loại được 15 mẫu +D6 (và 3 +NCD, 2 âm) do delegate quyết định; chỉ (j) loại được chúng.
-- (k) **Độ nhạy ca 7b/7c** (v0.6.2). Từ v0.6.2 lần rút nhanh về ví không có nhãn sàn **vẫn được tính** (CODEBOOK ca 7b/7c, `confidence = low`, note "ca 7b"/"ca 7c"), vì ví gom của sweeper bot trông giống hệt ví gom của sàn. Mẫu có note như vậy (`gold_eval.ca7_unlabelled`, đọc từ note của nhãn cuối) được báo ba cách cho chỉ số engine: theo nhãn đã gán; **lật về 0** (`evaluate(flip_to_negative=...)`, kịch bản "đó là ví gom của sàn"); và bỏ khỏi miền (`exclude_items`). κ báo thêm khi bỏ mẫu mà một trong hai người ghi "ca 7b"/"ca 7c" (`kappa` in `is_misuse_no_ca7bc`, `type_no_ca7bc`).
+- (k) **Độ nhạy ca 7b/7c** (v0.6.2). Từ v0.6.2 lần rút nhanh về ví không có nhãn sàn **vẫn được tính** (CODEBOOK ca 7b/7c, `confidence = low`, note "ca 7b"/"ca 7c"), vì ví gom của sweeper bot trông giống hệt ví gom của sàn. Lần rút về ví có nhãn router / bridge / DEX cũng được tính (ca 7d, `low`, note "ca 7d"), vì đó có thể là đường kẻ trộm đổi tiền. Mẫu có note "ca 7b", "ca 7c" hoặc "ca 7d" (`gold_eval.ca7_unlabelled`, đọc từ note của nhãn cuối) được báo ba cách cho chỉ số engine: theo nhãn đã gán; **lật về 0** (`evaluate(flip_to_negative=...)`, kịch bản "đó là ví gom của sàn"); và bỏ khỏi miền (`exclude_items`). κ báo thêm khi bỏ mẫu mà một trong hai người ghi "ca 7b"/"ca 7c"/"ca 7d" (`kappa` in `is_misuse_no_ca7`, `type_no_ca7`).
 
 **Luật cơ học tham chiếu v0.6.2** (đọc đúng CODEBOOK §4.1, chỉ dùng cột trong file; bước cần explorer → NONE): `code_at_event = none` và `calldata_kind = call` → 1 (T4 nếu `xc_timing ∈ {before, unknown}`, còn lại T1); `code`/`destroyed` → 1 chỉ khi T3 (người nhận = địa chỉ, thành công); `7702` → 1 nếu `final_class = forwarder_sweeper`; `unknown` → 0 (cần explorer); còn lại 0. Kết quả trên 758 mẫu: 233 dương (T4/NCD 91, T5/7702 51, T4/PCD 47, T1/NCD 38, T1/PCD 5, T3 1). Luật này chưa áp ca 10 cho 11 mẫu 32 byte (cần cột Method, không có trong file), chưa áp ca 7 (cần nhãn ví trên explorer) và chưa áp ngoại lệ ví đích có nhãn sàn của ca 13b; đó là các chỗ luật cơ học có thể khác người gán.
 
@@ -159,14 +160,14 @@ Trước khi gán: ghi sha256 các file dưới đây vào FINDINGS_LOG và gắ
 
 | file | sha256 | cách băm |
 |---|---|---|
-| `docs/CODEBOOK.md (v0.6.2)` | `073d3d48a7729356683b4e74c2b70482d5d260cf51f25064ddc990ae0e7c9e0a` | LF |
+| `docs/CODEBOOK.md (v0.6.2)` | `bedb19163118d42299532a0fe6ad361130ed468a87b9856ef39baf3569407ffc` | LF |
 | `data/gold/main_items.csv` | `6363c56f94b5bb51ddc1de251da1829f3714213f9a46d6957f3b2ea8dc4c18e7` | LF |
 | `data/gold/main_key.csv (không commit; không đổi từ v0.5)` | `807f966042f20cd14c9f0463f73d67ddaf5f955bcb0bf1d269121aa9f9c86091` | nguyên byte, như v0.5 |
 | `data/gold/main_reserve_key.csv (không commit; không đổi từ v0.5)` | `c193ffe66b5d659d2f3f549886636969e405f379316f0709dea585bd61677f3a` | nguyên byte, như v0.5 |
 | `data/gold/delegate_lookup.csv (thêm cột note_A, note_B; ô cũ không đổi)` | `5e5e742b134b0b96d49918f2fba932109cf3700de662b2fc8c69a12254c37dd3` | LF |
-| `data/gold/DELEGATE_REVIEW.md` | `952efc34e6d64726478ed1cbba5148f9c5143b5c8b685987b6434f6e23856dae` | LF |
-| `src/address_misuse/gold_eval.py` | `f8cbe099b65d76303a8aa89c3aec4ca0a7d08cea41a4ba0afec8265fc204b2be` | LF |
-| `src/address_misuse/sample_gold.py` | `4ff25fa691212576f2f46270f3da2fba1296f200d95ac1423508ee48870c077f` | LF |
+| `data/gold/DELEGATE_REVIEW.md` | `c4e3bc00f377f5cb42ae56edd6ad8256abd6ad93c5e247686a2e6d722095e767` | LF |
+| `src/address_misuse/gold_eval.py` | `9befd1613a836126dedbdb3f5c360712ee7c592ea0a616fe0ca3fd5d4f30cb96` | LF |
+| `src/address_misuse/sample_gold.py` | `4ba17c0e420a18efc290774f7c3655007f754ee987acb699f52c1104ee2383b7` | LF |
 | `src/address_misuse/gold_evidence.py` | `e9cbbe60ad66d2b20d9e61587e52f47d3a99d62d6470cef589e88bef9929d1b4` | LF |
 
 Kèm theo (không đổi từ v0.5): `src/address_misuse/engine/` (evaluate), `data/interim/engine_eval.parquet`, `data/interim/engine_metrics.json` (τ_warn = 63,0).
@@ -189,7 +190,7 @@ Kèm theo (không đổi từ v0.5): `src/address_misuse/engine/` (evaluate), `d
 14. **Người điều phối phân loại delegate** (§2.3) không mù; A/B chỉ rà soát. **Rủi ro neo:** bảng rà (`delegate_lookup.csv`, bản sao riêng và `DELEGATE_REVIEW.md`) hiển thị lớp điền sẵn **và lý do của người điều phối** (`source`, `note`, cột "Bằng chứng", "Ghi chú"); giữ lại vì người rà cần chúng để tìm chỗ cần xem, nhưng chúng dễ làm người rà đồng ý theo. Giảm bằng cách bắt ghi `ok` tường minh từng dòng, mở explorer và tự kết luận trước, rà trên bản sao riêng (A và B không thấy ý kiến của nhau, nhưng vẫn thấy lý do của người điều phối); đo bằng số dòng bị phản đối; báo chỉ số có và không có 67 mẫu do bảng delegate quyết định (§4 j). Phần lớn các mẫu này cũng nằm trong danh sách đen của engine (§2.3), nên ở đó nhãn vàng không độc lập với engine.
 15. **Event topic 32 byte:** `calldata_kind` không tách được event topic khỏi lời gọi hàm (11 mẫu có `calldata_len = 32`); người gán quyết định theo ca 10 (Method trên explorer).
 16. **`symexec_*` trộn hai nguồn:** một phần là kết quả của tác giả, phần còn lại là lần chạy của nhóm với giới hạn 120 giây. Hai nguồn khác cấu hình nên cột chỉ là gợi ý, không phải bằng chứng quyết định.
-17. **Ca 7b/7c (ví gom không nhãn):** từ v0.6.2 vẫn tính là rút nhanh (`low`), vì không phân biệt được ví gom của sàn với ví gom của kẻ trộm chỉ từ explorer. Hệ quả: địa chỉ nạp của sàn mà ví gom chưa có nhãn sẽ thành T5 giả (17 mẫu âm có khả năng, §4). Đo bằng phân tích độ nhạy (§4 k); chưa gộp cụm theo ví đích.
+17. **Ca 7b/7c/7d (ví gom không nhãn, ví router / bridge):** từ v0.6.2 vẫn tính là rút nhanh (`low`), vì không phân biệt được ví gom của sàn với ví gom của kẻ trộm chỉ từ explorer, và router / bridge có thể là đường đổi tiền của kẻ trộm. Chỉ nhãn sàn / custodian (7a) mới loại một lần rút. Hệ quả: địa chỉ nạp của sàn mà ví gom chưa có nhãn sẽ thành T5 giả (17 mẫu âm có khả năng, §4). Đo bằng phân tích độ nhạy (§4 k); chưa gộp cụm theo ví đích.
 
 ## 7. Sai lệch so với luật của tác giả (rules.py, Shao et al.)
 
@@ -229,12 +230,13 @@ Kèm theo (không đổi từ v0.5): `src/address_misuse/engine/` (evaluate), `d
   - Hạn chế mới 16 (`symexec_*`), 17 (ca 7b/7c); hạn chế 1, 7, 14 viết rõ hơn.
   - Gắn tag `prereg-gold-v0.6` (commit `6400e8d`).
 - **v0.6.2 (2026-10-26), sau đợt soát thứ ba, sau tag `prereg-gold-v0.6`, trước khi có nhãn nào:**
-  - **Ca 7:** chỉ ví nhận có nhãn sàn / custodian (7a) mới không tính; 7b, 7c vẫn tính là rút nhanh, `confidence = low`, note. Lý do: 7c cũ ẩn ví gom của sweeper bot (~47 mẫu, gần hết dương, sẽ thành NONE). Thêm phân tích độ nhạy (§4 k; `ca7_unlabelled`, `evaluate(flip_to_negative=...)`, κ `_no_ca7bc`).
+  - **Ca 7:** chỉ ví nhận có nhãn sàn / custodian (7a) mới không tính; 7b, 7c và ví có nhãn router / bridge (7d, thêm ở bản soát cuối; CODEBOOK §3.4 trước đó còn miễn router / bridge, nay khớp ca 7a, D2, D5 và hướng dẫn Excel) vẫn tính là rút nhanh, `confidence = low`, note. Lý do: 7c cũ ẩn ví gom của sweeper bot (~47 mẫu, gần hết dương, sẽ thành NONE). Thêm phân tích độ nhạy (§4 k; `ca7_unlabelled`, `evaluate(flip_to_negative=...)`, κ `_no_ca7`).
   - **Ca 13b và bước D1:** `forwarder_sweeper` có ví đích mang nhãn sàn (ca 7a) → NONE (trước đây luôn T5, mâu thuẫn ca 7a).
   - **`code_at_event`:** delegate hôm nay tạo sau tx → `unknown` (141 mẫu; trước ghi `7702`). Tập do bảng delegate quyết định còn 67 mẫu (§4 j). Luật cơ học và đường cơ sở tính lại (κ 0,744 → 0,457).
-  - **Cổng rà delegate cứng:** `check-delegates` thoát mã 1; `sheet --set main` từ chối khi chưa rà xong (`--skip-delegate-check` chỉ cho test); cột `note_A`, `note_B` riêng cho từng người rà; bản sao riêng (`delegate-copy`) và lệnh gộp (`merge-delegates`); `DELEGATE_REVIEW.md` cập nhật.
+  - **Cổng rà delegate cứng:** `check-delegates` thoát mã 1; `sheet --set main` từ chối khi chưa rà xong **hoặc còn phản đối chưa giải quyết** (`check-delegates --strict`; thủ tục giải quyết ở §2.3; thêm ở bản soát cuối) (`--skip-delegate-check` chỉ cho test); cột `note_A`, `note_B` riêng cho từng người rà; bản sao riêng (`delegate-copy`) và lệnh gộp (`merge-delegates`); `DELEGATE_REVIEW.md` cập nhật.
   - §4 (j): định nghĩa rõ, đại lượng ước lượng là quần thể trừ mẫu do delegate quyết định, bootstrap giữ cỡ miền cố định (CI hơi hẹp), thêm bản kết hợp (b)+(j).
   - `calldata_kind` khi không tra được tx: `unknown` thay cho `-`.
+  - Bản soát cuối (sau commit `310efff`, vẫn v0.6.2, chưa có nhãn): (j′) cho mẫu `unknown` mà người gán ghi delegate có trong bảng (`delegate_named`, κ `_no_delegate_any`); bước A của CODEBOOK và hướng dẫn Excel tách rõ `unknown` không có / có `delegate_7702`, người gán ghi địa chỉ đầy đủ của delegate lúc tx vào note.
   - Hướng dẫn trong Excel ghi v0.6.2; `HUONG_DAN_GAN_NHAN.md` thay bằng một dòng trỏ tới CODEBOOK (bỏ số thiết kế).
 
 ## 9. Lưu trữ: agenda sửa codebook v0.4 (pilot, người gán A, 2026-10-21)

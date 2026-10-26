@@ -15,11 +15,13 @@ Mỗi người rà trên **bản sao riêng**, không xem bản của người k
    - **Ô trống = chưa rà**, không phải đồng ý.
 5. Không sửa `final_class`, `source`, `note` (đó là của người điều phối; sửa thì lệnh gộp sẽ từ chối).
 6. Xong, kiểm bản của bạn: `python -m address_misuse.sample_gold check-delegates data/gold/delegate_review_A.csv --who A` phải báo "đã rà đủ". Gửi file cho người điều phối.
-7. Người điều phối gộp: `sample_gold merge-delegates data/gold/delegate_review_A.csv data/gold/delegate_review_B.csv`, rồi `sample_gold check-delegates` phải báo 0 lỗi (lệnh thoát mã 1 nếu còn lỗi). Phản đối được ba người thống nhất trước khi gán.
+7. Người điều phối gộp: `sample_gold merge-delegates data/gold/delegate_review_A.csv data/gold/delegate_review_B.csv`, rồi `sample_gold check-delegates` phải báo 0 lỗi (lệnh thoát mã 1 nếu còn lỗi).
+8. Giải quyết phản đối (trên `delegate_lookup.csv` đã gộp): ba người bàn. Nếu đổi lớp, người điều phối sửa `final_class`, ghi lý do vào `note`, và xoá `class_A`, `class_B` của dòng đó; **cả hai** người rà xem lại và ghi `ok`. Nếu giữ lớp cũ, người phản đối ghi lại `ok` (giữ lý do cũ ở `note_X`).
+9. Chỉ khi mọi ô `class_A`, `class_B` là `ok` (hoặc đúng `final_class`) thì `sample_gold check-delegates --strict` báo 0 lỗi; `sheet --set main` dùng đúng cổng này, nên trước đó không tạo được file gán.
 
 **Lưu ý về neo (anchoring):** cột "Lớp điền sẵn", "Bằng chứng" và "Ghi chú" dưới đây là **lý do của người điều phối**. Chúng có ích để tìm nhanh chỗ cần xem, nhưng dễ làm bạn đồng ý theo. Hãy mở explorer và tự kết luận trước khi đọc chúng.
 
-`n_items` = số mẫu có delegate này **hôm nay**. Với một số mẫu, delegate hôm nay được tạo sau tx (cột `code_at_event = unknown` trong file mẫu); các mẫu đó không dùng thẳng bảng này (CODEBOOK bước A).
+`n_items` = số mẫu có delegate này **hôm nay**. Với một số mẫu, delegate hôm nay được tạo sau tx (cột `code_at_event = unknown` trong file mẫu); các mẫu đó không dùng thẳng bảng này (CODEBOOK bước A), trừ khi tab Authorizations cho thấy lúc tx đã ủy quyền tới một delegate trong bảng.
 
 Ba lớp: **forwarder_sweeper** (contract chỉ chuyển tiền nhận được tới một ví đích cố định, hoặc rút hết token); **legit_wallet** (ví thông minh thật: MetaMask, Safe, Coinbase, TokenPocket…; chủ ví tự điều khiển tiền); **unknown** (không đủ bằng chứng; khi đó gán theo giao dịch thực tế, CODEBOOK ca 13).
 

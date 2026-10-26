@@ -19,6 +19,7 @@ Vì sao không dùng `engine.metrics.with_ci`: nó chấm trên toàn tập (kh�
 """
 
 import math
+import re
 
 import numpy as np
 import pandas as pd
@@ -180,12 +181,34 @@ def delegate_decided(items: pd.DataFrame) -> list[str]:
     return items.loc[items.code_at_event.astype(str) == "7702", "item_id"].astype(str).tolist()
 
 
-_CA7_UNLABELLED = r"ca\s*7\s*[bc]\b"
+_HEX40 = r"0x[0-9a-fA-F]{40}"
+
+
+def delegate_named(labels: pd.DataFrame, items: pd.DataFrame, lookup: pd.DataFrame) -> list[str]:
+    """(j′, GOLD_PROTOCOL §4 j′) item_id có `code_at_event = unknown` mà `note` của người gán ghi địa chỉ đầy đủ (0x + 40 hex) của
+    một delegate có trong bảng delegate cùng chain (CODEBOOK bước A: tab Authorizations cho thấy lúc tx đã ủy quyền tới delegate X
+    → ghi X vào note → nhãn do bảng quyết định). So không phân biệt hoa thường; địa chỉ viết tắt không được tính."""
+    if "note" not in labels or not len(lookup) or not {"chain", "code_at_event"} <= set(items.columns):
+        return []
+    table = {(str(c).lower(), str(d).lower()) for c, d in zip(lookup.chain, lookup.delegate)}
+    it = items.assign(item_id=items.item_id.astype(str)).set_index("item_id")
+    out = []
+    for i, note in zip(labels.item_id.astype(str), labels.note.fillna("").astype(str)):
+        if i not in it.index or str(it.at[i, "code_at_event"]) != "unknown":
+            continue
+        chain = str(it.at[i, "chain"]).lower()
+        if any((chain, a.lower()) in table for a in re.findall(_HEX40, note)):
+            out.append(i)
+    return out
+
+
+_CA7_UNLABELLED = r"ca\s*7\s*[bcd]\b"
 
 
 def ca7_unlabelled(labels: pd.DataFrame) -> list[str]:
-    """item_id có `note` nhắc "ca 7b" hoặc "ca 7c" (CODEBOOK ca 7: lần rút nhanh về ví gom KHÔNG có nhãn sàn vẫn được tính,
-    `confidence = low`). Dùng cho phân tích độ nhạy đăng ký trước (GOLD_PROTOCOL §4 k)."""
+    """item_id có `note` nhắc "ca 7b", "ca 7c" hoặc "ca 7d" (CODEBOOK ca 7: lần rút nhanh về ví KHÔNG có nhãn sàn / custodian,
+    kể cả ví có nhãn router / bridge, vẫn được tính, `confidence = low`). Dùng cho phân tích độ nhạy đăng ký trước
+    (GOLD_PROTOCOL §4 k)."""
     if "note" not in labels:
         return []
     m = labels.note.fillna("").astype(str).str.contains(_CA7_UNLABELLED, case=False, regex=True)
@@ -211,8 +234,9 @@ def evaluate(df: pd.DataFrame, boot: int = 1000, seed: int = 0, unknown: str = "
     """Báo cáo gộp theo `unit` ('addr' chính; 'row' phụ). `unknown`: '?' tính 0 / 1 / bỏ ('drop'); báo cả ba kịch bản.
     `exclude_strata`: bỏ các tầng (ví dụ ('+KEY', '+ADDR') vì nhãn KEY/ADDR là cận dưới, GOLD_PROTOCOL §6); ô còn lại tự tính lại trọng số.
     `exclude_items`: bỏ các item_id (ví dụ `delegate_decided(items)`) theo miền con, trọng số mẫu còn lại giữ nguyên.
-    `flip_to_negative`: đặt nhãn vàng = 0 cho các item_id này (độ nhạy ca 7b/7c: `ca7_unlabelled`), trước khi tính.
-    Tiền đăng ký: báo cả đầy đủ và bỏ mẫu do delegate quyết định (GOLD_PROTOCOL §4 j); ca 7b/7c: đầy đủ, lật về 0, và bỏ (§4 k)."""
+    `flip_to_negative`: đặt nhãn vàng = 0 cho các item_id này (độ nhạy ca 7b/7c/7d: `ca7_unlabelled`), trước khi tính.
+    Tiền đăng ký: báo cả đầy đủ và bỏ mẫu do delegate quyết định (GOLD_PROTOCOL §4 j, j′: thêm `delegate_named`); ca 7b/7c/7d:
+    đầy đủ, lật về 0, và bỏ (§4 k)."""
     d = prepare(df, unknown)
     fl = set(map(str, flip_to_negative))
     if fl:
