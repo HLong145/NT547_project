@@ -217,3 +217,5 @@
 .venv\Scripts\python.exe -m address_misuse.crosschain_pilot --top 100
 ```
 - **2026-10-24 — Key Blockscout/GitHub**: `BLOCKSCOUT_API_KEY` chỉ chạy trên endpoint PRO `api.blockscout.com/10/api` (endpoint `optimism.blockscout.com/api` vẫn 429); đã đổi trong `l2_misuse.py`, đã chạy `l2_misuse txlist --chain op --focus author --max-records 1000`: dừng ở 1.254/8.869 địa chỉ vì Blockscout PRO hết credit (HTTP 402, 2026-10-25). ⏳ chờ credit reset hoặc bỏ OP khỏi mức misuse.
+
+- 2026-10-27: OP txlist tải xong (còn vài ví HTTP 500), `rules` chạy: 7.797 dương/8.743 địa chỉ (xem FINDINGS_LOG). CODEBOOK v0.6.1 đã commit + tag `prereg-gold-v0.6`; chờ A trả lời đã đọc v0.5 chưa, A/B rà `delegate_lookup.csv` (ok), rồi mới sinh Excel.

@@ -263,6 +263,7 @@ def cmd_rules(chain: str, focus: str = "all"):
         if got is None:
             continue
         txs, truncated = got
+        txs = [{**t, **{k: "0" for k in ("gasUsed", "gasPrice") if t.get(k) in ("", None)}} for t in txs]   # Blockscout để trống ở tx deposit/hệ thống
         if r.kind == "KEY":
             res = detect_eoa_key(r.address, txs)
         elif r.kind in ("NCD", "PCD"):

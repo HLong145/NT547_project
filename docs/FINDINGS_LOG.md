@@ -1012,3 +1012,8 @@ Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn
 - `CODEBOOK.md` §10 còn 5 điểm mơ hồ chưa chốt (T2 §3 vs §4, testnet, event topic, KEY vs 7702, `malicious`): thêm §10.1 đề xuất;
   **nên chốt trước khi gán 605 mẫu**. Đính chính: trước đó mình nói có thể gán ngay mà không cần đợi pilot κ, nhưng 5 điểm này
   ảnh hưởng nhãn một số mẫu, nên cần chốt codebook v0.4 trước.
+
+## 2026-10-27 — OP: chạy luật tác giả trên txlist đã tải (D2/L2)
+- Tải xong txlist OP cho các ví ứng viên (Blockscout; vài ví còn HTTP 500, chưa tải được). `l2_misuse rules --chain op --focus author` chạy trên 8.743 địa chỉ, 7.797 dương: KEY 3.405 (22.831 tx), NCD 4.310 (786 không xc + 3.524 có xc), PCD 82 (7 + 75 có xc).
+- Lỗi đã sửa: tx hệ thống/deposit của OP để trống `gasUsed`/`gasPrice` → `int('')`. Sửa ở `l2_misuse.cmd_rules` (điền 0), không đụng `rules.py` nên hash engine tiền đăng ký không đổi.
+- Kết quả: `data/interim/l2_misuse_op.parquet`. Tái tạo: `l2_misuse txlist --chain op --focus author --max-records 1000` rồi `l2_misuse rules --chain op --focus author`.
