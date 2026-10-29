@@ -1029,3 +1029,6 @@ Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn
 - Tải xong txlist OP cho các ví ứng viên (Blockscout; vài ví còn HTTP 500, chưa tải được). `l2_misuse rules --chain op --focus author` chạy trên 8.743 địa chỉ, 7.797 dương: KEY 3.405 (22.831 tx), NCD 4.310 (786 không xc + 3.524 có xc), PCD 82 (7 + 75 có xc).
 - Lỗi đã sửa: tx hệ thống/deposit của OP để trống `gasUsed`/`gasPrice` → `int('')`. Sửa ở `l2_misuse.cmd_rules` (điền 0), không đụng `rules.py` nên hash engine tiền đăng ký không đổi.
 - Kết quả: `data/interim/l2_misuse_op.parquet`. Tái tạo: `l2_misuse txlist --chain op --focus author --max-records 1000` rồi `l2_misuse rules --chain op --focus author`.
+
+### 2026-10-29: sửa mã hoá bản rà delegate (công cụ, không đổi thiết kế)
+`sample_gold.py` sha256 (working copy) = `5a173ff5d92ffcd0c8af212fdc671794b64f724e26840e61892f4e3887681c96`, thay giá trị ghi ở mục v0.6.2. Lý do: Excel mở CSV UTF-8 không BOM sẽ hiển thị sai tiếng Việt ở cột `source`, `note`. Mẫu, `main_items.csv`, `delegate_lookup.csv`, CODEBOOK và GOLD_PROTOCOL không đổi.

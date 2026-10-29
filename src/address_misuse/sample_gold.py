@@ -593,11 +593,18 @@ def check_delegates(t: pd.DataFrame, who: tuple[str, ...] = ("A", "B"), strict: 
     return errs
 
 
+def read_review_table(path) -> pd.DataFrame:
+    """Đọc bản rà delegate: .xlsx (khuyên dùng, không lỗi mã hoá) hoặc .csv (utf-8, chấp nhận BOM do Excel thêm)."""
+    if str(path).lower().endswith((".xlsx", ".xlsm")):
+        return pd.read_excel(path, dtype=str, keep_default_na=False).fillna("")
+    return pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
+
+
 def cmd_check_delegates(path: str | None = None, who: str | None = None, exit_on_error: bool = True,
                         strict: bool = False) -> list[str]:
     """In lỗi rà soát; có lỗi thì thoát mã 1 (để chặn quy trình). `who` = A hoặc B khi kiểm bản sao riêng của một người.
     `strict`: thêm lỗi cho phản đối chưa giải quyết (đúng cổng mà `sheet --set main` dùng)."""
-    t = pd.read_csv(path or GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False)
+    t = read_review_table(path or GOLD_DIR / "delegate_lookup.csv")
     errs = check_delegates(t, (who,) if who else ("A", "B"), strict=strict)
     print("Bảng delegate đã rà đủ." if not errs else f"{len(errs)} lỗi:\n  " + "\n  ".join(errs))
     if errs and exit_on_error:
@@ -606,16 +613,29 @@ def cmd_check_delegates(path: str | None = None, who: str | None = None, exit_on
 
 
 def cmd_delegate_copy(who: str, out: str | None = None) -> str:
-    """Bản sao riêng để `who` rà (GOLD_PROTOCOL §2.3): chỉ có cột của người đó, không thấy cột của người kia."""
+    """Bản sao riêng để `who` rà (GOLD_PROTOCOL §2.3): chỉ có cột của người đó, không thấy cột của người kia.
+    Ghi hai định dạng cùng nội dung: .xlsx (khuyên dùng, Excel mở đúng tiếng Việt) và .csv (utf-8 có BOM để Excel nhận mã hoá)."""
     from pathlib import Path
     full = pd.read_csv(GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False)
     t = full.reindex(columns=[*DELEGATE_FIXED, *DELEGATE_REVIEW_COLS[who]]).fillna("")
-    p = out or str(GOLD_DIR / f"delegate_review_{who}.csv")
-    if Path(p).exists():
-        raise SystemExit(f"{p} đã có, không ghi đè (có thể đã có ý kiến rà soát)")
-    t.to_csv(p, index=False, encoding="utf-8", lineterminator="\n")
-    print(f"Ghi bản rà của {who} → {p}")
-    return p
+    p = Path(out or GOLD_DIR / f"delegate_review_{who}.csv")
+    x = p.with_suffix(".xlsx")
+    for q in (p, x):
+        if q.exists():
+            raise SystemExit(f"{q} đã có, không ghi đè (có thể đã có ý kiến rà soát)")
+    t.to_csv(p, index=False, encoding="utf-8-sig", lineterminator="\n")
+    with pd.ExcelWriter(x, engine="openpyxl") as w:
+        t.to_excel(w, index=False, sheet_name="delegate")
+        ws = w.sheets["delegate"]
+        ws.freeze_panes = "C2"
+        for col, width in zip("ABCDEFGHI", (7, 44, 8, 52, 18, 40, 70, 18, 50)):
+            ws.column_dimensions[col].width = width
+        from openpyxl.styles import Alignment
+        for row in ws.iter_rows(min_row=2):
+            for c in row:
+                c.alignment = Alignment(wrap_text=True, vertical="top")
+    print(f"Ghi bản rà của {who} → {x} và {p}")
+    return str(p)
 
 
 def cmd_merge_delegates(path_a: str, path_b: str) -> pd.DataFrame:
@@ -625,7 +645,7 @@ def cmd_merge_delegates(path_a: str, path_b: str) -> pd.DataFrame:
     m = pd.read_csv(p, dtype=str, keep_default_na=False).reindex(columns=["chain", "delegate", "n_items", "explorer_url",
                                                                           *DELEGATE_KEEP]).fillna("")
     for who, path in (("A", path_a), ("B", path_b)):
-        c = pd.read_csv(path, dtype=str, keep_default_na=False)
+        c = read_review_table(path)
         miss = set(["chain", "delegate", "final_class", "source", "note", *DELEGATE_REVIEW_COLS[who]]) - set(c.columns)
         if miss:
             raise SystemExit(f"{path}: thiếu cột {sorted(miss)}")
