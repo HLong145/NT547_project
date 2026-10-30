@@ -1,6 +1,6 @@
 # Codebook gán nhãn vàng (D5)
 
-Bản v0.6.2 (2026-10-26). **Tài liệu này chỉ dành cho người gán nhãn.** Thiết kế mẫu, quy trình phân xử, cách báo kết quả và hạn chế nằm ở [GOLD_PROTOCOL.md](GOLD_PROTOCOL.md). Người gán **không đọc** GOLD_PROTOCOL.md trước khi gán xong (nó có thông tin làm mất tính mù).
+Bản v0.6.3 (2026-10-30; sửa v0.6.2 sau cổng κ 50 mẫu đầu, xem mục "Thay đổi v0.6.3" cuối file). **Tài liệu này chỉ dành cho người gán nhãn.** Thiết kế mẫu, quy trình phân xử, cách báo kết quả và hạn chế nằm ở [GOLD_PROTOCOL.md](GOLD_PROTOCOL.md). Người gán **không đọc** GOLD_PROTOCOL.md trước khi gán xong (nó có thông tin làm mất tính mù).
 
 Chưa gán mẫu chính cho tới khi người gán A xác nhận bản này. Taxonomy theo [requirements.md](requirements.md) §3.1.
 
@@ -62,7 +62,7 @@ Cột `selector` = 4 byte đầu của calldata, kể cả khi là văn bản. �
 
 ### 3.4. EOA misuse: người dùng gửi tài sản tới ví họ không kiểm soát an toàn
 
-- **Một lần rút nhanh:** một lần tiền (coin hoặc token) **vào** địa chỉ, rồi trong **≤ 10 phút** có tx **ra** chuyển **≥ 90%** khoản đó (cùng tài sản) tới một **ví lạ**. *Ví lạ* = không phải người gửi khoản vào, và không phải ví có **nhãn** sàn / custodian trên explorer (ca 7a). Ví nhận **không có nhãn** vẫn là ví lạ, kể cả khi nghi là ví gom của sàn (ca 7b, 7c). Ví có nhãn **router / bridge** cũng vẫn là ví lạ (ca 7d), vì kẻ trộm hay đổi tiền qua đó.
+- **Một lần rút nhanh:** một lần tiền (coin, token hoặc NFT) **vào** địa chỉ, rồi trong **≤ 10 phút** có tx **ra** chuyển **≥ 90%** khoản đó (cùng tài sản) tới một **ví lạ**, và thỏa hai điều kiện thêm (v0.6.3): (i) **lượng ra** = giá trị gửi đi **cộng phí gas của chính tx rút** (nếu là coin gốc) phải ≥ 90% khoản vào, và không vượt quá khoản vào; (ii) trong tx rút, địa chỉ **không nhận lại tài sản nào** (coin, token ERC-20, NFT ERC-721/1155). Có nhận lại (swap, mint, stake, deposit nhận LP / token) là giao dịch của chủ ví, **không** tính là rút. Bridge gửi đi mà không nhận lại gì trên chain này vẫn tính. *Ví lạ* = không phải người gửi khoản vào, và không phải ví có **nhãn** sàn / custodian trên explorer (ca 7a). Ví nhận **không có nhãn** vẫn là ví lạ, kể cả khi nghi là ví gom của sàn (ca 7b, 7c). Ví có nhãn **router / bridge** cũng vẫn là ví lạ (ca 7d), vì kẻ trộm hay đổi tiền qua đó.
 - **KEY:** ví có private key đã lộ. File mẫu **không** cho biết ví có lộ key hay không. Gán **T5/KEY khi thấy ≥ 2 lần rút nhanh** (hai khoản vào khác nhau, xét cả lịch sử, ví lạ có thể khác nhau). Chỉ thấy **1 lần** → `NONE`, `confidence = low`, note "1 lần rút nhanh". Không thấy lần nào → không phải KEY.
 - **ADDR:** người dùng gửi tới một địa chỉ ví công khai (trong tài liệu, code mẫu) không phải của họ, và tiền bị rút về ví lạ. Chỉ chọn `ADDR` (thay vì `KEY`) khi explorer ghi rõ đó là ví ví dụ công khai; cả hai đều là T5.
 - **7702:** EOA đã ủy quyền EIP-7702 (code bắt đầu `0xef0100…`) tới một delegate. Tiền gửi tới bị delegate xử lý. Dùng **bảng tra delegate** (ca 13).
@@ -113,7 +113,7 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được g�
 
 **Bước D. EOA (kể cả 7702 và chuyển tiền thường từ bước B).**
 1. `code_at_event = 7702` (có `delegate_7702`): tra delegate trong `data/gold/delegate_lookup.csv` và theo **ca 13**. Mở tab Authorizations của địa chỉ: nếu ủy quyền tới delegate này xảy ra **sau** tx thì lúc tx địa chỉ là EOA thường → làm tiếp D2. Với `forwarder_sweeper`: xem ví đích mà forwarder chuyển tiền tới; nếu ví đích có **nhãn** sàn / custodian trên explorer (ca 7a) → **NONE** (địa chỉ nạp của sàn), không phải T5.
-2. Mở tab Transactions (và Token Transfers) của địa chỉ, đếm số **lần rút nhanh** (§3.4) trong toàn lịch sử:
+2. Mở tab Transactions (và Token Transfers) của địa chỉ, đếm số **lần rút nhanh** (§3.4) trong toàn lịch sử. **Luôn đếm cả lịch sử**, kể cả khi tx mẫu không chuyển gì hoặc bị `fail` (v0.6.3):
    - Trước khi đếm, xét ví nhận của từng lần rút theo **ca 7**: chỉ lần rút về ví có **nhãn** sàn / custodian trên explorer (7a) là **không** tính. Rút về ví không nhãn (7b, 7c) hoặc ví có nhãn router / bridge (7d) **vẫn tính**; nếu kết luận T5 có dùng lần rút như vậy thì `confidence = low`, note "ca 7b", "ca 7c" hoặc "ca 7d".
    - ≥ 2 lần → **T5/KEY**, `malicious = 1`. (`ADDR` thay cho `KEY` nếu explorer ghi rõ là ví ví dụ công khai.)
    - đúng 1 lần → **NONE**, `confidence = low`, note "1 lần rút nhanh".
@@ -154,7 +154,7 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được g�
     - (a) Ví nhận **chính nó** có **nhãn sàn / custodian** trên explorer (ví dụ "Binance 14", "Binance: Hot Wallet 6", "Coinbase 10") → lần rút này **không** tính. Nếu mọi lần rút đều như vậy → địa chỉ nạp của sàn → **NONE**, `confidence = high`.
     - (b) Ví nhận **không có nhãn**, ≥ 90% tx ra của địa chỉ này đều về **một** ví nhận đó, và ví nhận chuyển tiếp phần lớn tiền tới một ví sàn có nhãn → **vẫn tính** là rút nhanh (có thể là ví gom của sàn, cũng có thể là kẻ trộm đổi ra tiền). Nếu nhãn T5 dựa vào lần rút này: `confidence = low`, note "ca 7b".
     - (c) Ví nhận không nhãn và nhận từ rất nhiều địa chỉ khác (hàng chục trở lên) theo cùng mẫu hình "vào rồi ra hết về nó", không thấy liên kết sàn → **vẫn tính** là rút nhanh (mẫu hình này chính là ví gom của sweeper bot). Nếu nhãn T5 dựa vào lần rút này: `confidence = low`, note "ca 7c".
-    - (d) Ví nhận có nhãn **router / bridge / DEX** (ví dụ "1inch Router", "Stargate Bridge"), không phải nhãn sàn / custodian → **vẫn tính** là rút nhanh (kẻ trộm hay đổi hoặc chuyển chain qua đó để rút tiền). Nếu nhãn T5 dựa vào lần rút này: `confidence = low`, note "ca 7d".
+    - (d) Ví nhận có nhãn **router / bridge / DEX** (ví dụ "1inch Router", "Stargate Bridge"), không phải nhãn sàn / custodian → **vẫn tính** là rút nhanh (kẻ trộm hay đổi hoặc chuyển chain qua đó để rút tiền). **Trừ khi** tx đó địa chỉ nhận lại tài sản (swap, mint…): khi đó không phải rút nhanh (§3.4, v0.6.3). Nếu nhãn T5 dựa vào lần rút này: `confidence = low`, note "ca 7d".
     - Ví nhận không thỏa (a) → lần rút đó tính là rút nhanh (bước D2). Ghi "ca 7b" / "ca 7c" / "ca 7d" vào note mỗi khi nhãn T5 có dùng lần rút loại (b) / (c) / (d).
 8. **Tx chỉ mất gas** (value = 0) hoặc **tx lỗi** tới địa chỉ không có code mà có gọi hàm: vẫn T1/T4.
 9. **Vừa có contract tạo sau tx trên chain này vừa có contract ở chain khác** (PCD-XC): theo bước B4 với `xc_timing`; `subtype = PCD`.
@@ -164,7 +164,7 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được g�
 13. **7702: bảng tra delegate.** `data/gold/delegate_lookup.csv` có sẵn `final_class` và `source` do người điều phối điền từ bằng chứng khách quan (mã nguồn đã verify, hoặc bytecode). Ba lớp: `legit_wallet` / `forwarder_sweeper` / `unknown`. **Bắt buộc trước khi gán mẫu nào**, A và B mỗi người rà trên **bản sao riêng** (`data/gold/delegate_review_A.csv` / `..._B.csv`, chỉ có cột của mình; hướng dẫn ở `data/gold/DELEGATE_REVIEW.md`): tự mở `explorer_url` của từng delegate rồi điền `class_X`: `ok` = đã xem và đồng ý; tên lớp khác (`legit_wallet` / `forwarder_sweeper` / `unknown`) kèm lý do ở `note_X` của mình = phản đối. Cột `note` là lý do của người điều phối, không sửa. **Ô trống = chưa rà**, không phải đồng ý. Phản đối thì ba người thống nhất lại trên bảng chung `delegate_lookup.csv` (sau khi gộp): người điều phối sửa `final_class` (ghi lý do vào `note`) và xoá `class_A`, `class_B` của dòng đó, rồi **cả hai** người rà ghi lại `ok`; hoặc người phản đối rút lại bằng cách ghi `ok`. File Excel để gán **chỉ được tạo** khi mọi dòng của cả hai người là `ok` (hoặc đúng `final_class`), tức `sample_gold check-delegates --strict` báo 0 lỗi; `sheet` dùng đúng cổng này. Đừng chỉ đọc lại `source`: tự xem mã nguồn hoặc bytecode. Khi gán, dùng `final_class`:
     - (a) `legit_wallet` → NONE, trừ khi thấy ≥ 2 lần rút nhanh về ví lạ (ca 6: T5/KEY).
     - (b) `forwarder_sweeper` → T5/7702, **trừ khi** ví đích của forwarder có nhãn sàn / custodian trên explorer (ca 7a) → NONE (forwarder có ví đích cố định cũng là cách sàn làm địa chỉ nạp). Ví đích không nhãn → vẫn T5/7702. `malicious = 1` nếu thấy tiền của tx này (hoặc của địa chỉ) bị chuyển ra ví lạ, `?` nếu chưa thấy (khi đó `confidence` tối đa `medium`).
-    - (c) `unknown` → theo tx thực tế: thấy tiền bị chuyển ra ví lạ → T5/7702, `malicious = 1`; không thấy → NONE, `confidence = low`.
+    - (c) `unknown` → theo tx thực tế: thấy tài sản (coin, token hoặc NFT) bị chuyển ra ví lạ trong tx mẫu mà không nhận lại gì → T5/7702, `malicious = 1`; không thấy trong tx mẫu thì làm bước D2: ≥ 2 lần rút nhanh trong lịch sử → T5/KEY; còn lại → NONE, `confidence = low`. **Delegate không có trong bảng = `unknown`.** Dùng đúng bản `delegate_lookup.csv` cuối (A và B phải cùng một bản).
     - Ủy quyền xảy ra sau tx → bỏ qua delegate, theo bước D2.
 14. **ADDR không bị rút:** không type nào áp dụng → âm, `confidence = low`.
 15. **Cách ghi ô:** mẫu âm ghi `subtype`, `xc_chain`, `malicious` là `-`.
@@ -214,3 +214,15 @@ Số giao dịch và thiệt hại cố ý **không** có trong file: tự mở 
 - File trong `data/gold/` chỉ dùng nội bộ nhóm.
 
 Lịch sử thay đổi của codebook: [GOLD_PROTOCOL.md](GOLD_PROTOCOL.md) §8 (đọc sau khi gán xong).
+
+---
+
+## Thay đổi v0.6.3 (2026-10-30)
+
+Làm rõ chữ sau cổng κ 50 mẫu đầu (7 bất đồng); không đổi định nghĩa T1–T7. Mẫu nào đã gán theo v0.6.2 thì gán lại theo bản này.
+
+1. **Rút nhanh phải không nhận lại tài sản** (§3.4, ca 7d): swap, mint, stake, deposit nhận token / LP / NFT lại trong cùng tx không tính. Ví giao dịch DeFi hay NFT chuyển 90–98% khoản vào tới router rồi nhận token lại thì **không** phải KEY.
+2. **Cộng phí gas** vào lượng ra khi so ngưỡng 90%, và lượng ra không được vượt khoản vào.
+3. **NFT** (ERC-721/1155) là tài sản như coin và token.
+4. **Bước D2 luôn đếm cả lịch sử**, kể cả khi tx mẫu không chuyển gì hoặc `fail`.
+5. **Delegate không có trong bảng = `unknown`** (ca 13c), dùng đúng bản `delegate_lookup.csv` cuối.

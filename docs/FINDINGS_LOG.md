@@ -1041,3 +1041,10 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 - Kết quả: κ(is_misuse) = 0,692 < 0,70, dừng theo tiền đăng ký. Kiểm chứng chuỗi (Etherscan V2, NodeReal): 2/7 A đúng (đếm lịch sử rút nhanh khi tx mẫu rỗng/fail), 4/7 B đúng (NFT, delegate trong bảng, gas), 1/7 tuỳ quy tắc ca 7d. Nguyên nhân gốc là kẽ hở quy tắc (rút nhanh có nhận lại tài sản, gas, NFT, D2 với tx rỗng, delegate ngoài bảng) và quy trình (A chưa có bảng cuối), không phải chọn bừa.
 - Tái tạo: bảng ở `data/gold/ARBITRATION_gate50.md`; đề xuất ở `data/gold/CODEBOOK_v0.6.3_PROPOSAL.md`. Ghi chú G110 của B nêu một lần rút 2,6 ETH ngày 2024-01-31 không tìm thấy trong lịch sử ví.
 - Cho paper: báo cáo cổng thất bại, sửa codebook sau khi thấy 7 bất đồng (150 mẫu còn lại là phần chưa dùng để sửa), 50 mẫu đầu không vào κ chính thức.
+
+## 2026-10-30 — CODEBOOK v0.6.3 áp dụng (sai lệch so với tiền đăng ký)
+
+- Lý do: cổng κ 50 mẫu đầu = 0,692 < 0,70. Nội dung: CODEBOOK "Thay đổi v0.6.3" (5 điều); GOLD_PROTOCOL §8. sha256 `docs/CODEBOOK.md` v0.6.3 = `1cf6f48fd9f96bdec8e13687d883ee3f62a0e28baddc531a916ad13fcaa8bad8` (v0.6.2 `bedb1916…ffc`, tag `prereg-gold-v0.6.2`; v0.6.3 sẽ gắn tag `prereg-gold-v0.6.3` sau commit).
+- Nhãn lượt 1 (v0.6.2) giữ làm hồ sơ: `annotator_main_double_A.xlsx` `c1051f2b…5972`, `_B.xlsx` `e51f5571…0464475` (untracked).
+- Cho paper: codebook sửa sau khi thấy 7 bất đồng; điều 1 (nhận lại tài sản) làm giảm số KEY tính được → cần chạy lại độ nhạy ca 7; G068 = 0 theo điều 1.
+- Việc người điều phối soạn các sửa và chốt G068 là sai lệch thiết kế cần ghi (nhãn vàng có ảnh hưởng của người thiết kế).

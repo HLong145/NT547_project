@@ -55,3 +55,19 @@ Tóm tắt: A đúng ở G033, G184; B đúng ở G110 (kết quả), G157, G173
 - **B:** 0/NONE, ghi chú: Tx fail; delegate lúc tx 0x78c7ad39e03f05219bbd8ac6e2f2add76df89fa1 (không có trong bảng; ca 13c); schaubbBatch không chuyển tài sản
 - **Kiểm chứng:** Ủy quyền trong chính tx tới `0x78c7ad39e03f05219bbd8ac6e2f2add76df89fa1` (không có trong bảng → `unknown`). Tx mẫu **fail** nên không có gì chuyển, nhưng lịch sử có nhiều lần chuyển 100% khoản vào tới `0x02b1c6ca…` trong vài giây (ví dụ 2026-02-17 11:30:02 và 11:31:28), đủ ≥ 2 lần ở bước D2. B chỉ xét tx mẫu. (A viết nhầm là delegate hôm nay `0xa19160b1…` nhưng kết luận vẫn đúng nhờ lịch sử.)
 - **Đề xuất:** A đúng (1/T5). Việc sửa codebook liên quan: Như G033 (A4).
+
+## Quyết định (2026-10-30)
+
+Người dùng (B) đồng ý bảng này và duyệt codebook v0.6.3. Nhãn phân xử tạm cho `is_misuse` / `type` (subtype ghi sau khi A và B gán lại theo v0.6.3; nhãn vàng cuối của 50 mẫu = nhãn phân xử sau lượt gán lại):
+
+| Mẫu | is_misuse | type | Lý do ngắn |
+|---|---|---|---|
+| G033 | 1 | T5 | ≥ 2 lần rút nhanh 100% trong lịch sử (D2) |
+| G068 | 0 | NONE | **Chọn 0**: ví giao dịch DeFi/NFT, các khoản "rút" là swap/mua có nhận lại tài sản trong cùng tx (v0.6.3 điều 1) |
+| G110 | 1 | T5 | quét sạch số dư nhiều lần, tỉ lệ 85% chỉ do phí gas (điều 2) |
+| G157 | 0 | NONE | chỉ 1 lần rút hợp lệ; lần kia là mint có nhận lại token (điều 1) |
+| G173 | 1 | T5 | NFT bị chuyển đi (điều 3) |
+| G177 | 1 | T5 | delegate `forwarder_sweeper` trong bảng (ca 13b) |
+| G184 | 1 | T5 | ≥ 2 lần chuyển 100% trong lịch sử (D2) |
+
+Vì sao G068 = 0: nếu coi các giao dịch đó là rút thì mọi ví giao dịch tích cực sẽ thành KEY, làm nhãn dương phình ra. Lưu ý (paper): quyết định này theo điều 1 mới, chưa thấy trước khi có dữ liệu.

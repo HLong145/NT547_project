@@ -703,7 +703,7 @@ CHOICES = {"is_misuse": ["1", "0", "?"], "type": ["T1", "T2", "T3", "T4", "T5", 
            "confidence": ["high", "medium", "low"]}
 SHEET = "Gan_nhan"
 GUIDE = [
-    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.6.2; đọc bản đầy đủ nếu phân vân)",
+    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.6.3; đọc bản đầy đủ nếu phân vân)",
     "",
     "Gán ĐỘC LẬP. Không mở *_key.csv, file của người gán kia, dataset_v2.parquet, engine_eval.parquet; không đọc GOLD_PROTOCOL.md, FINDINGS_LOG.md, PROGRESS.md trước khi xong.",
     "Chỉ điền các cột màu vàng ở sheet Gan_nhan. Các cột còn lại là bằng chứng, tính cùng một cách cho mọi mẫu; ô '-' = không áp dụng / không tra được, không suy ra gì.",
@@ -736,7 +736,7 @@ GUIDE = [
     "   T2 chỉ khi đủ 3: tx success; contract không phải thứ định gọi; tiền không quay lại. Thiếu một → NONE. Tx fail → NONE.",
     "D. 7702: tra data/gold/delegate_lookup.csv (final_class) và CODEBOOK ca 13; ủy quyền xảy ra SAU tx thì xét như EOA thường.",
     "   forwarder_sweeper → T5/7702, TRỪ KHI ví đích của forwarder là ví có NHÃN sàn trên explorer (ca 7a) → NONE.",
-    "   Đếm lần rút nhanh (vào rồi ≤ 10 phút ra ≥ 90% về ví lạ) trong toàn lịch sử: ≥ 2 → T5/KEY;  đúng 1 → NONE, low;  0 → T6 nếu đủ dấu hiệu, còn lại NONE.",
+    "   Đếm lần rút nhanh (vào rồi ≤ 10 phút ra ≥ 90% về ví lạ; lượng ra cộng phí gas của tx rút; tx rút mà ví nhận lại tài sản thì KHÔNG tính; coin, token, NFT đều là tài sản) trong toàn lịch sử, kể cả khi tx mẫu rỗng hoặc fail: ≥ 2 → T5/KEY;  đúng 1 → NONE, low;  0 → T6 nếu đủ dấu hiệu, còn lại NONE.",
     "   Chỉ rút về ví có NHÃN sàn / custodian trên explorer là KHÔNG tính (ca 7a). Ví nhận không nhãn (ca 7b, 7c) hoặc có nhãn router / bridge (ca 7d) VẪN tính: confidence low, note 'ca 7b' / 'ca 7c' / 'ca 7d'.",
     "",
     "Ca khó hay gặp (CODEBOOK §5):",
@@ -752,7 +752,7 @@ GUIDE = [
 
 
 GUIDE_MAIN = [
-    "MẪU CHÍNH (CODEBOOK v0.6.2): mỗi dòng là MỘT TX (tx_hash, tx_url) tới address trên chain. Nhãn áp cho TX NÀY.",
+    "MẪU CHÍNH (CODEBOOK v0.6.3): mỗi dòng là MỘT TX (tx_hash, tx_url) tới address trên chain. Nhãn áp cho TX NÀY.",
     "\"Trước tx\" = trước tx này trên chuỗi (block, rồi vị trí trong block); không dùng ngày hay tx đầu tiên. at_time là giờ UTC của tx.",
     "code_at_event = code ngay trước tx (none / code / destroyed / 7702 / unknown); own_create_time = lúc tạo contract trên chain này, nếu có.",
     "Với EOA (KEY/ADDR/7702) được dùng TOÀN BỘ lịch sử của địa chỉ, kể cả sau tx, để nhận ra sweeper; nhãn vẫn là của tx.",
@@ -763,7 +763,7 @@ GUIDE_MAIN = [
 
 
 def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_single: bool = False,
-              skip_delegate_check: bool = False) -> None:
+              skip_delegate_check: bool = False, first: int = 0, tag: str = "") -> None:
     """File Excel cho người gán `who`: bằng chứng (đã làm mù) + cột nhãn có danh sách chọn + sheet hướng dẫn.
     Mẫu chính: từ chối tạo file khi bảng delegate chưa được A và B rà đủ (GOLD_PROTOCOL §2.3). `skip_delegate_check` chỉ cho
     test / chạy thử, in cảnh báo, không dùng để tạo file thật cho người gán."""
@@ -788,9 +788,11 @@ def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_si
         key = pd.read_csv(GOLD_DIR / "main_key.csv", dtype=str)
         dbl = key.double == "True"
         items = items[items.item_id.isin(key[dbl if only_double else ~dbl].item_id)].reset_index(drop=True)
+    if first:                                            # gán lại N mẫu có item_id nhỏ nhất (cổng κ, GOLD_PROTOCOL §2.4)
+        items = items.sort_values("item_id", kind="stable").head(first).reset_index(drop=True)
     evidence = [c for c in items.columns if c not in ("item_id", "chain", "address")]
     cols = ["item_id", "chain", "address", *LABEL_COLS, *evidence]
-    part = "_double" if only_double else "_single" if only_single else ""
+    part = ("_double" if only_double else "_single" if only_single else "") + tag
     out = GOLD_DIR / (f"annotator_{who}.xlsx" if which == "pilot" else f"annotator_main{part}_{who}.xlsx")
     if out.exists():
         raise SystemExit(f"{out} đã có, không ghi đè (có thể đã có nhãn). Xoá/đổi tên trước nếu muốn tạo lại.")
@@ -1002,6 +1004,8 @@ def main():
     sh.add_argument("--set", choices=["pilot", "main"], default="pilot")
     sh.add_argument("--only-double", action="store_true")
     sh.add_argument("--only-single", action="store_true")
+    sh.add_argument("--first", type=int, default=0, help="chỉ N mẫu có item_id nhỏ nhất (gán lại 50 mẫu đầu)")
+    sh.add_argument("--tag", default="", help="hậu tố tên file, ví dụ _r2 → annotator_main_double_r2_A.xlsx")
     sh.add_argument("--skip-delegate-check", action="store_true",
                     help="CHỈ cho test / chạy thử: bỏ cổng rà bảng delegate. KHÔNG dùng để tạo file thật cho người gán")
     mn = sub.add_parser("main")
@@ -1038,7 +1042,7 @@ def main():
     elif args.cmd == "merge-delegates":
         cmd_merge_delegates(args.a, args.b)
     elif args.cmd == "sheet":
-        cmd_sheet(args.who, args.set, args.only_double, args.only_single, args.skip_delegate_check)
+        cmd_sheet(args.who, args.set, args.only_double, args.only_single, args.skip_delegate_check, args.first, args.tag)
     else:
         cmd_kappa(args.a, args.b, args.items, args.key)
 

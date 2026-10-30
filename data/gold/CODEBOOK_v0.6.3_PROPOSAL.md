@@ -1,4 +1,4 @@
-# Đề xuất sửa CODEBOOK v0.6.2 → v0.6.3 (chưa áp dụng)
+# Đề xuất sửa CODEBOOK v0.6.2 → v0.6.3 (đã duyệt 2026-10-30 và áp dụng vào docs/CODEBOOK.md; giữ làm hồ sơ)
 
 Ngày 2026-10-30. Nguồn: 7 mẫu bất đồng ở cổng κ 50 mẫu đầu ([ARBITRATION_gate50.md](ARBITRATION_gate50.md)). `docs/CODEBOOK.md` giữ nguyên v0.6.2 cho tới khi A và B đồng ý. Các sửa chỉ **làm rõ** chữ, không đổi mẫu, khoá hay định nghĩa T1–T7.
 

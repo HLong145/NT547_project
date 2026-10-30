@@ -1,6 +1,6 @@
 # Giao thức nhãn vàng (D5): thiết kế, quy trình, đăng ký trước, hạn chế
 
-Bản đi kèm [CODEBOOK.md](CODEBOOK.md) v0.6.2 (2026-10-26). **Người gán không đọc file này trước khi gán xong**: nó có cỡ mẫu, tầng, tỉ lệ và cổng κ. Codebook chỉ chứa quy tắc gán.
+Bản đi kèm [CODEBOOK.md](CODEBOOK.md) v0.6.3 (2026-10-30; v0.6.2 → v0.6.3 sau cổng κ 50 mẫu đầu, xem §8). **Người gán không đọc file này trước khi gán xong**: nó có cỡ mẫu, tầng, tỉ lệ và cổng κ. Codebook chỉ chứa quy tắc gán.
 
 Kế hoạch gốc: [PLAN_V2.md](PLAN_V2.md) D5. Mục tiêu: Cohen's κ ≥ 0,8, báo kèm CI.
 
@@ -160,7 +160,7 @@ Trước khi gán: ghi sha256 các file dưới đây vào FINDINGS_LOG và gắ
 
 | file | sha256 | cách băm |
 |---|---|---|
-| `docs/CODEBOOK.md (v0.6.2)` | `bedb19163118d42299532a0fe6ad361130ed468a87b9856ef39baf3569407ffc` | LF |
+| `docs/CODEBOOK.md (v0.6.3, thay v0.6.2 `bedb1916…ffc` sau cổng κ)` | `1cf6f48fd9f96bdec8e13687d883ee3f62a0e28baddc531a916ad13fcaa8bad8` | LF |
 | `data/gold/main_items.csv` | `6363c56f94b5bb51ddc1de251da1829f3714213f9a46d6957f3b2ea8dc4c18e7` | LF |
 | `data/gold/main_key.csv (không commit; không đổi từ v0.5)` | `807f966042f20cd14c9f0463f73d67ddaf5f955bcb0bf1d269121aa9f9c86091` | nguyên byte, như v0.5 |
 | `data/gold/main_reserve_key.csv (không commit; không đổi từ v0.5)` | `c193ffe66b5d659d2f3f549886636969e405f379316f0709dea585bd61677f3a` | nguyên byte, như v0.5 |
@@ -238,6 +238,7 @@ Kèm theo (không đổi từ v0.5): `src/address_misuse/engine/` (evaluate), `d
   - `calldata_kind` khi không tra được tx: `unknown` thay cho `-`.
   - Bản soát cuối (sau commit `310efff`, vẫn v0.6.2, chưa có nhãn): (j′) cho mẫu `unknown` mà người gán ghi delegate có trong bảng (`delegate_named`, κ `_no_delegate_any`); bước A của CODEBOOK và hướng dẫn Excel tách rõ `unknown` không có / có `delegate_7702`, người gán ghi địa chỉ đầy đủ của delegate lúc tx vào note.
   - Hướng dẫn trong Excel ghi v0.6.2; `HUONG_DAN_GAN_NHAN.md` thay bằng một dòng trỏ tới CODEBOOK (bỏ số thiết kế).
+- **v0.6.3 (2026-10-30), SAU khi có nhãn: sai lệch so với tiền đăng ký.** Cổng κ 50 mẫu đầu cho κ(`is_misuse`) = 0,692 < 0,70 (tag `prereg-gold-v0.6.2`; hash nhãn ở FINDINGS_LOG). Theo §2.4: dừng, phân xử 7 bất đồng ([data/gold/ARBITRATION_gate50.md](../data/gold/ARBITRATION_gate50.md)), sửa codebook, gán lại 50 mẫu đầu. Sửa (CODEBOOK "Thay đổi v0.6.3", duyệt bởi người dùng 2026-10-30; A ký duyệt trước khi gán lại): (1) rút nhanh không tính nếu tx rút ví nhận lại tài sản (swap, mint, stake…); (2) lượng ra cộng phí gas, không vượt khoản vào; (3) NFT là tài sản; (4) D2 luôn đếm lịch sử kể cả tx mẫu rỗng/fail; (5) delegate ngoài bảng = `unknown`. Ca 7d giữ nhưng bị (1) giới hạn. Codebook được tinh chỉnh sau khi thấy 7 bất đồng; 150 mẫu gán đôi còn lại là phần chưa dùng để sửa. Tập mẫu, hai file khoá, bảng delegate không đổi. 50 mẫu đầu: nhãn vàng = nhãn phân xử sau khi gán lại; không vào κ chính thức; κ chính thức tính trên 150 mẫu gán đôi còn lại + 50 mẫu đơn có `double_extra_rank` nhỏ nhất (cả A và B gán). Phải chạy lại độ nhạy ca 7 (§4 k) vì (1) làm giảm số lần rút tính được.
 
 ## 9. Lưu trữ: agenda sửa codebook v0.4 (pilot, người gán A, 2026-10-21)
 

@@ -286,6 +286,17 @@ def test_sheet_refuses_until_delegates_reviewed(monkeypatch, tmp_path):
     assert (tmp_path / "annotator_main_A.xlsx").exists()
 
 
+def test_sheet_first_n_and_tag(monkeypatch, tmp_path):
+    monkeypatch.setattr(sg, "GOLD_DIR", tmp_path)
+    _delegate_table(tmp_path)
+    pd.DataFrame({"item_id": ["G3", "G1", "G2"], "chain": "eth", "address": A, "code_at_event": "none"}).to_csv(
+        tmp_path / "main_items.csv", index=False)
+    sg.cmd_sheet("A", "main", skip_delegate_check=True, first=2, tag="_r2")
+    out = tmp_path / "annotator_main_r2_A.xlsx"
+    assert out.exists()
+    assert list(pd.read_excel(out, dtype=str)["item_id"]) == ["G1", "G2"]
+
+
 def test_kappa_reports_without_delegate_decided_items(tmp_path):
     lab = lambda m: pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4"], "is_misuse": m, "type": ["T5", "T1", "NONE", "T1"],
                                   "subtype": "-", "xc_chain": "-", "malicious": "-", "confidence": "high",
