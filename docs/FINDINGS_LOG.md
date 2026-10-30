@@ -1035,3 +1035,9 @@ Nhãn vẫn là luật tác giả + tập âm N1–N8 (TẠM, chưa phải nhãn
 
 ### 2026-10-29: kết quả rà delegate (A, B độc lập)
 Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu). B ghi ok 33/33 (không ghi chú); A ghi ok 17 dòng và đổi 16 dòng từ `unknown` sang `forwarder_sweeper` kèm bằng chứng (hàm rút tiền, địa chỉ người gọi/đích cứng, tx mẫu). Coordinator kiểm lại độc lập bằng bytecode (Etherscan V2, NodeReal), mã nguồn verify và tx (txlistinternal): 16/16 có bằng chứng; tx mẫu của A khớp, trừ một chỗ A ghi selector 0xf0463878 như hash tx. B đồng ý sau khi xem; bảng cuối: forwarder_sweeper 28, legit_wallet 3, unknown 2. Hạn chế: B không ghi chú nên phần rà độc lập của B yếu ở các delegate chưa verify; không kiểm được nhãn sàn/custodian của địa chỉ đích và delegate tại thời điểm tx. 12 mẫu code_at_event=7702 chuyển sang do bảng quyết định (tăng vòng tròn với engine; báo kết quả có và không có nhóm này). Tái tạo: `delegate_lookup_initial_review.csv` so với `delegate_lookup.csv`. `delegate_lookup.csv` sha256 = `952f068deae2addd32620604ca8a18ebc1df4e731b9ad46188f20d45f8eecdf5`.
+
+## 2026-10-30 — Cổng κ 50 mẫu: kiểm chứng 7 bất đồng
+
+- Kết quả: κ(is_misuse) = 0,692 < 0,70, dừng theo tiền đăng ký. Kiểm chứng chuỗi (Etherscan V2, NodeReal): 2/7 A đúng (đếm lịch sử rút nhanh khi tx mẫu rỗng/fail), 4/7 B đúng (NFT, delegate trong bảng, gas), 1/7 tuỳ quy tắc ca 7d. Nguyên nhân gốc là kẽ hở quy tắc (rút nhanh có nhận lại tài sản, gas, NFT, D2 với tx rỗng, delegate ngoài bảng) và quy trình (A chưa có bảng cuối), không phải chọn bừa.
+- Tái tạo: bảng ở `data/gold/ARBITRATION_gate50.md`; đề xuất ở `data/gold/CODEBOOK_v0.6.3_PROPOSAL.md`. Ghi chú G110 của B nêu một lần rút 2,6 ETH ngày 2024-01-31 không tìm thấy trong lịch sử ví.
+- Cho paper: báo cáo cổng thất bại, sửa codebook sau khi thấy 7 bất đồng (150 mẫu còn lại là phần chưa dùng để sửa), 50 mẫu đầu không vào κ chính thức.
