@@ -67,7 +67,20 @@ Người dùng (B) đồng ý bảng này và duyệt codebook v0.6.3. Nhãn ph�
 | G110 | 1 | T5 | quét sạch số dư nhiều lần, tỉ lệ 85% chỉ do phí gas (điều 2) |
 | G157 | 0 | NONE | chỉ 1 lần rút hợp lệ; lần kia là mint có nhận lại token (điều 1) |
 | G173 | 1 | T5 | NFT bị chuyển đi (điều 3) |
-| G177 | 1 | T5 | delegate `forwarder_sweeper` trong bảng (ca 13b) |
+| G177 | ~~1~~ → **0** (sửa 2026-11-01) | NONE | xem "Lượt 2": ủy quyền trong tx mẫu không có hiệu lực (nonce đã dùng), lập luận lượt 1 của tôi sai |
 | G184 | 1 | T5 | ≥ 2 lần chuyển 100% trong lịch sử (D2) |
 
 Vì sao G068 = 0: nếu coi các giao dịch đó là rút thì mọi ví giao dịch tích cực sẽ thành KEY, làm nhãn dương phình ra. Lưu ý (paper): quyết định này theo điều 1 mới, chưa thấy trước khi có dữ liệu.
+
+## Lượt 2: gán lại 50 dòng đầu theo v0.6.3 (2026-11-01)
+
+κ hiệu chỉnh (không vào κ chính thức): κ(`is_misuse`) = 0,830 [CI95 theo cụm 0,662–1,000], đồng ý 46/50, AC1 0,849, PABAK 0,840; κ(`type`) = 0,852 [0,703–1,000]. Bỏ 7 mẫu do delegate quyết định: 0,948. Từ 7 bất đồng còn 4: G033, G085, G108, G194. A: 19 dương / 31 âm; B: 19 / 31. File: `annotator_main_double_r2_A.xlsx` sha256 `97afe21debd7557ca0fd7bf3a7d7fb4441fd27e935833fd3c568ae5aeed687e1`, `_r2_B.xlsx` `aa9d0491b0670c5b60e1b2c20f0d29fb46be84bd1854fe8a43592ae733cf05d6` (untracked). 4 mẫu đã đổi nhãn so với lượt 1 ở những mẫu lượt 1 đồng ý: G085, G108 (B đổi 0→1), G194 (A đổi 0→1).
+
+**Kiểm chứng thêm (tôi, 2026-11-01, trên chuỗi):**
+- **G033 → 1 (A đúng).** Lần 2 B vẫn chỉ thấy rút 1 wei trên tab Transactions; token rút nhanh 100% nằm ở tab Token Transfers (DDM 100 vào 09:53:20, ra 09:53:21 tới `0xcc04506d…`; token 0,0005 tới `0x91163366…`). Codebook D2 ghi rõ "Transactions (và Token Transfers)".
+- **G085, G108 → 1/T5/7702 (B đúng, cần ba người chốt).** Delegate lúc tx (`0x3ae1f70c…`, `0x6cdcd0a7…`) không có trong bảng nên theo ca 13c phải xét tx thực. Trong tx mẫu địa chỉ đã chạy mã ủy quyền và chuyển **toàn bộ số dư BNB (28 wei)** tới ví vanity `0x43b18f8f…aaaa` (G085) và tới người gọi `0x63825239…aaaaaaa` (G108). Bytecode: cả hai là forwarder tới địa chỉ cứng (G085 `0x43b18f8f…aaaa` đã cứng trong mã; G108 chủ `0x63825239…` cứng trong mã) cùng kiểu họ 0x8a67 (`forwarder_sweeper`). A coi 28 wei là không đáng kể; codebook chưa có quy định về dust.
+- **G194 → 1, `low` (A đúng theo chữ codebook, mẫu bất định nhất).** Tính cả phí gas: 2023-03-26 0,01386 vào, 0,0111 + gas = 91,4% tới bridge `0xc4448b71…` (ca 7d); 2023-05-20 95,6% tới bridge `0x32400084…`; 2024-06-15 0,0007126 vào, ra 0,000557 + gas = 100% tới `0x407df0a8…` sau 12 giây, không nhận lại tài sản. Nhưng ví này trông là ví người dùng thật (bridge, NFT); `0x407df0a8…` nhận nhiều lần từ cùng vài nguồn có thể là ví của chính chủ → có thể là dương giả do ca 7d.
+- **G177 → 0, `low` (sửa nhận định lượt 1).** Ba ủy quyền trong tx mẫu (nonce 79, 80, 81) đều của chính địa chỉ này (khôi phục chữ ký secp256k1: cả 3 trả về đúng địa chỉ) tới `0x2c6f0179…`, nhưng trong **cùng block** (25545452) một tx trước đó (chỉ số 10, ủy quyền nonce 79–83 tới `0x0a3dd3fb…`) đã rút 1 USDT sau 12 giây; tx mẫu (chỉ số 19) là một bot sweeper khác tới sau, các ủy quyền hết hiệu lực (khớp ghi chú `invalid_nonce` của B). Tức tôi đã sai khi nói địa chỉ này "có delegate `forwarder_sweeper` trong bảng": `0x2c6f0179…` chưa từng có hiệu lực ở đây. Theo codebook: delegate hiệu lực lúc tx là `0x0a3dd3fb…` (không trong bảng, `unknown`), tx mẫu không chuyển gì, D2 chỉ thấy 1 lần rút nhanh → NONE `low`. Cả A và B lượt 2 đều gán 0. Thực chất đây là ví bị lộ key (nên có thể là âm giả).
+- Không kiểm được qua API: trạng thái nonce lịch sử trên ETH (nút không có trạng thái cũ); Authorizations tab trên Etherscan (Cloudflare chặn trình duyệt tự động; không vượt).
+
+**Đề xuất nhãn phân xử cho 4 mẫu còn lại (chờ A, B chốt):** G033 = 1/T5 (KEY); G085 = 1/T5 (7702); G108 = 1/T5 (7702); G194 = 1/T5 (KEY, `low`).

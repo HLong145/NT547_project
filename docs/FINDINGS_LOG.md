@@ -1048,3 +1048,9 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 - Nhãn lượt 1 (v0.6.2) giữ làm hồ sơ: `annotator_main_double_A.xlsx` `c1051f2b…5972`, `_B.xlsx` `e51f5571…0464475` (untracked).
 - Cho paper: codebook sửa sau khi thấy 7 bất đồng; điều 1 (nhận lại tài sản) làm giảm số KEY tính được → cần chạy lại độ nhạy ca 7; G068 = 0 theo điều 1.
 - Việc người điều phối soạn các sửa và chốt G068 là sai lệch thiết kế cần ghi (nhãn vàng có ảnh hưởng của người thiết kế).
+
+## 2026-11-01 — Gán lại 50 dòng đầu (v0.6.3): κ hiệu chỉnh 0,830
+
+- κ(is_misuse) 0,830 [CI cụm 0,662–1,000], đồng ý 46/50, AC1 0,849, PABAK 0,840; κ(type) 0,852; bỏ 7 mẫu do delegate quyết định 0,948; bỏ 8 mẫu ca 7b/c/d 0,897. Đây là κ hiệu chỉnh, không phải κ chính thức (§2.4). Đạt ngưỡng 0,70 của cổng, chưa đạt 0,90.
+- Phát hiện: (1) tab Token Transfers bị bỏ sót ở D2 (G033); (2) delegate lúc tx ngoài bảng nhưng bytecode là forwarder về địa chỉ cứng chuyển 28 wei (G085, G108): codebook chưa có quy định về dust; (3) ca 7d làm ví người dùng thật dùng bridge thành KEY (G194); (4) nhãn phân xử G177 của tôi ở lượt 1 sai vì ủy quyền trong tx mẫu không còn hiệu lực (bot sweeper khác thắng trong cùng block); tôi khôi phục chữ ký để xác minh. Tất cả ở `data/gold/ARBITRATION_gate50.md`.
+- Cho paper: các bất đồng còn lại tập trung ở 7702 unknown và ca 7d (giới hạn đã biết, `low`); sửa nhãn phân xử của người điều phối ghi lại để minh bạch.
