@@ -341,3 +341,28 @@ def test_kappa_reports_without_ca7_unlabelled_items(tmp_path):
     lab(["0", "1", "0", "1"], ["", "", "", ""]).to_csv(tmp_path / "b.csv", index=False)
     out = sg.cmd_kappa(str(tmp_path / "a.csv"), str(tmp_path / "b.csv"))
     assert out["is_misuse"] < 1 and out["is_misuse_no_ca7"] == 1.0
+
+
+def test_attx_recover_authority_and_delegate_table(monkeypatch, tmp_path):
+    from address_misuse import gold_attx as g
+    d, k, deleg = 1, 12345, "0x" + "22" * 20                       # khoá riêng 1 → địa chỉ 0x7e5f…5bdf (đã biết)
+    R = g._mul(k, g._G)
+    r = R[0] % g._N
+    h = int.from_bytes(g.auth_digest(1, deleg, 5), "big")
+    s = pow(k, -1, g._N) * (h + r * d) % g._N
+    v = R[1] % 2
+    if s > g._N // 2:
+        s, v = g._N - s, v ^ 1
+    a = {"chainId": "0x1", "address": deleg, "nonce": "0x5", "yParity": hex(v), "r": hex(r), "s": hex(s)}
+    me = "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
+    assert g.recover_authority(a) == me
+    other = dict(a, nonce="0x6")                                  # nonce đổi → chữ ký không còn của địa chỉ này
+    got = g.own_authorizations(me, {"authorizationList": [a, other]})
+    assert got == [{"delegate": deleg, "nonce": 5, "auth_chain_id": 1}]
+    # bảng delegate gồm cả delegate đứng đích trong tx mẫu
+    monkeypatch.setattr(sg, "GOLD_DIR", tmp_path)
+    pd.DataFrame({"item_id": ["G2"], "chain": ["eth"], "address": [A], "delegate": [deleg], "nonce": ["5"],
+                  "auth_chain_id": ["1"], "n_auth_in_tx": ["3"]}).to_csv(tmp_path / "delegate_attx.csv", index=False)
+    items = pd.DataFrame({"item_id": ["G1", "G2"], "chain": "eth", "address": [A, A], "delegate_7702": ["0xd1", "-"]})
+    t = sg.write_delegate_lookup(items)
+    assert set(t.delegate) == {"0xd1", deleg} and (t.n_items == 1).all()

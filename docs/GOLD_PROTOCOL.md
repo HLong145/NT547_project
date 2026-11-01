@@ -1,6 +1,6 @@
 # Giao thức nhãn vàng (D5): thiết kế, quy trình, đăng ký trước, hạn chế
 
-Bản đi kèm [CODEBOOK.md](CODEBOOK.md) v0.6.3 (2026-10-30; v0.6.2 → v0.6.3 sau cổng κ 50 mẫu đầu, xem §8). **Người gán không đọc file này trước khi gán xong**: nó có cỡ mẫu, tầng, tỉ lệ và cổng κ. Codebook chỉ chứa quy tắc gán.
+Bản đi kèm [CODEBOOK.md](CODEBOOK.md) v0.6.4 (2026-11-01; v0.6.2 → v0.6.3 → v0.6.4 sau cổng κ 50 mẫu đầu, xem §8). **Người gán không đọc file này trước khi gán xong**: nó có cỡ mẫu, tầng, tỉ lệ và cổng κ. Codebook chỉ chứa quy tắc gán.
 
 Kế hoạch gốc: [PLAN_V2.md](PLAN_V2.md) D5. Mục tiêu: Cohen's κ ≥ 0,8, báo kèm CI.
 
@@ -160,7 +160,7 @@ Trước khi gán: ghi sha256 các file dưới đây vào FINDINGS_LOG và gắ
 
 | file | sha256 | cách băm |
 |---|---|---|
-| `docs/CODEBOOK.md (v0.6.3, thay v0.6.2 `bedb1916…ffc` sau cổng κ)` | `1cf6f48fd9f96bdec8e13687d883ee3f62a0e28baddc531a916ad13fcaa8bad8` | LF |
+| `docs/CODEBOOK.md (v0.6.4; v0.6.3 `1cf6f48f…8d8`; v0.6.2 `bedb1916…ffc`)` | `5a30e41efce9d990d4e2ea7d4bb10cad2cc73e8b78f9f6f34fd26fcd860bb3f4` | LF |
 | `data/gold/main_items.csv` | `6363c56f94b5bb51ddc1de251da1829f3714213f9a46d6957f3b2ea8dc4c18e7` | LF |
 | `data/gold/main_key.csv (không commit; không đổi từ v0.5)` | `807f966042f20cd14c9f0463f73d67ddaf5f955bcb0bf1d269121aa9f9c86091` | nguyên byte, như v0.5 |
 | `data/gold/main_reserve_key.csv (không commit; không đổi từ v0.5)` | `c193ffe66b5d659d2f3f549886636969e405f379316f0709dea585bd61677f3a` | nguyên byte, như v0.5 |
@@ -239,6 +239,7 @@ Kèm theo (không đổi từ v0.5): `src/address_misuse/engine/` (evaluate), `d
   - Bản soát cuối (sau commit `310efff`, vẫn v0.6.2, chưa có nhãn): (j′) cho mẫu `unknown` mà người gán ghi delegate có trong bảng (`delegate_named`, κ `_no_delegate_any`); bước A của CODEBOOK và hướng dẫn Excel tách rõ `unknown` không có / có `delegate_7702`, người gán ghi địa chỉ đầy đủ của delegate lúc tx vào note.
   - Hướng dẫn trong Excel ghi v0.6.2; `HUONG_DAN_GAN_NHAN.md` thay bằng một dòng trỏ tới CODEBOOK (bỏ số thiết kế).
 - **v0.6.3 (2026-10-30), SAU khi có nhãn: sai lệch so với tiền đăng ký.** Cổng κ 50 mẫu đầu cho κ(`is_misuse`) = 0,692 < 0,70 (tag `prereg-gold-v0.6.2`; hash nhãn ở FINDINGS_LOG). Theo §2.4: dừng, phân xử 7 bất đồng ([data/gold/ARBITRATION_gate50.md](../data/gold/ARBITRATION_gate50.md)), sửa codebook, gán lại 50 mẫu đầu. Sửa (CODEBOOK "Thay đổi v0.6.3", duyệt bởi người dùng 2026-10-30; A ký duyệt trước khi gán lại): (1) rút nhanh không tính nếu tx rút ví nhận lại tài sản (swap, mint, stake…); (2) lượng ra cộng phí gas, không vượt khoản vào; (3) NFT là tài sản; (4) D2 luôn đếm lịch sử kể cả tx mẫu rỗng/fail; (5) delegate ngoài bảng = `unknown`. Ca 7d giữ nhưng bị (1) giới hạn. Codebook được tinh chỉnh sau khi thấy 7 bất đồng; 150 mẫu gán đôi còn lại là phần chưa dùng để sửa. Tập mẫu, hai file khoá, bảng delegate không đổi. 50 mẫu đầu: nhãn vàng = nhãn phân xử sau khi gán lại; không vào κ chính thức; κ chính thức tính trên 150 mẫu gán đôi còn lại + 50 mẫu đơn có `double_extra_rank` nhỏ nhất (cả A và B gán). Phải chạy lại độ nhạy ca 7 (§4 k) vì (1) làm giảm số lần rút tính được.
+- **v0.6.4 (2026-11-01), sau lượt gán lại 50 dòng đầu (κ hiệu chỉnh 0,830):** (6) luôn mở cả ba tab Transactions / Token Transfers / NFT Transfers ở D2; (7) dust (< 0,000001 coin gốc) không là bằng chứng cho delegate `unknown`, `forwarder_sweeper` vẫn T5; (8) bảng delegate gồm delegate đứng đích ủy quyền của chính địa chỉ trong tx mẫu, ủy quyền `invalid_nonce` không có hiệu lực. Mã mới `gold_attx.py` (khôi phục chữ ký EIP-7702 bằng secp256k1, kiểm với khoá riêng 1) tạo `data/gold/delegate_attx.csv` (sha256 `ec8b01e35ac4d364a9555f6d9be081c9a29f3c85efbbf4c46ee8fd8daa6503f5`): 163/264 mẫu có ủy quyền của chính địa chỉ trong tx mẫu, 190 ủy quyền, 69 (chain, delegate), 63 chưa có trong bảng. `delegate_lookup.csv` 33 → 96 dòng (sha256 `7cc56a14fe514e0aca7680adcb911ff1b75271e3c1163aa66136a0f28e5d50fd`, thay `952f068d…ecdf5`; 33 dòng cũ không đổi nội dung, 4 dòng đổi `n_items`): 63 dòng mới có `final_class` do người điều phối điền từ bytecode + 4byte (42 `forwarder_sweeper`, 19 `unknown`, 2 `legit_wallet`) nhưng **class_A, class_B trống** → cổng `check-delegates --strict` chặn `sheet --set main` cho tới khi A, B rà (`delegate_review2_<A|B>.xlsx`, sha256 `89889a17cf71665e9687000dd4f425306ba2d9f1e7715efccba9ce38ca825cf2` và `4ba136ccc49dd9e431930ae6609978ecf6eacce3b5201e33166270b5d38a8270`). Nhãn vàng 50 mẫu đầu = nhãn phân xử; tập mẫu, hai file khoá không đổi.
 
 ## 9. Lưu trữ: agenda sửa codebook v0.4 (pilot, người gán A, 2026-10-21)
 

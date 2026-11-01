@@ -1054,3 +1054,10 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 - κ(is_misuse) 0,830 [CI cụm 0,662–1,000], đồng ý 46/50, AC1 0,849, PABAK 0,840; κ(type) 0,852; bỏ 7 mẫu do delegate quyết định 0,948; bỏ 8 mẫu ca 7b/c/d 0,897. Đây là κ hiệu chỉnh, không phải κ chính thức (§2.4). Đạt ngưỡng 0,70 của cổng, chưa đạt 0,90.
 - Phát hiện: (1) tab Token Transfers bị bỏ sót ở D2 (G033); (2) delegate lúc tx ngoài bảng nhưng bytecode là forwarder về địa chỉ cứng chuyển 28 wei (G085, G108): codebook chưa có quy định về dust; (3) ca 7d làm ví người dùng thật dùng bridge thành KEY (G194); (4) nhãn phân xử G177 của tôi ở lượt 1 sai vì ủy quyền trong tx mẫu không còn hiệu lực (bot sweeper khác thắng trong cùng block); tôi khôi phục chữ ký để xác minh. Tất cả ở `data/gold/ARBITRATION_gate50.md`.
 - Cho paper: các bất đồng còn lại tập trung ở 7702 unknown và ca 7d (giới hạn đã biết, `low`); sửa nhãn phân xử của người điều phối ghi lại để minh bạch.
+
+## 2026-11-01 — CODEBOOK v0.6.4 và bảng delegate lúc tx
+
+- Lý do: 4 bất đồng còn lại sau lượt gán lại (G033, G085, G108, G194). Hai lỗ hổng: tab Token Transfers bị bỏ sót, delegate lúc tx ngoài bảng (G085/G108 là forwarder địa chỉ cứng chuyển 28 wei).
+- Kết quả đo: trong 264 mẫu có thể là 7702, 163 mẫu có ủy quyền của chính địa chỉ trong tx mẫu (khôi phục chữ ký); chỉ 8/190 ủy quyền trùng delegate hôm nay (bảng cũ bỏ sót hầu hết delegate lúc tx). 63/69 (chain, delegate) chưa có trong bảng cũ; phân loại bytecode: 42 sweeper, 19 unknown, 2 legit (smart wallet ERC-4337 và ủy quyền tới 0x0). Nhiều họ drainer EIP-7702 nhận diện được bằng tên hàm (CrimeEnjoyor, 'schaubb', loserSweepETH…).
+- Giới hạn: phân loại chỉ dựa vào mã và tên hàm 4byte (không chạy mô phỏng); `unknown` là mặc định an toàn; 35 mẫu BSC cùng ủy quyền tới một delegate gửi token hàng loạt (0xa1c72cfc…) để `unknown`; ủy quyền có hiệu lực hay không (nonce) không kiểm được bằng API (không có nút lưu trữ), người gán đọc từ tab Authorizations.
+- Cho paper: codebook và bảng delegate được mở rộng sau khi thấy dữ liệu; báo κ chính thức có và không có mẫu do bảng delegate quyết định (§4 j).

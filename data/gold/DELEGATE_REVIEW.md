@@ -68,3 +68,7 @@ Lưu ý: tên contract có thể **giả** (ví dụ `MetaMaskSwapRouter` chỉ 
 Bằng chứng 'bytecode, unverified' nghĩa là contract chưa verify mã nguồn; lớp điền sẵn dựa trên selector và opcode (có CALL + CALLVALUE, ghi đích vào storage hoặc địa chỉ token viết cứng). Hãy tự kiểm tra nếu muốn.
 
 Bảng này tạo từ `delegate_lookup.csv`; nếu hai nơi lệch nhau thì `delegate_lookup.csv` là bản đúng.
+
+## Vòng rà thứ hai (v0.6.4, 2026-11-01): 63 delegate mới
+
+Từ v0.6.4 bảng `delegate_lookup.csv` có thêm **63 dòng** là delegate đứng đích của ủy quyền do chính địa chỉ ký trong tx mẫu (khôi phục chữ ký; danh sách ở `delegate_attx.csv`), không chỉ delegate hôm nay. 33 dòng cũ giữ nguyên (đã `ok`). Mỗi người chỉ cần điền **các dòng còn trống** (`class_X` trống) trên bản sao riêng `delegate_review2_<A|B>.xlsx` (hoặc `.csv`), theo đúng cách ở trên: tự mở `explorer_url`, xem mã nguồn / bytecode, rồi ghi `ok` hoặc lớp khác kèm lý do ở `note_X`. Cột `note` là lý do của người điều phối (họ hàm, selector). Quy ước phân loại của người điều phối: `forwarder_sweeper` chỉ khi có bằng chứng mạnh (nguồn verified họ CrimeEnjoyor / RescueDelegator, hàm tên sweep / forward / transferAll, hoặc đích cố định trong mã); `legit_wallet` khi là ví thông minh rõ (ERC-4337) hoặc ủy quyền tới 0x0 (xoá ủy quyền); còn lại `unknown` (xét theo tx). Phản đối thì giải quyết như vòng một (gộp bằng `merge-delegates` hai file `delegate_review2_*`, người điều phối sửa `final_class`, cả hai ghi lại `ok`).

@@ -544,8 +544,13 @@ def write_delegate_lookup(items: pd.DataFrame) -> pd.DataFrame:
     (`note_A` / `note_B`) = phản đối. Ô trống = CHƯA RÀ (không phải đồng ý). Lớp: legit_wallet / forwarder_sweeper / unknown.
     Chạy lại GIỮ NGUYÊN mọi ô đã điền (kể cả `note_A`, `note_B`); delegate mới thêm dòng trống. Không chứa nhãn mẫu."""
     d = items[items.delegate_7702.notna() & (items.delegate_7702 != "-")]
-    t = (d.groupby(["chain", "delegate_7702"]).agg(n_items=("item_id", "size"))
-         .reset_index().rename(columns={"delegate_7702": "delegate"}).sort_values("n_items", ascending=False, kind="stable"))
+    pairs = d[["item_id", "chain", "delegate_7702"]].rename(columns={"delegate_7702": "delegate"})
+    att = GOLD_DIR / "delegate_attx.csv"                 # v0.6.4: delegate đứng đích ủy quyền của chính địa chỉ trong tx mẫu (gold_attx)
+    if att.exists():
+        a = pd.read_csv(att, dtype=str, keep_default_na=False)
+        pairs = pd.concat([pairs, a[["item_id", "chain", "delegate"]]]).drop_duplicates()
+    t = (pairs.groupby(["chain", "delegate"]).agg(n_items=("item_id", "size"))
+         .reset_index().sort_values("n_items", ascending=False, kind="stable"))
     t["explorer_url"] = [EXPLORERS[c] + a for c, a in zip(t.chain, t.delegate)]
     p = GOLD_DIR / "delegate_lookup.csv"
     if p.exists():
@@ -703,7 +708,7 @@ CHOICES = {"is_misuse": ["1", "0", "?"], "type": ["T1", "T2", "T3", "T4", "T5", 
            "confidence": ["high", "medium", "low"]}
 SHEET = "Gan_nhan"
 GUIDE = [
-    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.6.3; đọc bản đầy đủ nếu phân vân)",
+    "HƯỚNG DẪN GÁN NHÃN (tóm tắt docs/CODEBOOK.md v0.6.4; đọc bản đầy đủ nếu phân vân)",
     "",
     "Gán ĐỘC LẬP. Không mở *_key.csv, file của người gán kia, dataset_v2.parquet, engine_eval.parquet; không đọc GOLD_PROTOCOL.md, FINDINGS_LOG.md, PROGRESS.md trước khi xong.",
     "Chỉ điền các cột màu vàng ở sheet Gan_nhan. Các cột còn lại là bằng chứng, tính cùng một cách cho mọi mẫu; ô '-' = không áp dụng / không tra được, không suy ra gì.",
@@ -734,9 +739,9 @@ GUIDE = [
     "   calldata_kind = call: xc_timing before → T4;  after → T1;  unknown → mở explorer_url_xc, vẫn không biết → T4 low;  '-' → T1.",
     "C. transfer/transferFrom với người nhận = chính address, thành công → T3.  Contract định gọi, gọi đúng hàm → NONE.",
     "   T2 chỉ khi đủ 3: tx success; contract không phải thứ định gọi; tiền không quay lại. Thiếu một → NONE. Tx fail → NONE.",
-    "D. 7702: tra data/gold/delegate_lookup.csv (final_class) và CODEBOOK ca 13; ủy quyền xảy ra SAU tx thì xét như EOA thường.",
+    "D. 7702: tra data/gold/delegate_lookup.csv (final_class; bảng có cả delegate trong ủy quyền của tx mẫu) và CODEBOOK ca 13 (ủy quyền invalid_nonce không có hiệu lực; dust không tính cho delegate unknown); ủy quyền xảy ra SAU tx thì xét như EOA thường.",
     "   forwarder_sweeper → T5/7702, TRỪ KHI ví đích của forwarder là ví có NHÃN sàn trên explorer (ca 7a) → NONE.",
-    "   Đếm lần rút nhanh (vào rồi ≤ 10 phút ra ≥ 90% về ví lạ; lượng ra cộng phí gas của tx rút; tx rút mà ví nhận lại tài sản thì KHÔNG tính; coin, token, NFT đều là tài sản) trong toàn lịch sử, kể cả khi tx mẫu rỗng hoặc fail: ≥ 2 → T5/KEY;  đúng 1 → NONE, low;  0 → T6 nếu đủ dấu hiệu, còn lại NONE.",
+    "   Đếm lần rút nhanh (vào rồi ≤ 10 phút ra ≥ 90% về ví lạ; lượng ra cộng phí gas của tx rút; tx rút mà ví nhận lại tài sản thì KHÔNG tính; coin, token, NFT đều là tài sản) trong toàn lịch sử (mở CẢ Transactions, Token Transfers và NFT Transfers), kể cả khi tx mẫu rỗng hoặc fail: ≥ 2 → T5/KEY;  đúng 1 → NONE, low;  0 → T6 nếu đủ dấu hiệu, còn lại NONE.",
     "   Chỉ rút về ví có NHÃN sàn / custodian trên explorer là KHÔNG tính (ca 7a). Ví nhận không nhãn (ca 7b, 7c) hoặc có nhãn router / bridge (ca 7d) VẪN tính: confidence low, note 'ca 7b' / 'ca 7c' / 'ca 7d'.",
     "",
     "Ca khó hay gặp (CODEBOOK §5):",
@@ -752,7 +757,7 @@ GUIDE = [
 
 
 GUIDE_MAIN = [
-    "MẪU CHÍNH (CODEBOOK v0.6.3): mỗi dòng là MỘT TX (tx_hash, tx_url) tới address trên chain. Nhãn áp cho TX NÀY.",
+    "MẪU CHÍNH (CODEBOOK v0.6.4): mỗi dòng là MỘT TX (tx_hash, tx_url) tới address trên chain. Nhãn áp cho TX NÀY.",
     "\"Trước tx\" = trước tx này trên chuỗi (block, rồi vị trí trong block); không dùng ngày hay tx đầu tiên. at_time là giờ UTC của tx.",
     "code_at_event = code ngay trước tx (none / code / destroyed / 7702 / unknown); own_create_time = lúc tạo contract trên chain này, nếu có.",
     "Với EOA (KEY/ADDR/7702) được dùng TOÀN BỘ lịch sử của địa chỉ, kể cả sau tx, để nhận ra sweeper; nhãn vẫn là của tx.",

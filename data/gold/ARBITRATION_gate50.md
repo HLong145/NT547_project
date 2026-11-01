@@ -84,3 +84,7 @@ Vì sao G068 = 0: nếu coi các giao dịch đó là rút thì mọi ví giao d
 - Không kiểm được qua API: trạng thái nonce lịch sử trên ETH (nút không có trạng thái cũ); Authorizations tab trên Etherscan (Cloudflare chặn trình duyệt tự động; không vượt).
 
 **Đề xuất nhãn phân xử cho 4 mẫu còn lại (chờ A, B chốt):** G033 = 1/T5 (KEY); G085 = 1/T5 (7702); G108 = 1/T5 (7702); G194 = 1/T5 (KEY, `low`).
+
+## Quyết định lượt 2 (2026-11-01)
+
+Người dùng (B) đồng ý đề xuất cho 4 mẫu: G033 = 1/T5 (KEY), G085 = 1/T5 (7702), G108 = 1/T5 (7702), G194 = 1/T5 (KEY, `low`); G177 = 0/NONE (`low`). **A chưa xác nhận** các nhãn này (cần ghi khi A xác nhận). Nhãn vàng của 50 mẫu đầu: 46 mẫu hai người đồng ý ở lượt 2 (G177 cũng đồng ý 0) lấy theo lượt 2, 4 mẫu trên lấy theo phân xử. Với G085, G108 sau này bảng delegate v0.6.4 phân `0x3ae1f70c…` và `0x6cdcd0a7…` là `forwarder_sweeper`, khớp nhãn 1.

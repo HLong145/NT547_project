@@ -1,6 +1,6 @@
 # Codebook gán nhãn vàng (D5)
 
-Bản v0.6.3 (2026-10-30; sửa v0.6.2 sau cổng κ 50 mẫu đầu, xem mục "Thay đổi v0.6.3" cuối file). **Tài liệu này chỉ dành cho người gán nhãn.** Thiết kế mẫu, quy trình phân xử, cách báo kết quả và hạn chế nằm ở [GOLD_PROTOCOL.md](GOLD_PROTOCOL.md). Người gán **không đọc** GOLD_PROTOCOL.md trước khi gán xong (nó có thông tin làm mất tính mù).
+Bản v0.6.4 (2026-11-01; sửa v0.6.2 sau cổng κ 50 mẫu đầu, xem mục "Thay đổi v0.6.3 và v0.6.4" cuối file). **Tài liệu này chỉ dành cho người gán nhãn.** Thiết kế mẫu, quy trình phân xử, cách báo kết quả và hạn chế nằm ở [GOLD_PROTOCOL.md](GOLD_PROTOCOL.md). Người gán **không đọc** GOLD_PROTOCOL.md trước khi gán xong (nó có thông tin làm mất tính mù).
 
 Chưa gán mẫu chính cho tới khi người gán A xác nhận bản này. Taxonomy theo [requirements.md](requirements.md) §3.1.
 
@@ -113,7 +113,7 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được g�
 
 **Bước D. EOA (kể cả 7702 và chuyển tiền thường từ bước B).**
 1. `code_at_event = 7702` (có `delegate_7702`): tra delegate trong `data/gold/delegate_lookup.csv` và theo **ca 13**. Mở tab Authorizations của địa chỉ: nếu ủy quyền tới delegate này xảy ra **sau** tx thì lúc tx địa chỉ là EOA thường → làm tiếp D2. Với `forwarder_sweeper`: xem ví đích mà forwarder chuyển tiền tới; nếu ví đích có **nhãn** sàn / custodian trên explorer (ca 7a) → **NONE** (địa chỉ nạp của sàn), không phải T5.
-2. Mở tab Transactions (và Token Transfers) của địa chỉ, đếm số **lần rút nhanh** (§3.4) trong toàn lịch sử. **Luôn đếm cả lịch sử**, kể cả khi tx mẫu không chuyển gì hoặc bị `fail` (v0.6.3):
+2. Mở **cả ba** tab Transactions, Token Transfers (ERC-20) và NFT Transfers của địa chỉ (BscScan/Etherscan; thiếu tab là lỗi hay gặp nhất, v0.6.4), đếm số **lần rút nhanh** (§3.4) trong toàn lịch sử. **Luôn đếm cả lịch sử**, kể cả khi tx mẫu không chuyển gì hoặc bị `fail` (v0.6.3):
    - Trước khi đếm, xét ví nhận của từng lần rút theo **ca 7**: chỉ lần rút về ví có **nhãn** sàn / custodian trên explorer (7a) là **không** tính. Rút về ví không nhãn (7b, 7c) hoặc ví có nhãn router / bridge (7d) **vẫn tính**; nếu kết luận T5 có dùng lần rút như vậy thì `confidence = low`, note "ca 7b", "ca 7c" hoặc "ca 7d".
    - ≥ 2 lần → **T5/KEY**, `malicious = 1`. (`ADDR` thay cho `KEY` nếu explorer ghi rõ là ví ví dụ công khai.)
    - đúng 1 lần → **NONE**, `confidence = low`, note "1 lần rút nhanh".
@@ -164,7 +164,7 @@ Mẫu **âm** (`is_misuse = 0`, `type = NONE`): contract hợp lệ được g�
 13. **7702: bảng tra delegate.** `data/gold/delegate_lookup.csv` có sẵn `final_class` và `source` do người điều phối điền từ bằng chứng khách quan (mã nguồn đã verify, hoặc bytecode). Ba lớp: `legit_wallet` / `forwarder_sweeper` / `unknown`. **Bắt buộc trước khi gán mẫu nào**, A và B mỗi người rà trên **bản sao riêng** (`data/gold/delegate_review_A.csv` / `..._B.csv`, chỉ có cột của mình; hướng dẫn ở `data/gold/DELEGATE_REVIEW.md`): tự mở `explorer_url` của từng delegate rồi điền `class_X`: `ok` = đã xem và đồng ý; tên lớp khác (`legit_wallet` / `forwarder_sweeper` / `unknown`) kèm lý do ở `note_X` của mình = phản đối. Cột `note` là lý do của người điều phối, không sửa. **Ô trống = chưa rà**, không phải đồng ý. Phản đối thì ba người thống nhất lại trên bảng chung `delegate_lookup.csv` (sau khi gộp): người điều phối sửa `final_class` (ghi lý do vào `note`) và xoá `class_A`, `class_B` của dòng đó, rồi **cả hai** người rà ghi lại `ok`; hoặc người phản đối rút lại bằng cách ghi `ok`. File Excel để gán **chỉ được tạo** khi mọi dòng của cả hai người là `ok` (hoặc đúng `final_class`), tức `sample_gold check-delegates --strict` báo 0 lỗi; `sheet` dùng đúng cổng này. Đừng chỉ đọc lại `source`: tự xem mã nguồn hoặc bytecode. Khi gán, dùng `final_class`:
     - (a) `legit_wallet` → NONE, trừ khi thấy ≥ 2 lần rút nhanh về ví lạ (ca 6: T5/KEY).
     - (b) `forwarder_sweeper` → T5/7702, **trừ khi** ví đích của forwarder có nhãn sàn / custodian trên explorer (ca 7a) → NONE (forwarder có ví đích cố định cũng là cách sàn làm địa chỉ nạp). Ví đích không nhãn → vẫn T5/7702. `malicious = 1` nếu thấy tiền của tx này (hoặc của địa chỉ) bị chuyển ra ví lạ, `?` nếu chưa thấy (khi đó `confidence` tối đa `medium`).
-    - (c) `unknown` → theo tx thực tế: thấy tài sản (coin, token hoặc NFT) bị chuyển ra ví lạ trong tx mẫu mà không nhận lại gì → T5/7702, `malicious = 1`; không thấy trong tx mẫu thì làm bước D2: ≥ 2 lần rút nhanh trong lịch sử → T5/KEY; còn lại → NONE, `confidence = low`. **Delegate không có trong bảng = `unknown`.** Dùng đúng bản `delegate_lookup.csv` cuối (A và B phải cùng một bản).
+    - (c) `unknown` → theo tx thực tế: thấy tài sản (coin, token hoặc NFT) bị chuyển ra ví lạ trong tx mẫu mà không nhận lại gì → T5/7702, `malicious = 1`. **Dust (v0.6.4):** khoản chuyển đi dưới 0,000001 coin gốc, hoặc token / NFT không có giá trị, **không** tính là bằng chứng ở dòng này (ghi note "dust"); riêng delegate `forwarder_sweeper` (b) vẫn T5 dù tx mẫu chỉ chuyển dust; không thấy trong tx mẫu thì làm bước D2: ≥ 2 lần rút nhanh trong lịch sử → T5/KEY; còn lại → NONE, `confidence = low`. **Delegate không có trong bảng = `unknown`.** Dùng đúng bản `delegate_lookup.csv` cuối (A và B phải cùng một bản). **Từ v0.6.4 bảng gồm cả delegate đứng đích của các ủy quyền (authorizationList) của chính địa chỉ trong tx mẫu** (không chỉ delegate hôm nay), phân loại theo bytecode: chỉ cần tra địa chỉ delegate bạn thấy ở tab Authorizations / trang tx. Ủy quyền không có hiệu lực (explorer ghi `invalid_nonce`, hay bị bot khác chiếm trước trong cùng block) **không** làm địa chỉ thành đã ủy quyền tới delegate đó: xét delegate đang có hiệu lực lúc tx.
     - Ủy quyền xảy ra sau tx → bỏ qua delegate, theo bước D2.
 14. **ADDR không bị rút:** không type nào áp dụng → âm, `confidence = low`.
 15. **Cách ghi ô:** mẫu âm ghi `subtype`, `xc_chain`, `malicious` là `-`.
@@ -217,7 +217,7 @@ Lịch sử thay đổi của codebook: [GOLD_PROTOCOL.md](GOLD_PROTOCOL.md) §8
 
 ---
 
-## Thay đổi v0.6.3 (2026-10-30)
+## Thay đổi v0.6.3 (2026-10-30) và v0.6.4 (2026-11-01)
 
 Làm rõ chữ sau cổng κ 50 mẫu đầu (7 bất đồng); không đổi định nghĩa T1–T7. Mẫu nào đã gán theo v0.6.2 thì gán lại theo bản này.
 
@@ -226,3 +226,6 @@ Làm rõ chữ sau cổng κ 50 mẫu đầu (7 bất đồng); không đổi đ
 3. **NFT** (ERC-721/1155) là tài sản như coin và token.
 4. **Bước D2 luôn đếm cả lịch sử**, kể cả khi tx mẫu không chuyển gì hoặc `fail`.
 5. **Delegate không có trong bảng = `unknown`** (ca 13c), dùng đúng bản `delegate_lookup.csv` cuối.
+6. *(v0.6.4)* **Luôn mở cả ba tab** Transactions, Token Transfers, NFT Transfers khi đếm rút nhanh (bước D2).
+7. *(v0.6.4)* **Dust** không phải bằng chứng cho delegate `unknown` (ca 13c); `forwarder_sweeper` vẫn T5.
+8. *(v0.6.4)* **Bảng delegate gồm delegate trong authorizationList của tx mẫu**; ủy quyền `invalid_nonce` không có hiệu lực.
