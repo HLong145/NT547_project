@@ -76,3 +76,5 @@ Từ v0.6.4 bảng `delegate_lookup.csv` có thêm **63 dòng** là delegate đ�
 ## Vòng rà thứ ba (2026-11-03): xác nhận 13 dòng đã đổi lớp
 
 Sau khi gộp vòng hai, người điều phối đổi lớp 13 dòng theo phản đối của A/B (lý do ở cột `note`, đoạn “rà 2 (2026-11-03)”): 12 dòng unknown → forwarder_sweeper, 1 dòng (0x87f35bf0) unknown → legit_wallet. Mỗi người mở bản sao `delegate_review3_<A|B>.xlsx`, chỉ điền 13 ô `class_X` còn trống (dòng Excel 35, 46, 47, 49, 52, 56, 57, 74, 76, 81, 82, 84, 87): `ok` nếu đồng ý lớp mới, hoặc lớp khác kèm lý do ở `note_X`. Các dòng khác giữ nguyên. Gộp bằng `merge-delegates data/gold/delegate_review3_A.xlsx data/gold/delegate_review3_B.xlsx`.
+
+Sửa (2026-11-03): ý kiến cũ trùng lớp mới được giữ (B cả 13 dòng, A 4 dòng). Chỉ A rà lại 9 dòng (46, 47, 49, 56, 74, 76, 81, 84, 87) trong `delegate_review3_A.xlsx`; gộp bằng `merge-delegates data/gold/delegate_review3_A.xlsx data/gold/delegate_review2_B.csv`.
