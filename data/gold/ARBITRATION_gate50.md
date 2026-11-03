@@ -101,3 +101,7 @@ Người dùng (B) đồng ý đề xuất cho 4 mẫu: G033 = 1/T5 (KEY), G085 
 Tx do chính ví thu 0xa61919b4… (nonce gửi > 4.000, kiểu bot quét) gửi kèm chữ ký ủy quyền của địa chỉ: kẻ quét có khoá hoặc chữ ký của địa chỉ. Ví đích không phải sàn.
 
 **Nhãn vàng mới:** G075 = 1/T5 (7702), `malicious = ?` (tx không chuyển tài sản, địa chỉ số dư 0), `confidence = medium`; G183 = 1/T5 (7702), `malicious = 1` (28 wei bị chuyển về ví thu trong tx; dust vẫn T5 với forwarder_sweeper, ca 13c v0.6.4), `confidence = medium`. Người dùng (B) đồng ý 2026-11-03; **A xác nhận cùng việc xác nhận nhãn phân xử (việc 3)**. Không ảnh hưởng κ hiệu chỉnh lượt 2 (đã tính, giữ nguyên) vì lý do đổi là bảng delegate cập nhật sau, không phải bất đồng giữa hai người.
+
+## A xác nhận (2026-11-03)
+
+A đã xác nhận đồng ý toàn bộ nhãn phân xử: G033, G085, G108, G194, G177 (lượt 2) và G075, G183 (lượt 3), theo lời người dùng báo trong chat 2026-11-03, sau khi A rà xong bảng delegate và nhận `delegate_lookup.csv` cuối (sha256 `fbf472e8e88ef965e21f1ae5e591acd66dabfa36e07d3cf699d481bdd43e8790`). Nhãn vàng 50 mẫu đầu chốt.

@@ -297,6 +297,20 @@ def test_sheet_first_n_and_tag(monkeypatch, tmp_path):
     assert list(pd.read_excel(out, dtype=str)["item_id"]) == ["G1", "G2"]
 
 
+def test_sheet_official_skips_gate_and_adds_extra(monkeypatch, tmp_path):
+    monkeypatch.setattr(sg, "GOLD_DIR", tmp_path)
+    monkeypatch.setattr(sg, "GATE_N", 2)
+    _delegate_table(tmp_path)
+    ids = [f"G{i}" for i in range(1, 9)]
+    pd.DataFrame({"item_id": ids, "chain": "eth", "address": A, "code_at_event": "none"}).to_csv(
+        tmp_path / "main_items.csv", index=False)
+    pd.DataFrame({"item_id": ids, "double": ["True", "False", "True", "False", "True", "False", "True", "False"],
+                  "double_extra_rank": ["-1", "2", "-1", "0", "-1", "1", "-1", "3"]}).to_csv(tmp_path / "main_key.csv", index=False)
+    sg.cmd_sheet("A", "main", skip_delegate_check=True, official=True)
+    got = list(pd.read_excel(tmp_path / "annotator_main_official_A.xlsx", dtype=str)["item_id"])
+    assert got == ["G4", "G5", "G6", "G7"]          # bỏ 2 mẫu đôi đầu (G1, G3), thêm 2 mẫu đơn rank 0, 1 (G4, G6)
+
+
 def test_kappa_reports_without_delegate_decided_items(tmp_path):
     lab = lambda m: pd.DataFrame({"item_id": ["G1", "G2", "G3", "G4"], "is_misuse": m, "type": ["T5", "T1", "NONE", "T1"],
                                   "subtype": "-", "xc_chain": "-", "malicious": "-", "confidence": "high",
