@@ -88,3 +88,16 @@ Vì sao G068 = 0: nếu coi các giao dịch đó là rút thì mọi ví giao d
 ## Quyết định lượt 2 (2026-11-01)
 
 Người dùng (B) đồng ý đề xuất cho 4 mẫu: G033 = 1/T5 (KEY), G085 = 1/T5 (7702), G108 = 1/T5 (7702), G194 = 1/T5 (KEY, `low`); G177 = 0/NONE (`low`). **A chưa xác nhận** các nhãn này (cần ghi khi A xác nhận). Nhãn vàng của 50 mẫu đầu: 46 mẫu hai người đồng ý ở lượt 2 (G177 cũng đồng ý 0) lấy theo lượt 2, 4 mẫu trên lấy theo phân xử. Với G085, G108 sau này bảng delegate v0.6.4 phân `0x3ae1f70c…` và `0x6cdcd0a7…` là `forwarder_sweeper`, khớp nhãn 1.
+
+## Lượt 3 (2026-11-03): G075, G183 theo bảng delegate cuối
+
+Ở lượt 2, A và B cùng gán G075 và G183 = 0/NONE (`low`) vì delegate lúc tx `0xa1c72cfc…` chưa có trong bảng (v0.6.3: không có trong bảng = unknown). Sau rà delegate vòng 2–3, `0xa1c72cfc…` là `forwarder_sweeper` (cả A và B chỉ ra: `transfer2()`/`transfer3()` chuyển SELFBALANCE tới hằng 0xa61919b4…), nên theo CODEBOOK ca 13b hai mẫu đổi nhãn. Kiểm chứng (NodeReal, BSC):
+
+| Mẫu | Tx | Người gửi tx | Ủy quyền | Nonce trước → sau | Code sau tx | Số dư trước → sau |
+|---|---|---|---|---|---|---|
+| G075 | `0xc6da4a03d9…` (block 72498102) | 0xa61919b4… (ví thu của delegate) | → 0xa1c72cfc, nonce 9 | 9 → 10 (hiệu lực) | `0xef0100a1c72cfc…` | 0 → 0 |
+| G183 | `0x8b23801bb1…` (block 72497935) | 0xa61919b4… | → 0xa1c72cfc, nonce 10 | 10 → 11 (hiệu lực) | `0xef0100a1c72cfc…` | 28 wei → 0 (dust) |
+
+Tx do chính ví thu 0xa61919b4… (nonce gửi > 4.000, kiểu bot quét) gửi kèm chữ ký ủy quyền của địa chỉ: kẻ quét có khoá hoặc chữ ký của địa chỉ. Ví đích không phải sàn.
+
+**Nhãn vàng mới:** G075 = 1/T5 (7702), `malicious = ?` (tx không chuyển tài sản, địa chỉ số dư 0), `confidence = medium`; G183 = 1/T5 (7702), `malicious = 1` (28 wei bị chuyển về ví thu trong tx; dust vẫn T5 với forwarder_sweeper, ca 13c v0.6.4), `confidence = medium`. Người dùng (B) đồng ý 2026-11-03; **A xác nhận cùng việc xác nhận nhãn phân xử (việc 3)**. Không ảnh hưởng κ hiệu chỉnh lượt 2 (đã tính, giữ nguyên) vì lý do đổi là bảng delegate cập nhật sau, không phải bất đồng giữa hai người.
