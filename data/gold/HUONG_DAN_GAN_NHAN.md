@@ -78,5 +78,5 @@ Dùng danh sách chọn trong ô, đừng gõ tay để tránh sai chính tả.
 ## 6. Nộp file
 
 - Lưu đúng định dạng `.xlsx`, giữ nguyên tên file, không thêm / xoá / đổi thứ tự dòng hay cột.
-- Có thể chia nhiều phiên (khoảng 40 mẫu mỗi phiên); lưu file sau mỗi phiên.
+- Không cần làm một lần cho xong: có thể chia làm nhiều lần ngồi (gợi ý, không bắt buộc: khoảng 40 mẫu mỗi lần để đỡ mệt, đỡ sai); nhớ lưu file sau mỗi lần.
 - Xong 200 dòng thì gửi file cho người điều phối.
