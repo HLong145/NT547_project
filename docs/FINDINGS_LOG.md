@@ -1076,3 +1076,13 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 - Dưới mốc 0,80 một chút; báo như tiền đăng ký (báo dù thấp hơn 0,8).
 - Nguồn bất đồng lớn nhất nhìn thấy: tx mẫu tự cài delegate mới (authorizationList) trong khi delegate cũ khác lớp; codebook chưa nói rõ delegate nào là 'lúc tx' trong trường hợp này (5/24 bất đồng). Bảng delegate cũng thiếu delegate có hiệu lực lúc tx nhưng được ủy quyền ở tx khác (B liệt kê 14, `delegate_findings_B.tsv`).
 - Tái tạo: `python -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_main_official_A.xlsx data/gold/annotator_main_official_B.xlsx --items data/gold/main_items.csv` (hash hai file ở PROGRESS 2026-11-05).
+
+## 2026-11-05 — Phân xử 24 bất đồng κ chính thức: nguồn sai của người gán
+
+- Nhãn vàng đề xuất 18 dương / 6 âm; B khớp 14/24, A khớp 9/24 (`data/gold/ARBITRATION_official.md`).
+- (1) 10/24 bất đồng do bỏ sót ủy quyền 7702 nằm **trong chính tx mẫu** (người gán xét delegate cũ trước tx hoặc delegate hôm nay). Codebook nên nói rõ: ủy quyền hợp lệ trong tx mẫu có hiệu lực ngay trong tx đó.
+- (2) Nhãn sàn: Blockscout thiếu nhãn sàn → tính tiền ra ví sàn (Binance 14, OKX) thành rút nhanh (G357, G526, G520).
+- (3) Cột `code_at_event = destroyed` không phân biệt huỷ trước hay sau tx; archive getCode(block-1) cho thấy huỷ trước tx ở G466, G617.
+- (4) Tiền vào và ra trong cùng tx (mint→chuyển, nhận→rút) là ca mơ hồ của D2 (G328, G440).
+- (5) Ca 7c/7d (ví không nhãn, router/bridge vẫn là ví lạ) cho dương `low` ở ví bận giống dịch vụ (G541, G624, G742): cần đưa vào phân tích độ nhạy.
+- Tái tạo: ARBITRATION_official.md liệt kê bằng chứng từng mẫu; ủy quyền trong tx qua `gold_attx.own_authorizations`.
