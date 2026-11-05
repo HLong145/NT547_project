@@ -28,7 +28,7 @@ Kế hoạch gốc: [PLAN_V2.md](PLAN_V2.md) D5. Mục tiêu: Cohen's κ ≥ 0,8
 1. A và B rà hết bảng delegate trên bản sao riêng (§2.3); người điều phối gộp; mọi phản đối được thống nhất; `sample_gold check-delegates --strict` báo 0 lỗi. **Chưa xong thì chưa tạo được file Excel**: `sample_gold sheet --set main` từ chối (v0.6.2).
 2. Cả A và B gán **200 mẫu gán đôi** trước (`annotator_main_double_<A|B>.xlsx`), độc lập. Kiểm cổng (§2.4).
 3. Phân xử (§2.5).
-4. B gán 558 mẫu đơn (`annotator_main_single_B.xlsx`); A gán lại mù 50 mẫu đơn (§2.6).
+4. B gán 558 mẫu đơn (`annotator_main_single_B.xlsx`); A gán lại mù 50 mẫu đơn (§2.6). Sau khi cổng κ trượt (§2.4), 50 mẫu đơn rank nhỏ nhất đã được A và B gán đôi trong tập κ chính thức, nên file đơn của B còn 508 mẫu; A gán lại mù bằng `annotator_main_relabel_A.xlsx` (`sheet A --set main --relabel`).
 5. Lô 2 nếu còn thời gian (§2.7).
 
 ### 2.3. Bảng tra delegate 7702 (sai lệch có chủ ý so với v0.5)

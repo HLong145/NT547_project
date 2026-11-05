@@ -78,5 +78,5 @@ Lịch sử đầy đủ lấy ở cả ba nguồn: giao dịch thường, token
 
 ## Duyệt
 
-- [ ] B (người dùng) duyệt đề xuất.
-- [ ] A xác nhận.
+- [x] B (người dùng) duyệt đề xuất (2026-11-05).
+- [x] A xác nhận đồng ý toàn bộ (2026-11-05, người dùng báo trong chat). Nhãn vàng 24 mẫu chốt theo cột "Vàng đề xuất".

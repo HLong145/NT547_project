@@ -309,6 +309,12 @@ def test_sheet_official_skips_gate_and_adds_extra(monkeypatch, tmp_path):
     sg.cmd_sheet("A", "main", skip_delegate_check=True, official=True)
     got = list(pd.read_excel(tmp_path / "annotator_main_official_A.xlsx", dtype=str)["item_id"])
     assert got == ["G4", "G5", "G6", "G7"]          # bỏ 2 mẫu đôi đầu (G1, G3), thêm 2 mẫu đơn rank 0, 1 (G4, G6)
+    sg.cmd_sheet("B", "main", skip_delegate_check=True, only_single=True)
+    got = list(pd.read_excel(tmp_path / "annotator_main_single_B.xlsx", dtype=str)["item_id"])
+    assert got == ["G2", "G8"]                       # bỏ 2 mẫu đơn đã vào κ chính thức (G4, G6)
+    sg.cmd_sheet("A", "main", skip_delegate_check=True, relabel=True)
+    got = list(pd.read_excel(tmp_path / "annotator_main_relabel_A.xlsx", dtype=str)["item_id"])
+    assert got == ["G2", "G8"]                       # 2 mẫu đơn rank lớn nhất (3, 2), xếp theo item_id
 
 
 def test_kappa_reports_without_delegate_decided_items(tmp_path):

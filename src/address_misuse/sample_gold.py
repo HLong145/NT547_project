@@ -771,12 +771,15 @@ GATE_N = 50                                            # cỡ cổng κ (GOLD_PR
 
 
 def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_single: bool = False,
-              skip_delegate_check: bool = False, first: int = 0, tag: str = "", official: bool = False) -> None:
+              skip_delegate_check: bool = False, first: int = 0, tag: str = "", official: bool = False,
+              relabel: bool = False) -> None:
     """File Excel cho người gán `who`: bằng chứng (đã làm mù) + cột nhãn có danh sách chọn + sheet hướng dẫn.
     Mẫu chính: từ chối tạo file khi bảng delegate chưa được A và B rà đủ (GOLD_PROTOCOL §2.3). `skip_delegate_check` chỉ cho
     test / chạy thử, in cảnh báo, không dùng để tạo file thật cho người gán.
     `official`: tập κ chính thức sau khi cổng 50 mẫu đầu trượt (GOLD_PROTOCOL §2.4): các mẫu gán đôi trừ `GATE_N` mẫu có
-    item_id nhỏ nhất, cộng `GATE_N` mẫu đơn có `double_extra_rank` nhỏ nhất; cả A và B gán, xếp theo item_id."""
+    item_id nhỏ nhất, cộng `GATE_N` mẫu đơn có `double_extra_rank` nhỏ nhất; cả A và B gán, xếp theo item_id.
+    `only_single`: mẫu đơn trừ `GATE_N` mẫu đã vào tập κ chính thức (B gán).
+    `relabel`: `GATE_N` mẫu đơn có `double_extra_rank` lớn nhất, A gán lại mù (GOLD_PROTOCOL §2.6), xếp theo item_id."""
     if which == "main":
         errs = check_delegates(pd.read_csv(GOLD_DIR / "delegate_lookup.csv", dtype=str, keep_default_na=False), strict=True)
         if errs and not skip_delegate_check:
@@ -792,8 +795,9 @@ def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_si
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.datavalidation import DataValidation
     items = pd.read_csv(GOLD_DIR / ("pilot50_items.csv" if which == "pilot" else "main_items.csv"), dtype=str).fillna("-")
-    if only_double + only_single + official > 1 or (official and first):
-        raise SystemExit("chọn một trong --only-double / --only-single / --official (--official không đi với --first)")
+    if only_double + only_single + official + relabel > 1 or ((official or relabel) and first):
+        raise SystemExit("chọn một trong --only-double / --only-single / --official / --relabel "
+                         "(--official, --relabel không đi với --first)")
     if official:
         key = pd.read_csv(GOLD_DIR / "main_key.csv", dtype=str)
         dbl = key[key.double == "True"].item_id.sort_values(kind="stable")
@@ -804,12 +808,22 @@ def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_si
     if only_double or only_single:                       # cả hai người làm tập gán đôi trước; tập đơn chỉ làm sau khi kiểm κ 50 mẫu đầu
         key = pd.read_csv(GOLD_DIR / "main_key.csv", dtype=str)
         dbl = key.double == "True"
-        items = items[items.item_id.isin(key[dbl if only_double else ~dbl].item_id)].reset_index(drop=True)
+        keep = set(key[dbl if only_double else ~dbl].item_id)
+        if only_single:                                  # 50 mẫu đơn rank nhỏ nhất đã gán đôi trong tập κ chính thức
+            rank = pd.to_numeric(key.double_extra_rank)
+            keep -= set(key[~dbl & (rank >= 0)].assign(r=rank).nsmallest(GATE_N, "r").item_id)
+        items = items[items.item_id.isin(keep)].reset_index(drop=True)
+    if relabel:
+        key = pd.read_csv(GOLD_DIR / "main_key.csv", dtype=str)
+        rank = pd.to_numeric(key.double_extra_rank)
+        pick = key[(key.double != "True") & (rank >= 0)].assign(r=rank).nlargest(GATE_N, "r").item_id
+        items = items[items.item_id.isin(set(pick))].sort_values("item_id", kind="stable").reset_index(drop=True)
     if first:                                            # gán lại N mẫu có item_id nhỏ nhất (cổng κ, GOLD_PROTOCOL §2.4)
         items = items.sort_values("item_id", kind="stable").head(first).reset_index(drop=True)
     evidence = [c for c in items.columns if c not in ("item_id", "chain", "address")]
     cols = ["item_id", "chain", "address", *LABEL_COLS, *evidence]
-    part = ("_double" if only_double else "_single" if only_single else "_official" if official else "") + tag
+    part = ("_double" if only_double else "_single" if only_single else "_official" if official else
+            "_relabel" if relabel else "") + tag
     out = GOLD_DIR / (f"annotator_{who}.xlsx" if which == "pilot" else f"annotator_main{part}_{who}.xlsx")
     if out.exists():
         raise SystemExit(f"{out} đã có, không ghi đè (có thể đã có nhãn). Xoá/đổi tên trước nếu muốn tạo lại.")
@@ -1024,6 +1038,8 @@ def main():
     sh.add_argument("--first", type=int, default=0, help="chỉ N mẫu có item_id nhỏ nhất (gán lại 50 mẫu đầu)")
     sh.add_argument("--official", action="store_true",
                     help="tập κ chính thức: gán đôi trừ 50 mẫu đầu + 50 mẫu đơn double_extra_rank nhỏ nhất (§2.4)")
+    sh.add_argument("--relabel", action="store_true",
+                    help="A gán lại mù 50 mẫu đơn double_extra_rank lớn nhất (§2.6)")
     sh.add_argument("--tag", default="", help="hậu tố tên file, ví dụ _r2 → annotator_main_double_r2_A.xlsx")
     sh.add_argument("--skip-delegate-check", action="store_true",
                     help="CHỈ cho test / chạy thử: bỏ cổng rà bảng delegate. KHÔNG dùng để tạo file thật cho người gán")
@@ -1062,7 +1078,7 @@ def main():
         cmd_merge_delegates(args.a, args.b)
     elif args.cmd == "sheet":
         cmd_sheet(args.who, args.set, args.only_double, args.only_single, args.skip_delegate_check, args.first, args.tag,
-                  args.official)
+                  args.official, args.relabel)
     else:
         cmd_kappa(args.a, args.b, args.items, args.key)
 
