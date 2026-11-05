@@ -1,0 +1,15 @@
+chain	delegate	class	basis
+eth	0xaa0f46f144af22965aa33dd6d530da4fa215866a	forwarder_sweeper	verified source 'MetaMaskSwapRouter' (Etherscan getsourcecode): receive() -> destination, cùng họ 0x88cf071b
+eth	0x6b7879a5d747e30a3adb37a9e41c046928fce933	forwarder_sweeper	verified source 'CrimeEnjoyor2': 'used by bad guys to automatically sweep all incoming ETH/BNB from compromised addresses'
+eth	0xa03fc3c62d26253b3ec3076cb871afa3b5fa60ab	forwarder_sweeper	verified source 'CrimeEnjoyor2' (như trên)
+eth	0xb6785b782571980b3ddb5d40659f4861ff15aa02	forwarder_sweeper	verified source 'AdvancedCrimeEnjoyor': receive()/sweep
+eth	0x89383882fc2d0cd4d7952a3267a3b6dae967e704	forwarder_sweeper	verified source 'CrimeEnjoyor': receive() -> destination sweep
+eth	0x072c2673ade3632594337a98a473d32a17505fdb	unknown	không có nguồn verify; RPC archive trả lỗi -> xét theo tx thật (ca 13c)
+eth	0xa845c74344fc9405b1fcf712f04668979573c1bf	unknown	không có nguồn verify -> xét theo tx thật (ca 13c)
+eth	0x2e13de8763a53a6af340930fadcad966ee79c845	unknown	không có nguồn verify (chỉ là delegate hôm nay, không có hiệu lực lúc tx)
+eth	0x2a5894eae774b1ee575849c5af59981d49afae69	unknown	không có nguồn verify (ủy quyền xảy ra SAU tx mẫu)
+bsc	0xc99f40a9c952ce7e29e2f8b6c7461cdb60c1b54a	unknown	delegate có hiệu lực ngay trước tx của G233/G273/G281/G334/G583/G674; tx mẫu lại cài delegate khác (0xa1c72cfc = forwarder_sweeper trong bảng)
+bsc	0x06100887d8c541524c6697c3506885372f970f19	unknown	không có trong bảng tra, không verify được (BSC API chặn free tier) -> ca 13c
+bsc	0xde36f39e746b2e78bc646592a5153521c3ef6a8c	unknown	không có trong bảng tra -> ca 13c
+bsc	0x15c432e31d073c85f51b31016ff70f0874a5bab3	unknown	không có trong bảng tra -> ca 13c
+bsc	0x4f5516728fd30236ebbadb7da6bfbe585da10ce6	unknown	không có trong bảng tra; cuối block mẫu ủy quyền đã bị gỡ (AFTER=no-code) -> ca 13c

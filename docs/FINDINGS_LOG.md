@@ -1068,3 +1068,11 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 - Nguyên nhân chính: quy tắc của người điều phối dựa vào tên hàm (sweep/forward/transferAll) và hàm `receiver()`; các drainer đặt tên trung tính (`transfer2`, `start`, `claim`, `rescue`, `execute`) nhưng chuyển `SELFBALANCE` / `msg.value` tới hằng PUSH20, hoặc chỉ cho một EOA cố định gọi `execute`, hoặc để ai cũng rút hết số dư (`transfer()` → CALLER, không kiểm quyền). Họ 0xa1c72cfc (35 mẫu BSC + 2 ETH, ví thu 0xa61919b4…) là trường hợp lớn nhất.
 - Ý nghĩa cho paper: phân loại delegate EIP-7702 theo tên hàm thiếu nhạy; cần đọc luồng giá trị (SELFBALANCE/CALLVALUE → CALL tới hằng, cổng msg.sender cố định). Ghi vào phần hạn chế của nhãn vàng và phương pháp phân loại 7702.
 - Tái tạo: `data/gold/delegate_lookup_review2_merged.csv` (sau gộp, trước giải quyết) so với `delegate_lookup.csv` (cột `note`, đoạn “rà 2 (2026-11-03)”); bản rà gốc `delegate_review2_A.csv` / `_B.csv`.
+
+## 2026-11-05 — κ chính thức nhãn vàng D5: κ(is_misuse) = 0,799
+
+- Tập κ chính thức (GOLD_PROTOCOL §2.4 sau cổng trượt): 150 mẫu gán đôi còn lại + 50 mẫu đơn `double_extra_rank` 0–49, A và B gán độc lập theo CODEBOOK v0.6.4 và bảng delegate cuối (sha256 `fbf472e8…8790`).
+- κ(is_misuse) = 0,799 [CI95 bootstrap theo cụm 0,690–0,896], đồng ý 180/200, Gwet AC1 0,801, PABAK 0,800. κ(type) (chỉ số phụ đăng ký trước) = 0,818 [0,708–0,906], 176/200, AC1 0,856. Độ nhạy: bỏ 15 mẫu do delegate quyết định 0,784; bỏ 40 mẫu (j′) 0,837; bỏ 57 mẫu có note ca 7b/7c/7d 0,840.
+- Dưới mốc 0,80 một chút; báo như tiền đăng ký (báo dù thấp hơn 0,8).
+- Nguồn bất đồng lớn nhất nhìn thấy: tx mẫu tự cài delegate mới (authorizationList) trong khi delegate cũ khác lớp; codebook chưa nói rõ delegate nào là 'lúc tx' trong trường hợp này (5/24 bất đồng). Bảng delegate cũng thiếu delegate có hiệu lực lúc tx nhưng được ủy quyền ở tx khác (B liệt kê 14, `delegate_findings_B.tsv`).
+- Tái tạo: `python -X utf8 -m address_misuse.sample_gold kappa data/gold/annotator_main_official_A.xlsx data/gold/annotator_main_official_B.xlsx --items data/gold/main_items.csv` (hash hai file ở PROGRESS 2026-11-05).
