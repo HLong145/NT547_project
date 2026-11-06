@@ -16,10 +16,14 @@ PYTHONPATH=src .venv/Scripts/python.exe -X utf8 -m address_misuse.wallet.api --p
 # 2. Build và phục vụ Snap (thư mục snap/)
 npm install
 npm run build
-npm run serve          # http://localhost:8080
+npm run serve          # http://localhost:8080 (chỉ phục vụ manifest + bundle, không có trang cài)
+
+# 3. Trang cài (cửa sổ khác, thư mục snap/)
+python -m http.server 8000 --bind 127.0.0.1
 ```
 
-Mở `http://localhost:8080/install.html` bằng trình duyệt có **MetaMask Flask**, bấm "Cài Snap". Sau đó tạo một giao dịch
+Mở `http://localhost:8000/install.html` bằng trình duyệt có **MetaMask Flask**, bấm "Cài Snap" (Snap ID cố định
+`local:http://localhost:8080`). Sau đó tạo một giao dịch
 bất kỳ (ví dụ gửi tới `0x6273…ef57`, ví Truffle lộ key) để thấy cảnh báo, rồi **bấm Reject**.
 
 ## Hành vi

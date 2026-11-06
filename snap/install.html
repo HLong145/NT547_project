@@ -20,7 +20,8 @@
 <button id="install">Cài Snap</button>
 <pre id="out"></pre>
 <script>
-  const SNAP_ID = 'local:' + window.location.origin;
+  // `mm-snap serve` (cổng 8080) chỉ phục vụ file Snap, không phục vụ trang này; trang này mở ở cổng khác (8000).
+  const SNAP_ID = 'local:http://localhost:8080';
   const out = document.getElementById('out');
   document.getElementById('install').onclick = async () => {
     if (!window.ethereum) { out.textContent = 'Không thấy MetaMask Flask.'; return; }
