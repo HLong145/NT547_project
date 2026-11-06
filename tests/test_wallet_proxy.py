@@ -41,3 +41,17 @@ def test_send_transaction_params():
     t = tx_from_request("eth_sendTransaction", [{"to": "0x" + TO, "value": "0x10", "data": "0x"}])
     assert t["value"] == 16 and t["to"] == "0x" + TO
     assert tx_from_request("eth_call", [{}]) is None
+
+
+def test_api_check_request_parses_hex_value_and_handles_edge_cases():
+    from address_misuse.wallet.api import check_request, parse_value
+
+    class Store:
+        def check(self, to, chain, value, data, authorizations=None):
+            return {"to": to, "chain": chain, "value": value, "data": data, "auth": authorizations}
+
+    assert parse_value("0x10") == 16 and parse_value("16") == 16 and parse_value(None) == 0
+    r = check_request(Store(), {"to": "0xAB", "chain": "bsc", "value": "0xde0b6b3a7640000", "authorizations": ["0xd"]})
+    assert r == {"to": "0xAB", "chain": "bsc", "value": 10**18, "data": "0x", "auth": ["0xd"]}
+    assert check_request(Store(), {"to": None})["decision"] == "ok"                     # tạo contract
+    assert check_request(Store(), {"to": "0xAB", "chain": "solana"})["decision"] == "unsupported"

@@ -1,0 +1,28 @@
+{
+  "version": "0.1.0",
+  "description": "Warns before signing a transaction whose recipient shows Address Misuse risk (NT547).",
+  "proposedName": "Address Misuse Guard",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HLong145/NT547_project.git"
+  },
+  "source": {
+    "shasum": "eZnzH6RmjrJVph3dSf+ELlOZdtHmJnM1tFfBrX3QHzw=",
+    "location": {
+      "npm": {
+        "filePath": "dist/bundle.js",
+        "iconPath": "images/icon.svg",
+        "packageName": "address-misuse-snap",
+        "registry": "https://registry.npmjs.org/"
+      }
+    }
+  },
+  "initialPermissions": {
+    "endowment:transaction-insight": {
+      "allowTransactionOrigin": true
+    },
+    "endowment:network-access": {}
+  },
+  "platformVersion": "12.1.0",
+  "manifestVersion": "0.1"
+}

@@ -107,6 +107,7 @@ class Proxy(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "content-type")
+        self.send_header("Access-Control-Allow-Private-Network", "true")    # Snap chạy ở origin https gọi tới 127.0.0.1
         self.end_headers()
 
     def do_POST(self):

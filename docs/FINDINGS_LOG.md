@@ -1086,3 +1086,11 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 - (4) Tiền vào và ra trong cùng tx (mint→chuyển, nhận→rút) là ca mơ hồ của D2 (G328, G440).
 - (5) Ca 7c/7d (ví không nhãn, router/bridge vẫn là ví lạ) cho dương `low` ở ví bận giống dịch vụ (G541, G624, G742): cần đưa vào phân tích độ nhạy.
 - Tái tạo: ARBITRATION_official.md liệt kê bằng chứng từng mẫu; ủy quyền trong tx qua `gold_attx.own_authorizations`.
+
+## 2026-11-06 — Module 4: Snap cảnh báo trước khi ký, đo lại độ trễ
+
+- Snap `snap/` dùng `onTransaction` (transaction insight): gửi to/value/data/chain/delegate 7702 tới engine cục bộ, hiển thị R, loại, lý do; `warn`/`block` → `severity: critical` (MetaMask buộc xác nhận thêm). Engine không chạy → fail-open có thông báo. Giải quyết hạn chế của proxy (chỉ chặn được sau khi ký).
+- Độ trễ lạnh (300 địa chỉ test, RPC publicnode, đo từ VN, timeout 300 ms): p50 141 ms, p95 271 ms, p99 313 ms; 63% < 150 ms. Timeout 150 ms: p95 164 ms, đủ 8 mạng 66% (thiếu TB 0,48 mạng). Ấm (cache theo địa chỉ): p50 0,03 ms. Phần tính < 0,1 ms; lạnh là một vòng mạng (~110 ms/mạng hôm nay, 131–152 ms ngày 23/10). Đo 30 RPC công khai: publicnode nhanh nhất ở cả 8 mạng (drpc/blast/1rpc 250–1.700 ms).
+- Cho paper: mục tiêu < 150 ms đạt ở trung vị và khi trúng cache; đuôi (p95) phụ thuộc mạng chậm nhất trong 8 RPC. Đánh đổi timeout ↔ độ phủ cross-chain cần báo rõ.
+- Quan sát chưa giải thích: số quyết định `block` trong bench tăng từ 21 (23/10) lên 37/300 (cùng seed); có thể do bảng tra (delegate, symexec) cập nhật sau 23/10, chưa kiểm.
+- Tái tạo: `python -X utf8 -m address_misuse.wallet.bench --n 300`; `python -X utf8 -m address_misuse.wallet.api`; `cd snap && npm install && npm run build && npm test`.
