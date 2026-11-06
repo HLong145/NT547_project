@@ -1,0 +1,113 @@
+{
+ "note": "code ETH đọc từ fork; các mạng khác, 7702 và bảng tra là trạng thái hiện tại",
+ "cases": [
+  {
+   "case": "aave",
+   "desc": "Aave LendingPool (Kovan) dùng trên ETH mainnet, 2.580 ETH",
+   "orig_tx": "0xf58e880e7bc660df9624b55b9e6584934e97fc8c03a308e1b8a4acdd474b37de",
+   "fork_block": 10815308,
+   "target": "0x580d4fdc4bf8f9b5ae2fb9225d584fed4ad5375c",
+   "value_eth": 2580.0,
+   "target_code_at_fork": "none",
+   "proxy_blocked": false,
+   "proxy_ms": 657.4,
+   "decision": "ok",
+   "score": 63.68,
+   "engine_ms": 169.78,
+   "hard_rule": null,
+   "types": [
+    "T1"
+   ],
+   "reasons": [
+    "gọi hàm tới địa chỉ không có code trên eth",
+    "địa chỉ xuất hiện trong mã nguồn công khai"
+   ],
+   "missed_nets": [],
+   "direct_status": 1,
+   "value_flows": [
+    {
+     "from": "0xd1988d7aaae0063f388d12a0a065f1eeb97f4ff0",
+     "to": "0x580d4fdc4bf8f9b5ae2fb9225d584fed4ad5375c",
+     "eth": 2580.0,
+     "type": "CALL"
+    }
+   ],
+   "target_balance_delta_eth": 2580.0
+  },
+  {
+   "case": "pancake",
+   "desc": "PancakeSwap Router (BSC) gọi trên ETH mainnet, 1,2 ETH",
+   "orig_tx": "0x2084b381b6a1cda77ad58a60ae8084810e34872f884365ce2f116b7f2d961ea0",
+   "fork_block": 12350350,
+   "target": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+   "value_eth": 1.2,
+   "target_code_at_fork": "none",
+   "proxy_blocked": true,
+   "proxy_ms": 176.6,
+   "decision": "block",
+   "score": 72.04,
+   "engine_ms": 160.65,
+   "hard_rule": null,
+   "types": [
+    "T1",
+    "T4"
+   ],
+   "reasons": [
+    "gọi hàm tới địa chỉ không có code trên eth",
+    "địa chỉ xuất hiện trong mã nguồn công khai",
+    "địa chỉ không có code trên eth nhưng là contract trên bsc, bsc_testnet"
+   ],
+   "missed_nets": [],
+   "direct_status": 1,
+   "value_flows": [
+    {
+     "from": "0xec7ac223c27fa967ef79d38fa43a37eecd9a3401",
+     "to": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+     "eth": 1.2,
+     "type": "CALL"
+    }
+   ],
+   "target_balance_delta_eth": 1.2
+  },
+  {
+   "case": "truffle",
+   "desc": "Gửi 1 ETH tới tài khoản Truffle lộ key (EIP-7702 sweeper)",
+   "orig_tx": null,
+   "fork_block": 26354398,
+   "target": "0x627306090abab3a6e1400e9345bc60c78a8bef57",
+   "value_eth": 1.0,
+   "target_code_at_fork": "7702",
+   "proxy_blocked": true,
+   "proxy_ms": 151.7,
+   "decision": "block",
+   "score": 91.65,
+   "engine_ms": 147.83,
+   "hard_rule": "leaked_key",
+   "types": [
+    "T5",
+    "KEY"
+   ],
+   "reasons": [
+    "EOA ủy quyền EIP-7702 cho delegate trong danh sách đen",
+    "private key của địa chỉ đã bị lộ công khai"
+   ],
+   "missed_nets": [],
+   "direct_status": 1,
+   "value_flows": [
+    {
+     "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+     "to": "0x627306090abab3a6e1400e9345bc60c78a8bef57",
+     "eth": 1.0,
+     "type": "CALL"
+    },
+    {
+     "from": "0x627306090abab3a6e1400e9345bc60c78a8bef57",
+     "to": "0xcc04506d439d338bde8ebbb074f17a54b7673b95",
+     "eth": 1.0,
+     "type": "CALL"
+    }
+   ],
+   "target_balance_delta_eth": 0.0
+  }
+ ]
+}

@@ -76,3 +76,14 @@ def test_online_code_waits_for_own_chain(monkeypatch):
     assert "eth" in recs and recs["eth"][0] == "7702" and missed == ["bsc"]
     recs, missed, _ = st.code("0x" + "22" * 20, use_cache=False)
     assert recs == {} and set(missed) == {"eth", "bsc"}
+
+
+def test_demo_value_flows_walks_nested_calls():
+    from address_misuse.wallet.demo import value_flows
+
+    trace = {"type": "CALL", "from": "0xa", "to": "0xb", "value": hex(10**18),
+             "calls": [{"type": "CALL", "from": "0xb", "to": "0xc", "value": hex(10**18)},
+                       {"type": "STATICCALL", "from": "0xb", "to": "0xd"}]}
+    flows = value_flows(lambda method, *p: trace, "0xh")
+    assert [(f["from"], f["to"], f["eth"]) for f in flows] == [("0xa", "0xb", 1.0), ("0xb", "0xc", 1.0)]
+    assert value_flows(lambda *a: (_ for _ in ()).throw(RuntimeError("no trace")), "0xh")[0]["error"] == "no trace"
