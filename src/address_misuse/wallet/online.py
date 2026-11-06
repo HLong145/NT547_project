@@ -90,14 +90,23 @@ class OnlineStore:
         """Mở sẵn kết nối keep-alive tới 8 RPC (lần đầu tốn thêm bắt tay TLS ~0,5 s)."""
         wait([self.pool.submit(self._get_code, n, "0x" + "00" * 20) for n in self.nets], timeout=REQUEST_TIMEOUT)
 
-    def code(self, address: str, use_cache: bool = True) -> tuple[dict, list[str], bool]:
-        """{net: (state, hash, delegate, selectors)}, các mạng không trả kịp, có dùng cache không."""
+    def code(self, address: str, use_cache: bool = True, must: str | None = None) -> tuple[dict, list[str], bool]:
+        """{net: (state, hash, delegate, selectors)}, các mạng không trả kịp, có dùng cache không.
+
+        `must`: mạng của chính giao dịch. Luật cứng `malicious_delegate` và S_bytecode cần code ở mạng này, nên nếu nó
+        chưa trả trong `timeout` thì chờ thêm tới `REQUEST_TIMEOUT` (các mạng khác vẫn bỏ khi quá `timeout`).
+        Trước 2026-11-06 không chờ: RPC mạng hiện tại trả muộn → bỏ sót 7702 độc (fail-open, FINDINGS_LOG)."""
         now = time.monotonic()
         hit = self.cache.get(address)
-        if use_cache and hit and now - hit[0] < self.ttl:
+        if use_cache and hit and now - hit[0] < self.ttl and (must is None or must in hit[1]):
             return dict(hit[1]), [n for n in self.nets if n not in hit[1]], True
         futs = {self.pool.submit(self._get_code, n, address): n for n in self.nets}
         done, _ = wait(futs, timeout=self.timeout)
+        own = next((fu for fu, n in futs.items() if n == must), None)
+        if own is not None and own not in done:
+            wait([own], timeout=max(0.0, REQUEST_TIMEOUT - (time.monotonic() - now)))
+            if own.done():
+                done = done | {own}
         out = {}
         for fu in done:
             self._record(out, address, futs[fu], fu)
@@ -148,7 +157,7 @@ class OnlineStore:
               authorizations: list[str] | None = None) -> dict:
         """Kiểm tra một giao dịch sắp gửi. `authorizations` = delegate trong authorizationList (tx type 4)."""
         t0 = time.perf_counter()
-        recs, missed, cached = self.code(to.lower(), use_cache)
+        recs, missed, cached = self.code(to.lower(), use_cache, must=chain if chain in self.nets else None)
         t1 = time.perf_counter()
         res = score_features(self.features(to, chain, recs), TxContext(value, data or "0x"), self.weights)
         reasons = list(res.reasons)

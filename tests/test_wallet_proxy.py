@@ -55,3 +55,24 @@ def test_api_check_request_parses_hex_value_and_handles_edge_cases():
     assert r == {"to": "0xAB", "chain": "bsc", "value": 10**18, "data": "0x", "auth": ["0xd"]}
     assert check_request(Store(), {"to": None})["decision"] == "ok"                     # tạo contract
     assert check_request(Store(), {"to": "0xAB", "chain": "solana"})["decision"] == "unsupported"
+
+
+def test_online_code_waits_for_own_chain(monkeypatch):
+    """Mạng của giao dịch trả muộn hơn `timeout` vẫn được chờ; mạng khác thì bỏ."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from address_misuse.wallet.online import OnlineStore
+
+    st = OnlineStore.__new__(OnlineStore)
+    st.timeout, st.ttl, st.nets, st.cache = 0.05, 600, ("eth", "bsc"), {}
+    st.pool = ThreadPoolExecutor(4)
+
+    def slow(net, address):
+        time.sleep(0.3)
+        return "0xef0100" + "ab" * 20
+    monkeypatch.setattr(st, "_get_code", slow)
+    recs, missed, _ = st.code("0x" + "11" * 20, use_cache=False, must="eth")
+    assert "eth" in recs and recs["eth"][0] == "7702" and missed == ["bsc"]
+    recs, missed, _ = st.code("0x" + "22" * 20, use_cache=False)
+    assert recs == {} and set(missed) == {"eth", "bsc"}

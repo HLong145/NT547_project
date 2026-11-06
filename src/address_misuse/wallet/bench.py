@@ -7,6 +7,8 @@ Lấy ngẫu nhiên `n` địa chỉ đích trong tập test (`engine_eval.parqu
 - lạnh: chưa có cache (gọi getCode 8 mạng song song, chờ tối đa `timeout`);
 - ấm: gọi lại ngay (cache theo địa chỉ, ví thật sẽ trúng cache khi người dùng gửi lại cho cùng địa chỉ).
 Ghi thêm tỉ lệ mạng không trả kịp, RAM của process, thời gian nạp bảng.
+Mẫu lấy sau khi sắp theo (chain, address) nên không đổi khi `engine_eval.parquet` được ghi lại theo thứ tự khác;
+kết quả từng địa chỉ (quyết định, luật cứng, nhãn, độ trễ) ghi ở `wallet_bench_items.csv` để so giữa các lần chạy.
 """
 
 import argparse
@@ -22,6 +24,7 @@ from address_misuse.wallet.online import OnlineStore
 
 EVAL = INTERIM_DIR / "engine_eval.parquet"
 OUT = INTERIM_DIR / "wallet_bench.json"
+ITEMS = INTERIM_DIR / "wallet_bench_items.csv"
 
 
 def pct(x) -> dict:
@@ -37,6 +40,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     d = pd.read_parquet(EVAL).query("split == 'test'").drop_duplicates(["chain", "address"])
+    d = d.sort_values(["chain", "address"], kind="stable").reset_index(drop=True)   # mẫu không phụ thuộc thứ tự file
     d = d.sample(min(a.n, len(d)), random_state=a.seed)
     proc = psutil.Process()
     rss0 = proc.memory_info().rss / 2**20
@@ -45,9 +49,10 @@ def main():
     load_s = time.perf_counter() - t
     st.warm()
     out = {"n": len(d), "load_s": load_s, "rss_mb": proc.memory_info().rss / 2**20 - rss0, "runs": {}}
+    items = []
     for to in a.timeout:
         st.timeout, st.cache = to, {}
-        cold, warm, missed, dec = [], [], [], []
+        cold, warm, missed, dec, hard = [], [], [], [], []
         for r in d.itertuples():
             c = st.check(r.address, r.chain, use_cache=False)
             w = st.check(r.address, r.chain)
@@ -55,19 +60,29 @@ def main():
             warm.append(w["ms_total"])
             missed.append(len(c["missed_nets"]))
             dec.append(c["decision"])
+            hard.append(c["hard_rule"])
         out["runs"][str(to)] = {"cold_ms": pct(cold), "warm_ms": pct(warm),
                                 "share_all_nets": float(np.mean(np.array(missed) == 0)),
                                 "mean_missed_nets": float(np.mean(missed)),
                                 "under_150ms_cold": float(np.mean(np.array(cold) < 150)),
-                                "decisions": pd.Series(dec).value_counts().to_dict()}
+                                "decisions": pd.Series(dec).value_counts().to_dict(),
+                                "block_by_rule": pd.Series([h or "score" for h, x in zip(hard, dec) if x == "block"],
+                                                           dtype=object).value_counts().to_dict(),
+                                "block_label": pd.Series([lb for lb, x in zip(d.label, dec) if x == "block"],
+                                                         dtype=object).value_counts().to_dict()}
+        items.append(pd.DataFrame({"timeout": to, "chain": d.chain.to_numpy(), "address": d.address.to_numpy(),
+                                   "label": d.label.to_numpy(), "decision": dec, "hard_rule": hard,
+                                   "cold_ms": cold, "missed_nets": missed}))
     out["cpu_percent"] = proc.cpu_percent(interval=None)
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    pd.concat(items).to_csv(ITEMS, index=False)
     print(f"{out['n']} địa chỉ test; nạp bảng {load_s:.1f}s, RAM thêm {out['rss_mb']:.0f} MB")
     for to, r in out["runs"].items():
         c, w = r["cold_ms"], r["warm_ms"]
         print(f"timeout {float(to) * 1000:.0f} ms: lạnh p50 {c['p50']:.0f} / p95 {c['p95']:.0f} / p99 {c['p99']:.0f} ms "
               f"(< 150 ms: {r['under_150ms_cold']:.0%}); ấm p50 {w['p50']:.3f} / p99 {w['p99']:.3f} ms; "
-              f"đủ 8 mạng {r['share_all_nets']:.0%}, thiếu TB {r['mean_missed_nets']:.2f} mạng; {r['decisions']}")
+              f"đủ 8 mạng {r['share_all_nets']:.0%}, thiếu TB {r['mean_missed_nets']:.2f} mạng; {r['decisions']}; "
+              f"block theo luật {r['block_by_rule']}, theo nhãn {r['block_label']}")
     print(f"ghi {OUT}")
 
 
