@@ -1,0 +1,555 @@
+{
+ "main_addr": {
+  "tp": 367.0,
+  "fp": 24.0,
+  "fn": 176.55,
+  "tn": 1112.45,
+  "precision": 0.9386,
+  "recall": 0.6752,
+  "f1": 0.7854,
+  "fpr": 0.0211,
+  "precision_ci": [
+   0.9386,
+   0.9386
+  ],
+  "recall_ci": [
+   0.6158,
+   0.7453
+  ],
+  "f1_ci": [
+   0.7437,
+   0.8309
+  ],
+  "fpr_ci": [
+   0.0202,
+   0.0221
+  ],
+  "hidden_positive_point": 143.2772,
+  "hidden_positive_upper": 188.0,
+  "recall_lower_bound": 0.6106,
+  "recall_lower_bound_cp": 0.5395,
+  "unit": "addr",
+  "n_labelled": 758
+ },
+ "main_row": {
+  "tp": 367.0,
+  "fp": 24.0,
+  "fn": 599.25,
+  "tn": 2111.0833,
+  "precision": 0.9386,
+  "recall": 0.3798,
+  "f1": 0.5408,
+  "fpr": 0.0112,
+  "precision_ci": [
+   0.9386,
+   0.9386
+  ],
+  "recall_ci": [
+   0.2142,
+   0.6845
+  ],
+  "f1_ci": [
+   0.3488,
+   0.7917
+  ],
+  "fpr_ci": [
+   0.0083,
+   0.0154
+  ],
+  "hidden_positive_point": 212.106,
+  "hidden_positive_upper": 265.0,
+  "recall_lower_bound": 0.5413,
+  "recall_lower_bound_cp": 0.4773,
+  "unit": "row",
+  "n_labelled": 758
+ },
+ "unknown_one": {
+  "tp": 367.0,
+  "fp": 24.0,
+  "fn": 176.55,
+  "tn": 1112.45,
+  "precision": 0.9386,
+  "recall": 0.6752,
+  "f1": 0.7854,
+  "fpr": 0.0211,
+  "precision_ci": [
+   0.9386,
+   0.9386
+  ],
+  "recall_ci": [
+   0.6158,
+   0.7453
+  ],
+  "f1_ci": [
+   0.7437,
+   0.8309
+  ],
+  "fpr_ci": [
+   0.0202,
+   0.0221
+  ],
+  "hidden_positive_point": 143.2772,
+  "hidden_positive_upper": 188.0,
+  "recall_lower_bound": 0.6106,
+  "recall_lower_bound_cp": 0.5395,
+  "unit": "addr",
+  "n_labelled": 758
+ },
+ "unknown_drop": {
+  "tp": 367.0,
+  "fp": 24.0,
+  "fn": 176.55,
+  "tn": 1112.45,
+  "precision": 0.9386,
+  "recall": 0.6752,
+  "f1": 0.7854,
+  "fpr": 0.0211,
+  "precision_ci": [
+   0.9386,
+   0.9386
+  ],
+  "recall_ci": [
+   0.6158,
+   0.7453
+  ],
+  "f1_ci": [
+   0.7437,
+   0.8309
+  ],
+  "fpr_ci": [
+   0.0202,
+   0.0221
+  ],
+  "hidden_positive_point": 143.2772,
+  "hidden_positive_upper": 188.0,
+  "recall_lower_bound": 0.6106,
+  "recall_lower_bound_cp": 0.5395,
+  "unit": "addr",
+  "n_labelled": 758
+ },
+ "b_no_key_addr": {
+  "tp": 189.0,
+  "fp": 5.0,
+  "fn": 158.55,
+  "tn": 1104.45,
+  "precision": 0.9742,
+  "recall": 0.5438,
+  "f1": 0.698,
+  "fpr": 0.0045,
+  "precision_ci": [
+   0.9742,
+   0.9742
+  ],
+  "recall_ci": [
+   0.4725,
+   0.6377
+  ],
+  "f1_ci": [
+   0.6364,
+   0.7708
+  ],
+  "fpr_ci": [
+   0.0043,
+   0.0047
+  ],
+  "hidden_positive_point": 143.2772,
+  "hidden_positive_upper": 188.0,
+  "recall_lower_bound": 0.4667,
+  "recall_lower_bound_cp": 0.3903,
+  "unit": "addr",
+  "n_labelled": 535
+ },
+ "j_no_delegate": {
+  "tp": 306.0,
+  "fp": 23.0,
+  "fn": 173.55,
+  "tn": 1104.45,
+  "precision": 0.9301,
+  "recall": 0.6381,
+  "f1": 0.7569,
+  "fpr": 0.0204,
+  "precision_ci": [
+   0.9301,
+   0.9301
+  ],
+  "recall_ci": [
+   0.5738,
+   0.7167
+  ],
+  "f1_ci": [
+   0.7097,
+   0.8095
+  ],
+  "fpr_ci": [
+   0.0195,
+   0.0214
+  ],
+  "hidden_positive_point": 143.312,
+  "hidden_positive_upper": 186.0,
+  "recall_lower_bound": 0.572,
+  "recall_lower_bound_cp": 0.4967,
+  "unit": "addr",
+  "n_labelled": 691
+ },
+ "j2_no_delegate_any": {
+  "tp": 210.0,
+  "fp": 19.0,
+  "fn": 173.55,
+  "tn": 1104.45,
+  "precision": 0.917,
+  "recall": 0.5475,
+  "f1": 0.6857,
+  "fpr": 0.0169,
+  "precision_ci": [
+   0.917,
+   0.917
+  ],
+  "recall_ci": [
+   0.4802,
+   0.6345
+  ],
+  "f1_ci": [
+   0.6303,
+   0.75
+  ],
+  "fpr_ci": [
+   0.0162,
+   0.0178
+  ],
+  "hidden_positive_point": 143.312,
+  "hidden_positive_upper": 186.0,
+  "recall_lower_bound": 0.4784,
+  "recall_lower_bound_cp": 0.4038,
+  "unit": "addr",
+  "n_labelled": 591
+ },
+ "b_j_combined": {
+  "tp": 174.0,
+  "fp": 5.0,
+  "fn": 155.55,
+  "tn": 1096.45,
+  "precision": 0.9721,
+  "recall": 0.528,
+  "f1": 0.6843,
+  "fpr": 0.0045,
+  "precision_ci": [
+   0.9721,
+   0.9721
+  ],
+  "recall_ci": [
+   0.4539,
+   0.6282
+  ],
+  "f1_ci": [
+   0.6189,
+   0.7632
+  ],
+  "fpr_ci": [
+   0.0043,
+   0.0048
+  ],
+  "hidden_positive_point": 143.312,
+  "hidden_positive_upper": 186.0,
+  "recall_lower_bound": 0.4519,
+  "recall_lower_bound_cp": 0.3733,
+  "unit": "addr",
+  "n_labelled": 515
+ },
+ "k_ca7_flip": {
+  "tp": 313.0,
+  "fp": 78.0,
+  "fn": 77.7,
+  "tn": 1211.3,
+  "precision": 0.8005,
+  "recall": 0.8011,
+  "f1": 0.8008,
+  "fpr": 0.0605,
+  "precision_ci": [
+   0.8005,
+   0.8005
+  ],
+  "recall_ci": [
+   0.743,
+   0.8619
+  ],
+  "f1_ci": [
+   0.7707,
+   0.8301
+  ],
+  "fpr_ci": [
+   0.0592,
+   0.062
+  ],
+  "hidden_positive_point": 65.4102,
+  "hidden_positive_upper": 93.0,
+  "recall_lower_bound": 0.7212,
+  "recall_lower_bound_cp": 0.6151,
+  "unit": "addr",
+  "n_labelled": 758
+ },
+ "k_ca7_drop": {
+  "tp": 313.0,
+  "fp": 22.0,
+  "fn": 77.7,
+  "tn": 1100.6167,
+  "precision": 0.9343,
+  "recall": 0.8011,
+  "f1": 0.8626,
+  "fpr": 0.0196,
+  "precision_ci": [
+   0.9343,
+   0.9343
+  ],
+  "recall_ci": [
+   0.7396,
+   0.8599
+  ],
+  "f1_ci": [
+   0.8256,
+   0.8956
+  ],
+  "fpr_ci": [
+   0.0191,
+   0.0202
+  ],
+  "hidden_positive_point": 65.1873,
+  "hidden_positive_upper": 93.0,
+  "recall_lower_bound": 0.7212,
+  "recall_lower_bound_cp": 0.6168,
+  "unit": "addr",
+  "n_labelled": 664
+ },
+ "design_flag_addr": {
+  "tp": 278.0,
+  "fp": 21.0,
+  "fn": 265.55,
+  "tn": 1115.45,
+  "precision": 0.9298,
+  "recall": 0.5115,
+  "f1": 0.6599,
+  "fpr": 0.0185,
+  "precision_ci": [
+   0.9298,
+   0.9298
+  ],
+  "recall_ci": [
+   0.4664,
+   0.5646
+  ],
+  "f1_ci": [
+   0.6212,
+   0.7026
+  ],
+  "fpr_ci": [
+   0.0177,
+   0.0194
+  ],
+  "hidden_positive_point": 143.2772,
+  "hidden_positive_upper": 188.0,
+  "recall_lower_bound": 0.4626,
+  "recall_lower_bound_cp": 0.4087,
+  "unit": "addr",
+  "n_labelled": 758
+ },
+ "flags": {
+  "frozen": 391,
+  "design": 299,
+  "frozen_not_design": 92,
+  "design_not_frozen": 0
+ },
+ "sets": {
+  "delegate_decided": 67,
+  "delegate_named": 100,
+  "ca7": 94,
+  "gold_q": 0
+ },
+ "f_mechanical": {
+  "n_pos": 245,
+  "kappa_vs_gold": 0.4762,
+  "agree": 0.723,
+  "n_hard": 210,
+  "hard_by_stratum": {
+   "+ADDR": 78,
+   "+KEY": 72,
+   "+D6": 23,
+   "-N8": 12,
+   "-N1": 8,
+   "-N3": 8,
+   "+NCD": 5,
+   "-N5": 3,
+   "+PCD": 1
+  },
+  "types": {
+   "NONE": 513,
+   "T4": 138,
+   "T5": 63,
+   "T1": 43,
+   "T3": 1
+  },
+  "kappa_AB_hard_official": 0.0977,
+  "n_hard_official": 54
+ },
+ "h_silver": {
+  "agree": 0.9195,
+  "kappa": 0.8346,
+  "gold_pos_rate_by_stratum": {
+   "+ADDR": 0.873,
+   "+D6": 0.976,
+   "+KEY": 0.885,
+   "+NCD": 0.984,
+   "+PCD": 0.98,
+   "-N1": 0.2,
+   "-N2": 0.017,
+   "-N3": 0.2,
+   "-N4": 0.0,
+   "-N5": 0.077,
+   "-N6": 0.0,
+   "-N7": 0.0,
+   "-N8": 0.12
+  }
+ },
+ "g_case_study": {
+  "TP": [
+   {
+    "item_id": "G208",
+    "chain": "eth",
+    "address": "0x1326…f321",
+    "stratum": "+KEY",
+    "type": "T5",
+    "R": 91.37,
+    "hard": "leaked_key"
+   },
+   {
+    "item_id": "G316",
+    "chain": "eth",
+    "address": "0x954d…cb89",
+    "stratum": "+KEY",
+    "type": "T5",
+    "R": 91.37,
+    "hard": "leaked_key"
+   },
+   {
+    "item_id": "G550",
+    "chain": "eth",
+    "address": "0xa848…6a58",
+    "stratum": "+KEY",
+    "type": "T5",
+    "R": 91.37,
+    "hard": "leaked_key"
+   },
+   {
+    "item_id": "G321",
+    "chain": "eth",
+    "address": "0x14ca…208f",
+    "stratum": "+KEY",
+    "type": "T5",
+    "R": 91.37,
+    "hard": "leaked_key"
+   },
+   {
+    "item_id": "G332",
+    "chain": "eth",
+    "address": "0x55ee…9430",
+    "stratum": "+KEY",
+    "type": "T5",
+    "R": 91.37,
+    "hard": "leaked_key"
+   }
+  ],
+  "FP": [
+   {
+    "item_id": "G328",
+    "chain": "eth",
+    "address": "0x94bb…2814",
+    "stratum": "+D6",
+    "type": "NONE",
+    "R": 62.39,
+    "hard": "malicious_delegate"
+   },
+   {
+    "item_id": "G290",
+    "chain": "bsc",
+    "address": "0xb8b1…e036",
+    "stratum": "+ADDR",
+    "type": "NONE",
+    "R": 11.81,
+    "hard": "sweeper"
+   },
+   {
+    "item_id": "G712",
+    "chain": "eth",
+    "address": "0x061e…73e3",
+    "stratum": "+PCD",
+    "type": "NONE",
+    "R": 68.43,
+    "hard": ""
+   },
+   {
+    "item_id": "G458",
+    "chain": "bsc",
+    "address": "0x8274…bd6a",
+    "stratum": "+ADDR",
+    "type": "NONE",
+    "R": 65.67,
+    "hard": "malicious_delegate"
+   },
+   {
+    "item_id": "G680",
+    "chain": "eth",
+    "address": "0x8087…56ea",
+    "stratum": "-N5",
+    "type": "NONE",
+    "R": 67.57,
+    "hard": ""
+   }
+  ],
+  "FN": [
+   {
+    "item_id": "G530",
+    "chain": "eth",
+    "address": "0x9752…0387",
+    "stratum": "+ADDR",
+    "type": "T5",
+    "R": 10.17,
+    "hard": ""
+   },
+   {
+    "item_id": "G544",
+    "chain": "eth",
+    "address": "0x5ae2…f5ab",
+    "stratum": "+ADDR",
+    "type": "T5",
+    "R": 10.17,
+    "hard": ""
+   },
+   {
+    "item_id": "G284",
+    "chain": "bsc",
+    "address": "0xc35f…7677",
+    "stratum": "-N3",
+    "type": "T5",
+    "R": 0.0,
+    "hard": ""
+   },
+   {
+    "item_id": "G465",
+    "chain": "eth",
+    "address": "0xadec…09c5",
+    "stratum": "-N3",
+    "type": "T5",
+    "R": 0.0,
+    "hard": ""
+   },
+   {
+    "item_id": "G348",
+    "chain": "eth",
+    "address": "0x2833…22dd",
+    "stratum": "+ADDR",
+    "type": "T5",
+    "R": 10.17,
+    "hard": ""
+   }
+  ]
+ },
+ "note": "detector đóng băng: engine_eval.parquet + engine_metrics.json 994bb2b (risk với trọng số học, τ_warn 63,01); trọng số HT theo ô; CI bootstrap phân tầng 1000 lần; ca 7 đọc note nhãn cuối (mẫu đồng ý ghép note A và B)"
+}

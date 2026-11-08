@@ -41,6 +41,8 @@ CLAUDE.local.md
 
 # Đáp án pilot (tầng lấy mẫu + nhãn tác giả) — người gán không được xem
 data/gold/*_key.csv
+# nhãn vàng cuối (chứa nhãn của B và A): không commit cho tới khi xong lô 2 (A còn gán lại mẫu dương lấy lại, §2.7)
+data/gold/gold_final.csv
 
 # Snap (Module 4)
 node_modules/

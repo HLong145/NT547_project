@@ -428,7 +428,11 @@ def draw_reserve(ds: pd.DataFrame, seed: int = 0, double_frac: float = 0.1) -> p
 
 
 def engine_flag(ds: pd.DataFrame) -> np.ndarray:
-    """Cờ cảnh báo của engine (mức warn: luật cứng hoặc R ≥ τ_warn) cho từng dòng dataset_v2. `engine_eval.parquet` cùng thứ tự."""
+    """Cờ cảnh báo của engine (mức warn: luật cứng hoặc R ≥ τ_warn) cho từng dòng dataset_v2. `engine_eval.parquet` cùng thứ tự.
+
+    Lưu ý (phát hiện 2026-11-08, GOLD_PROTOCOL §8): cột `R` của parquet tính với trọng số mặc định, còn τ_warn chọn cho
+    risk(trọng số học); detector thật là `gold_final.detector_flags`. Giữ nguyên ở đây vì cờ này đã định nghĩa ô F/u của lô 1
+    (biến thiết kế, trọng số HT vẫn đúng); đổi sẽ làm lệch khung đã đăng ký trước."""
     ev = pd.read_parquet(INTERIM_DIR / "engine_eval.parquet")
     for c in ("chain", "address", "grp", "at"):
         if not (ds[c].values == ev[c].values).all():

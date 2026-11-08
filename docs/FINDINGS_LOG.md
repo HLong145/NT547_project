@@ -1120,3 +1120,29 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 - Kiểu lỗi lặp lại so với tập κ chính thức: (1) A lại bỏ sót ủy quyền 7702 trong chính tx mẫu (G488, G620, delegate cũ → 0xa1c72cfc forwarder_sweeper, tx do ví thu 0xa61919b4… gửi); (2) xem thiếu lịch sử (A chỉ thấy 1.000 thao tác ở G452; Etherscan `offset=1000` cũng cắt lịch sử G745, phải ghép cả hai chiều asc/desc); (3) B tính một swap qua MetaMask Swap Router là rút nhanh (G745, cùng tx nhận lại 1.297 LORDS: ngoại lệ ca 7d) và bỏ qua contract Base có trước tx (G484 → T4/PCD).
 - Dùng cho paper (mục hạn chế / độ tin cậy nhãn): báo cả số thô 8,0% (cận trên) và 2,0% sau kiểm (có thể lệch thấp vì B duyệt phân xử).
 - Tái tạo: `python -X utf8 -m address_misuse.sample_gold check <xlsx>`; `... sample_gold kappa data/gold/annotator_main_relabel_A.xlsx data/gold/annotator_main_single_B.xlsx --items data/gold/main_items.csv`; chi tiết on-chain ở `data/gold/ARBITRATION_relabel.md`.
+
+## 2026-11-08 — D5: nhãn vàng cuối 758 mẫu và đánh giá engine đóng băng theo nhãn vàng (GOLD_PROTOCOL §4)
+
+- **Nhãn cuối** (`gold_final build`, file `data/gold/gold_final.csv` không commit): 441 dương / 317 âm (nhãn tác giả 442 / 316). Nguồn: đơn B 505 + 3 đã sửa (§2.6), κ chính thức đồng ý 176 + phân xử 24, cổng đồng ý 44 + phân xử 6. Type: NONE 317, T5 261, T4 137, T1 41, T2 1, T3 1. Không có `?` ở is_misuse.
+- **Phát hiện lỗi thiết kế:** cờ dùng chia ô F/u lúc lấy mẫu (`sample_gold.engine_flag`) so cột R của parquet (trọng số mặc định) với τ_warn của trọng số học → 299 địa chỉ; detector đóng băng thật (khớp `engine_metrics.json`, test 386/442 dương) cảnh báo 391. Đánh giá dùng detector thật; ghi sai lệch GOLD_PROTOCOL §8. Mọi địa chỉ bị cảnh báo đều thuộc ô đã gán hết → precision không có sai số lấy mẫu.
+- **Chỉ số theo địa chỉ, trọng số Horvitz–Thompson, CI bootstrap phân tầng 1.000 lần:**
+
+| Kịch bản | n | Precision | Recall [CI95] | F1 | FPR |
+|---|---|---|---|---|---|
+| chính (theo địa chỉ) | 758 | 0.939 | 0.675 [0.616–0.745] | 0.785 | 0.0211 |
+| theo dòng (phụ) | 758 | 0.939 | 0.380 [0.214–0.684] | 0.541 | 0.0112 |
+| (b) bỏ +KEY/+ADDR | 535 | 0.974 | 0.544 [0.472–0.638] | 0.698 | 0.0045 |
+| (j) bỏ 67 mẫu do delegate quyết định | 691 | 0.930 | 0.638 [0.574–0.717] | 0.757 | 0.0204 |
+| (j′) bỏ thêm 100 mẫu ghi delegate trong bảng | 591 | 0.917 | 0.547 [0.480–0.634] | 0.686 | 0.0169 |
+| (b)+(j) | 515 | 0.972 | 0.528 [0.454–0.628] | 0.684 | 0.0045 |
+| (k) ca 7 lật về 0 (94 mẫu) | 758 | 0.800 | 0.801 [0.743–0.862] | 0.801 | 0.0605 |
+| (k) ca 7 bỏ khỏi miền | 664 | 0.934 | 0.801 [0.740–0.860] | 0.863 | 0.0196 |
+| đối chiếu: cờ thiết kế (lệch) | 758 | 0.930 | 0.511 [0.466–0.565] | 0.660 | 0.0185 |
+
+- **Recall theo nhãn vàng (0.675) thấp hơn nhiều so với nhãn tác giả (0,873 theo dòng trên test):** (i) **dương ẩn** trong tầng âm theo tác giả: 30 mẫu đã gán là dương (−N8 10, −N1 8, −N3 8, −N5 3, −N2 1; 24 là T5, 15 dựa vào ca 7), ước lượng 143 địa chỉ trong khung (cận trên 95% 188); cận dưới recall 0.611 (CP 0.539); (ii) FN trong tầng dương: 46 (+ADDR T5 18, +NCD T1 16, +NCD T5 7, +PCD 4, +D6 1).
+- **FP = 24 địa chỉ:** 13 +KEY bị luật cứng `leaked_key` nhưng nhãn vàng NONE (không thấy ≥ 2 lần rút nhanh: key lộ nhưng chưa thấy bị khai thác), 5 `sweeper`, 3 `malicious_delegate` (vd. G328: delegate chỉ có sau tx, engine dùng trạng thái 7702 hôm nay), 3 do R.
+- **Ca 7 chi phối kết quả:** lật 94 mẫu ca 7b/7c/7d về 0 thì recall tăng lên 0.801 (vì phần lớn dương ẩn là T5 dựa vào ca 7) nhưng precision giảm còn 0.800. Báo khoảng này thay cho một con số.
+- **(f) luật cơ học tham chiếu:** 245 dương, đồng ý 72.3%, κ 0.476 với nhãn cuối; tập khó 210 mẫu (+ADDR 78, +KEY 72, +D6 23, âm 31); κ(A, B) trên 54 mẫu tập khó thuộc κ chính thức chỉ 0.098: người gán bất đồng tập trung đúng ở chỗ luật cơ học sai.
+- **(h) silver (dấu tầng tác giả) so với vàng:** đồng ý 92.0%, κ 0.835. Tỉ lệ dương vàng: +NCD 0,98, +PCD 0,98, +D6 0,98, +KEY 0,89, +ADDR 0,87; −N1 0,20, −N3 0,20, −N8 0,12, −N5 0,08, −N2 0,02, −N4/−N6/−N7 0.
+- **(g) case study** (địa chỉ ẩn bớt): ở `data/interim/gold_eval.json` → `g_case_study` (TP: 5 +KEY `leaked_key` R 91,4; FP: G328, G290, G712, G458, G680; FN: G530, G544, G348 +ADDR T5 R 10,2, G284, G465 −N3 T5 R 0).
+- Tái tạo: `PYTHONPATH=src python -X utf8 -m address_misuse.gold_final build` rồi `... gold_final evaluate` (24 s).

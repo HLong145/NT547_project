@@ -44,5 +44,5 @@ Cả 4 bất đồng is_misuse đều là B gán 1, A gán 0.
 
 ## Duyệt
 
-- [ ] B (người dùng) duyệt đề xuất.
-- [ ] A xác nhận.
+- [x] B (người dùng) duyệt đề xuất (2026-11-08).
+- [x] A xác nhận đồng ý (2026-11-08, người dùng báo trong chat). Ba chỗ sửa (G484, G745, G452) chốt.
