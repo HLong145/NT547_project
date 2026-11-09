@@ -794,10 +794,6 @@ def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_si
             bar = "!" * 70
             print(f"{bar}\nCẢNH BÁO: BỎ QUA cổng rà delegate ({len(errs)} lỗi). File này CHỈ để thử, "
                   f"KHÔNG giao cho người gán.\n{bar}")
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
-    from openpyxl.utils import get_column_letter
-    from openpyxl.worksheet.datavalidation import DataValidation
     items = pd.read_csv(GOLD_DIR / ("pilot50_items.csv" if which == "pilot" else "main_items.csv"), dtype=str).fillna("-")
     if only_double + only_single + official + relabel > 1 or ((official or relabel) and first):
         raise SystemExit("chọn một trong --only-double / --only-single / --official / --relabel "
@@ -824,13 +820,22 @@ def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_si
         items = items[items.item_id.isin(set(pick))].sort_values("item_id", kind="stable").reset_index(drop=True)
     if first:                                            # gán lại N mẫu có item_id nhỏ nhất (cổng κ, GOLD_PROTOCOL §2.4)
         items = items.sort_values("item_id", kind="stable").head(first).reset_index(drop=True)
-    evidence = [c for c in items.columns if c not in ("item_id", "chain", "address")]
-    cols = ["item_id", "chain", "address", *LABEL_COLS, *evidence]
     part = ("_double" if only_double else "_single" if only_single else "_official" if official else
             "_relabel" if relabel else "") + tag
     out = GOLD_DIR / (f"annotator_{who}.xlsx" if which == "pilot" else f"annotator_main{part}_{who}.xlsx")
+    write_sheet(items, out, GUIDE_MAIN if which == "main" else [])
+
+
+def write_sheet(items: pd.DataFrame, out, guide_main: list[str]) -> None:
+    """Ghi Excel gán nhãn: bằng chứng + cột nhãn (vàng, danh sách chọn) + sheet hướng dẫn. Không ghi đè file đã có."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
     if out.exists():
         raise SystemExit(f"{out} đã có, không ghi đè (có thể đã có nhãn). Xoá/đổi tên trước nếu muốn tạo lại.")
+    evidence = [c for c in items.columns if c not in ("item_id", "chain", "address")]
+    cols = ["item_id", "chain", "address", *LABEL_COLS, *evidence]
     wb = Workbook()
     ws = wb.active
     ws.title = SHEET
@@ -859,7 +864,7 @@ def cmd_sheet(who: str, which: str = "pilot", only_double: bool = False, only_si
         ws.add_data_validation(dv)
     ws.freeze_panes = "D2"                                      # giữ dòng tiêu đề + mã, chain, địa chỉ
     g = wb.create_sheet("Huong_dan")
-    for line in (GUIDE_MAIN if which == "main" else []) + GUIDE:
+    for line in guide_main + GUIDE:
         g.append([line])
     g["A1"].font = bold
     g.column_dimensions["A"].width = 140

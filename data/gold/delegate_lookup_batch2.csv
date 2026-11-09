@@ -1,0 +1,2 @@
+chain,delegate,n_items,explorer_url,class_A,note_A,class_B,note_B,final_class,source,note
+eth,0x612373d7003d694220f7800eeaf8e3924c0951d3,1,https://etherscan.io/address/0x612373d7003d694220f7800eeaf8e3924c0951d3,,,,,legit_wallet,verified source,"CaliburEntry (Uniswap Calibur, ví thông minh EIP-7702): execute chỉ chạy khi chủ ví hoặc khoá đã đăng ký ký (_isOwnerOrValidKey); không có luật chuyển tiền tự động, không địa chỉ đích cố định"

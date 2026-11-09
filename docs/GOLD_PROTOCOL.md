@@ -252,3 +252,73 @@ Chỉ là lịch sử, đã áp dụng ở v0.4–v0.6; có thể khác quy tắ
 4. Ưu tiên KEY và 7702. → ca 13.
 5. `malicious = 1` khi chưa thấy tx rút (P030, P034, P045, P050). → ca 13.
 6. Sau κ pilot (0,615): T2 cần tx sai ý định; KEY chỉ dương khi thấy rút nhanh; quy ước ô. Đề xuất dùng danh sách đen / `delegate_known_wallet` làm bằng chứng bị bỏ (bằng chứng phải độc lập với engine).
+
+## 10. Engine v2 và lô 2 (tiền đăng ký 2026-11-08, trước khi giao lô 2 cho A và trước khi chạy v2 trên nhãn vàng)
+
+### 10.1. Vì sao có v2 và giới hạn của nó
+
+- v1 đóng băng (994bb2b) vẫn là **kết quả chính** của paper (§4, FINDINGS_LOG 2026-11-08). v2 không thay v1.
+- v2 được thiết kế **sau khi xem FN của v1 trên lô 1**:
+  - 74 địa chỉ FN, trọng số HT 176,5. Trong đó T5/KEY có 46 địa chỉ, trọng số 139,0.
+  - 21 địa chỉ T1/T4 không có code lúc tx có R = 62,39, ngay dưới τ_warn = 63,01. Tín hiệu T1 đầy đủ chỉ được nhân trọng số bytecode 0,522.
+- Vì vậy kết quả v2 trên lô 1 là **trong mẫu / khám phá**. Đánh giá giữ lại (held-out) là lô 2 (§10.3).
+
+### 10.2. Định nghĩa v2 (đóng băng ở tag `prereg-engine-v2`)
+
+Mã: `src/address_misuse/engine/v2.py`, `src/address_misuse/engine/fullhist.py`. Quyết định v2 của một dòng = quyết định v1 HOẶC một trong hai luật sau:
+
+1. **`ncd_call`:** `state = none` tại `at` trên chính chain, tx có gọi hàm và `bytecode = 1`. Tín hiệu T1 đầy đủ thành luật cứng.
+2. **`sweeper_full`:** `state ≠ code` và có ít nhất 2 lần rút nhanh trong lịch sử tài sản đầy đủ.
+   - Lịch sử gồm coin, internal, ERC-20, ERC-721, ERC-1155. ETH lấy từ Etherscan V2, BSC từ NodeReal. Tối đa 20.000 sự kiện mỗi loại.
+   - Một lần rút nhanh: tài sản ra trong ≤ 600 s sau khi vào, lượng ra (cộng phí gas nếu biết) bằng 90–102% lượng vào, tới ví khác ví gửi, và tx rút không đem tài sản về lại.
+   - Ngưỡng lấy nguyên từ CODEBOOK §3.4. Engine không đọc nhãn sàn của explorer (ca 7a), nên đếm cả lần rút về sàn.
+   - Hai mốc cắt:
+     - **v2-at (chính):** chỉ đếm lần rút trước `at`. Bản nhân quả.
+     - **v2-now (phụ):** đếm toàn bộ lịch sử đến lúc tải. Đúng câu hỏi của ví: "gửi tới địa chỉ này hôm nay có rủi ro không". Bản này dùng cùng dữ liệu với nhãn KEY nên dễ được lợi khi so nhãn vàng; ghi rõ khi báo.
+
+Không đổi trọng số, τ_warn, luật cứng v1 (kể cả `leaked_key`). Không chỉnh ngưỡng v2 theo nhãn vàng lô 1 hay lô 2. Mọi sửa sau tag ghi là sai lệch, và báo cả bản trước khi sửa.
+
+### 10.3. Lô 2 (§2.7)
+
+- **Âm dự phòng:** lô 1 và 2 của `main_reserve_key.csv`, tức 100 địa chỉ âm theo tác giả, không có cờ thiết kế. `gold_batch2.reserve_rows` rút lại từ dataset_v2 và kiểm khớp với file khoá.
+- **Bằng chứng:** tính bằng `sample_gold.main_evidence` như lô 1. Trạng thái hôm nay tra mới.
+- **Mẫu kiểm nhất quán:** 24 mẫu (12 mỗi lô), rút seed 20261108 từ các mẫu A đã gán đôi ở lô 1 mà nhãn cuối dương. Dùng lại dòng bằng chứng của lô 1.
+- **Đổi tên và xáo:** mã L001…, thứ tự xáo seed 20261109. Ánh xạ ở `data/gold/batch2_key.csv` (gitignore, không đưa A).
+- **Người gán:** A gán một mình, cùng CODEBOOK v0.6.4 và bảng delegate.
+  - Nhãn cuối lô 2 là nhãn A. Không phân xử theo kết quả engine.
+  - Dấu `?` báo ba kịch bản như §4 (d).
+  - Delegate mới chưa có trong bảng phải được phân loại và A, B rà trước khi giao file (§2.3).
+- **Gán thêm lô 3 trở đi:** chỉ quyết theo ngân sách và hạn chót, trước khi xem nhãn lô 2 (§2.7).
+
+### 10.4. Báo (đăng ký trước)
+
+- **(a) Nhất quán của A:** trên 24 mẫu kiểm, báo tỉ lệ A gán lại khác nhãn cũ của chính A và khác nhãn cuối, kèm CI Clopper–Pearson. Các mẫu này không vào ước lượng.
+- **(b) Held-out của v2 trên lô 2 (100 mẫu):**
+  - Đếm dương ẩn tìm thấy.
+  - Báo recall của v1, v2-at và v2-now trên các dương đó, và FPR trên các âm.
+  - Báo cả số thô và có trọng số. Trong mỗi ô, lô 2 là mẫu ngẫu nhiên đơn giản của phần còn lại, trọng số = (cell_n − k) / n₂.
+  - Miền của bản này: phần chưa gán của các ô âm không cờ thiết kế. Đây đúng là nơi lô 1 cho thấy dương ẩn.
+- **(c) Gộp lô 1 ∪ lô 2:**
+  - Cỡ lấy trong ô k′ = k + n₂. Trọng số = cell_n / k′. Lô 1 ∪ lô 2 vẫn là mẫu ngẫu nhiên đơn giản trong ô, nhờ thứ tự xáo nối tiếp.
+  - v1 gộp là bản cập nhật của kết quả chính, với CI dương ẩn hẹp hơn.
+  - v2 gộp có phần lô 1 trong mẫu; ghi rõ khi báo.
+- **(d) Lô 1 (dev):** báo v1, v2-at, v2-now (`gold_eval_v2 dev`) theo các kịch bản chính, (b), (j), (k). Báo thêm:
+  - ablation từng luật;
+  - độ phủ lịch sử;
+  - số cờ mới theo luật và theo tầng của âm.
+
+### 10.5. Đăng ký (tag `prereg-engine-v2`)
+
+Băm sau khi chuẩn hoá LF, trừ file khoá (nguyên byte). Gắn tag trước khi chạy `gold_eval_v2 dev` và trước khi giao lô 2.
+
+| file | sha256 |
+|---|---|
+| `src/address_misuse/engine/v2.py` | `ac1d95a8c8325e91ff4d5f10571e3b37a66e1f032d3499391fab81cb8d37e7a7` |
+| `src/address_misuse/engine/fullhist.py` | `abb54a5929c8ef12c525aa64fb0cc8010a9646e42c51e37ea4608181abde39c8` |
+| `src/address_misuse/gold_eval_v2.py` | `5ebb5bac01d7099aa3bb96b1b7923c336ecbc9eeb6c06ba72e2a3e12f13658b4` |
+| `src/address_misuse/gold_batch2.py` | `c99c32810ecf50515084fd61b4acee20d5305c518a91df777f000d3067283217` |
+| `data/gold/batch2_items.csv` (124 mẫu) | `56938ffab266df65f6566e974b912a03a2b8d9d5fd93fcc6ab8251c1c7ca7367` |
+| `data/gold/batch2_key.csv` (không commit, nguyên byte) | `65d88042c012084cb9e5b112466db36f1a7e1ede256f85a4cb1a7891aa47bbe5` |
+
+- `data/gold/delegate_lookup_batch2.csv`: 1 delegate mới (eth `0x612373d7…51d3`, CaliburEntry của Uniswap, `legit_wallet`). Có ở mẫu L029, mẫu này `code_at_event = none`. Bảng lô 1 không sửa. Cột `class_A` và `class_B` sẽ được điền khi rà, nên bản băm ghi khi rà xong.
+- Khi sinh bằng chứng, symexec lỗi ở 2 contract (TypeError trong bộ thực thi). Ô của 2 contract này để `-`, như quy tắc §3.
