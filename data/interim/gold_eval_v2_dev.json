@@ -1,0 +1,588 @@
+{
+ "coverage": {
+  "need_history": 584,
+  "have_history": 584
+ },
+ "v1": {
+  "tp": 367.0,
+  "fp": 24.0,
+  "fn": 176.55,
+  "tn": 1112.45,
+  "precision": 0.9386,
+  "recall": 0.6752,
+  "f1": 0.7854,
+  "fpr": 0.0211,
+  "precision_ci": [
+   0.9386,
+   0.9386
+  ],
+  "recall_ci": [
+   0.6158,
+   0.7453
+  ],
+  "f1_ci": [
+   0.7437,
+   0.8309
+  ],
+  "fpr_ci": [
+   0.0202,
+   0.0221
+  ],
+  "hidden_positive_point": 143.2772,
+  "hidden_positive_upper": 188.0,
+  "recall_lower_bound": 0.6106,
+  "recall_lower_bound_cp": 0.5395,
+  "unit": "addr",
+  "n_labelled": 758
+ },
+ "v2_at": {
+  "main_addr": {
+   "tp": 508.25,
+   "fp": 101.1,
+   "fn": 35.3,
+   "tn": 1035.35,
+   "precision": 0.8341,
+   "recall": 0.9351,
+   "f1": 0.8817,
+   "fpr": 0.089,
+   "precision_ci": [
+    0.7828,
+    0.8772
+   ],
+   "recall_ci": [
+    0.896,
+    0.9686
+   ],
+   "f1_ci": [
+    0.8469,
+    0.9126
+   ],
+   "fpr_ci": [
+    0.0617,
+    0.1225
+   ],
+   "hidden_positive_point": 55.1495,
+   "hidden_positive_upper": 84.0,
+   "recall_lower_bound": 0.8496,
+   "recall_lower_bound_cp": 0.7348,
+   "unit": "addr",
+   "n_labelled": 758
+  },
+  "main_row": {
+   "tp": 844.7,
+   "fp": 101.1,
+   "fn": 121.55,
+   "tn": 2033.9833,
+   "precision": 0.8931,
+   "recall": 0.8742,
+   "f1": 0.8836,
+   "fpr": 0.0474,
+   "precision_ci": [
+    0.801,
+    0.9452
+   ],
+   "recall_ci": [
+    0.6507,
+    0.9827
+   ],
+   "f1_ci": [
+    0.7413,
+    0.9572
+   ],
+   "fpr_ci": [
+    0.0285,
+    0.0741
+   ],
+   "hidden_positive_point": 79.1345,
+   "hidden_positive_upper": 117.0,
+   "recall_lower_bound": 0.8729,
+   "recall_lower_bound_cp": 0.7864,
+   "unit": "row",
+   "n_labelled": 758
+  },
+  "b_no_key_addr": {
+   "tp": 317.25,
+   "fp": 82.1,
+   "fn": 30.3,
+   "tn": 1027.35,
+   "precision": 0.7944,
+   "recall": 0.9128,
+   "f1": 0.8495,
+   "fpr": 0.074,
+   "precision_ci": [
+    0.7193,
+    0.8596
+   ],
+   "recall_ci": [
+    0.8518,
+    0.9652
+   ],
+   "f1_ci": [
+    0.795,
+    0.8974
+   ],
+   "fpr_ci": [
+    0.046,
+    0.1081
+   ],
+   "hidden_positive_point": 55.1495,
+   "hidden_positive_upper": 84.0,
+   "recall_lower_bound": 0.7887,
+   "recall_lower_bound_cp": 0.64,
+   "unit": "addr",
+   "n_labelled": 535
+  },
+  "j_no_delegate": {
+   "tp": 444.25,
+   "fp": 94.4,
+   "fn": 35.3,
+   "tn": 1033.05,
+   "precision": 0.8247,
+   "recall": 0.9264,
+   "f1": 0.8726,
+   "fpr": 0.0837,
+   "precision_ci": [
+    0.7678,
+    0.8716
+   ],
+   "recall_ci": [
+    0.8801,
+    0.9638
+   ],
+   "f1_ci": [
+    0.8346,
+    0.9042
+   ],
+   "fpr_ci": [
+    0.0603,
+    0.1155
+   ],
+   "hidden_positive_point": 55.0448,
+   "hidden_positive_upper": 85.0,
+   "recall_lower_bound": 0.83,
+   "recall_lower_bound_cp": 0.7083,
+   "unit": "addr",
+   "n_labelled": 691
+  },
+  "k_ca7_flip": {
+   "tp": 366.85,
+   "fp": 242.5,
+   "fn": 23.85,
+   "tn": 1046.8,
+   "precision": 0.602,
+   "recall": 0.939,
+   "f1": 0.7337,
+   "fpr": 0.1881,
+   "precision_ci": [
+    0.5452,
+    0.6629
+   ],
+   "recall_ci": [
+    0.8946,
+    0.9782
+   ],
+   "f1_ci": [
+    0.6902,
+    0.7802
+   ],
+   "fpr_ci": [
+    0.1477,
+    0.2308
+   ],
+   "hidden_positive_point": 42.6658,
+   "hidden_positive_upper": 70.0,
+   "recall_lower_bound": 0.8303,
+   "recall_lower_bound_cp": 0.6889,
+   "unit": "addr",
+   "n_labelled": 758
+  },
+  "k_ca7_drop": {
+   "tp": 366.85,
+   "fp": 96.7,
+   "fn": 23.85,
+   "tn": 1025.9167,
+   "precision": 0.7914,
+   "recall": 0.939,
+   "f1": 0.8589,
+   "fpr": 0.0861,
+   "precision_ci": [
+    0.7336,
+    0.8483
+   ],
+   "recall_ci": [
+    0.8896,
+    0.9788
+   ],
+   "f1_ci": [
+    0.8183,
+    0.8973
+   ],
+   "fpr_ci": [
+    0.0592,
+    0.1178
+   ],
+   "hidden_positive_point": 39.94,
+   "hidden_positive_upper": 65.0,
+   "recall_lower_bound": 0.8398,
+   "recall_lower_bound_cp": 0.7052,
+   "unit": "addr",
+   "n_labelled": 664
+  },
+  "ablation_v1_plus_ncd": {
+   "tp": 393.4,
+   "fp": 33.3,
+   "fn": 150.15,
+   "tn": 1103.15,
+   "precision": 0.922,
+   "recall": 0.7238,
+   "f1": 0.8109,
+   "fpr": 0.0293,
+   "precision_ci": [
+    0.8967,
+    0.9384
+   ],
+   "recall_ci": [
+    0.6608,
+    0.7975
+   ],
+   "f1_ci": [
+    0.7693,
+    0.8558
+   ],
+   "fpr_ci": [
+    0.0224,
+    0.04
+   ],
+   "hidden_positive_point": 142.315,
+   "hidden_positive_upper": 185.0,
+   "recall_lower_bound": 0.6552,
+   "recall_lower_bound_cp": 0.5768,
+   "unit": "addr",
+   "n_labelled": 758
+  },
+  "ablation_v1_plus_sweeper": {
+   "tp": 489.25,
+   "fp": 91.8,
+   "fn": 54.3,
+   "tn": 1044.65,
+   "precision": 0.842,
+   "recall": 0.9001,
+   "f1": 0.8701,
+   "fpr": 0.0808,
+   "precision_ci": [
+    0.7911,
+    0.8903
+   ],
+   "recall_ci": [
+    0.8612,
+    0.933
+   ],
+   "f1_ci": [
+    0.8363,
+    0.9014
+   ],
+   "fpr_ci": [
+    0.0545,
+    0.1125
+   ],
+   "hidden_positive_point": 54.8222,
+   "hidden_positive_upper": 84.0,
+   "recall_lower_bound": 0.8178,
+   "recall_lower_bound_cp": 0.7086,
+   "unit": "addr",
+   "n_labelled": 758
+  },
+  "new_flags": {
+   "n": 81,
+   "gold_pos": 59,
+   "gold_neg": 22,
+   "by_rule": {
+    "sweeper_full": 52,
+    "ncd_call": 29
+   },
+   "neg_by_stratum": {
+    "-N4": 11,
+    "-N1": 4,
+    "-N8": 4,
+    "+NCD": 2,
+    "-N3": 1
+   }
+  }
+ },
+ "v2_now": {
+  "main_addr": {
+   "tp": 520.3,
+   "fp": 153.5833,
+   "fn": 23.25,
+   "tn": 982.8667,
+   "precision": 0.7721,
+   "recall": 0.9572,
+   "f1": 0.8547,
+   "fpr": 0.1351,
+   "precision_ci": [
+    0.7204,
+    0.8229
+   ],
+   "recall_ci": [
+    0.9215,
+    0.9851
+   ],
+   "f1_ci": [
+    0.8202,
+    0.8896
+   ],
+   "fpr_ci": [
+    0.0991,
+    0.177
+   ],
+   "hidden_positive_point": 56.4483,
+   "hidden_positive_upper": 91.05,
+   "recall_lower_bound": 0.8483,
+   "recall_lower_bound_cp": 0.7194,
+   "unit": "addr",
+   "n_labelled": 758
+  },
+  "main_row": {
+   "tp": 856.75,
+   "fp": 467.4333,
+   "fn": 109.5,
+   "tn": 1667.65,
+   "precision": 0.647,
+   "recall": 0.8867,
+   "f1": 0.7481,
+   "fpr": 0.2189,
+   "precision_ci": [
+    0.3714,
+    0.8885
+   ],
+   "recall_ci": [
+    0.6647,
+    0.9913
+   ],
+   "f1_ci": [
+    0.5043,
+    0.9283
+   ],
+   "fpr_ci": [
+    0.0654,
+    0.4285
+   ],
+   "hidden_positive_point": 80.3483,
+   "hidden_positive_upper": 124.0,
+   "recall_lower_bound": 0.8718,
+   "recall_lower_bound_cp": 0.7711,
+   "unit": "row",
+   "n_labelled": 758
+  },
+  "b_no_key_addr": {
+   "tp": 325.3,
+   "fp": 133.5833,
+   "fn": 22.25,
+   "tn": 975.8667,
+   "precision": 0.7089,
+   "recall": 0.936,
+   "f1": 0.8068,
+   "fpr": 0.1204,
+   "precision_ci": [
+    0.6377,
+    0.7821
+   ],
+   "recall_ci": [
+    0.8819,
+    0.9787
+   ],
+   "f1_ci": [
+    0.7548,
+    0.8589
+   ],
+   "fpr_ci": [
+    0.0837,
+    0.1636
+   ],
+   "hidden_positive_point": 56.4483,
+   "hidden_positive_upper": 91.05,
+   "recall_lower_bound": 0.7794,
+   "recall_lower_bound_cp": 0.617,
+   "unit": "addr",
+   "n_labelled": 535
+  },
+  "j_no_delegate": {
+   "tp": 456.3,
+   "fp": 146.8833,
+   "fn": 23.25,
+   "tn": 980.5667,
+   "precision": 0.7565,
+   "recall": 0.9515,
+   "f1": 0.8429,
+   "fpr": 0.1303,
+   "precision_ci": [
+    0.7003,
+    0.8087
+   ],
+   "recall_ci": [
+    0.9098,
+    0.984
+   ],
+   "f1_ci": [
+    0.8022,
+    0.8788
+   ],
+   "fpr_ci": [
+    0.099,
+    0.1686
+   ],
+   "hidden_positive_point": 56.2925,
+   "hidden_positive_upper": 91.0,
+   "recall_lower_bound": 0.8307,
+   "recall_lower_bound_cp": 0.6927,
+   "unit": "addr",
+   "n_labelled": 691
+  },
+  "k_ca7_flip": {
+   "tp": 375.6,
+   "fp": 298.2833,
+   "fn": 15.1,
+   "tn": 991.0167,
+   "precision": 0.5574,
+   "recall": 0.9614,
+   "f1": 0.7056,
+   "fpr": 0.2314,
+   "precision_ci": [
+    0.5067,
+    0.6123
+   ],
+   "recall_ci": [
+    0.9247,
+    0.9872
+   ],
+   "f1_ci": [
+    0.6612,
+    0.7508
+   ],
+   "fpr_ci": [
+    0.1872,
+    0.2813
+   ],
+   "hidden_positive_point": 46.172,
+   "hidden_positive_upper": 79.0,
+   "recall_lower_bound": 0.8226,
+   "recall_lower_bound_cp": 0.6666,
+   "unit": "addr",
+   "n_labelled": 758
+  },
+  "k_ca7_drop": {
+   "tp": 375.6,
+   "fp": 149.1833,
+   "fn": 15.1,
+   "tn": 973.4333,
+   "precision": 0.7157,
+   "recall": 0.9614,
+   "f1": 0.8206,
+   "fpr": 0.1329,
+   "precision_ci": [
+    0.6576,
+    0.7762
+   ],
+   "recall_ci": [
+    0.9186,
+    0.9872
+   ],
+   "f1_ci": [
+    0.7792,
+    0.8592
+   ],
+   "fpr_ci": [
+    0.0993,
+    0.1714
+   ],
+   "hidden_positive_point": 43.8982,
+   "hidden_positive_upper": 75.0,
+   "recall_lower_bound": 0.8299,
+   "recall_lower_bound_cp": 0.6811,
+   "unit": "addr",
+   "n_labelled": 664
+  },
+  "ablation_v1_plus_ncd": {
+   "tp": 393.4,
+   "fp": 33.3,
+   "fn": 150.15,
+   "tn": 1103.15,
+   "precision": 0.922,
+   "recall": 0.7238,
+   "f1": 0.8109,
+   "fpr": 0.0293,
+   "precision_ci": [
+    0.8967,
+    0.9384
+   ],
+   "recall_ci": [
+    0.6608,
+    0.7975
+   ],
+   "f1_ci": [
+    0.7693,
+    0.8558
+   ],
+   "fpr_ci": [
+    0.0224,
+    0.04
+   ],
+   "hidden_positive_point": 142.315,
+   "hidden_positive_upper": 185.0,
+   "recall_lower_bound": 0.6552,
+   "recall_lower_bound_cp": 0.5768,
+   "unit": "addr",
+   "n_labelled": 758
+  },
+  "ablation_v1_plus_sweeper": {
+   "tp": 502.3,
+   "fp": 144.2833,
+   "fn": 41.25,
+   "tn": 992.1667,
+   "precision": 0.7769,
+   "recall": 0.9241,
+   "f1": 0.8441,
+   "fpr": 0.127,
+   "precision_ci": [
+    0.7241,
+    0.8271
+   ],
+   "recall_ci": [
+    0.8892,
+    0.9509
+   ],
+   "f1_ci": [
+    0.8084,
+    0.8782
+   ],
+   "fpr_ci": [
+    0.091,
+    0.1675
+   ],
+   "hidden_positive_point": 56.0845,
+   "hidden_positive_upper": 91.0,
+   "recall_lower_bound": 0.819,
+   "recall_lower_bound_cp": 0.6958,
+   "unit": "addr",
+   "n_labelled": 758
+  },
+  "new_flags": {
+   "n": 102,
+   "gold_pos": 65,
+   "gold_neg": 37,
+   "by_rule": {
+    "sweeper_full": 73,
+    "ncd_call": 29
+   },
+   "neg_by_stratum": {
+    "-N4": 20,
+    "-N1": 6,
+    "-N8": 5,
+    "-N3": 3,
+    "+NCD": 2,
+    "+ADDR": 1
+   }
+  }
+ },
+ "note": "TRONG MẪU (lô 1 dùng để thiết kế v2). v1 = detector đóng băng 994bb2b. Ngưỡng v2 từ CODEBOOK §3.4, không chỉnh theo nhãn vàng. CI bootstrap phân tầng 1000 lần."
+}

@@ -4,7 +4,7 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-11-08
+**Cập nhật lần cuối:** 2026-11-10
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
@@ -107,6 +107,7 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- 2026-11-10: **Tiền đăng ký engine v2 + lô 2 (tag `prereg-engine-v2`, GOLD_PROTOCOL §10).** Lô 2: `gold_batch2` → `data/gold/batch2_items.csv` 124 mẫu (100 âm dự phòng lô 1–2 + 24 mẫu kiểm nhất quán của A, mã L001…; khoá `batch2_key.csv` gitignore). 1 delegate mới (CaliburEntry, Uniswap, legit_wallet) trong `delegate_lookup_batch2.csv`: **chờ A và B rà** (class_A, class_B) rồi mới `gold_batch2 sheet` → `annotator_batch2_A.xlsx`. v2 = v1 + `ncd_call` + `sweeper_full` (lịch sử tài sản đầy đủ, `engine/fullhist.py`). Trên lô 1 (trong mẫu): v2-at P 0,834, R 0,935, F1 0,882, FPR 0,089 (v1: 0,939/0,675/0,785/0,021). 36/45 FN KEY của v1 đã có ≥ 2 lần rút nhanh trước `at` (chủ yếu token). 125 test pass. **Bước kế:** A, B rà delegate → giao lô 2 cho A → đánh giá giữ lại §10.4; viết phần đánh giá paper.
 - **2026-10-23 — D6 delegates xong**: 482/484 delegate có symexec; điều kiện ADDR của tác giả đúng ở 318 delegate / 52.004 EOA, trong đó 36.041 EOA là MetaMask (ví hợp lệ) → FINDINGS_LOG. Không chạy `rules --only ADDR` riêng: lần `rules` đầy đủ (tự chạy sau `created`) sẽ dùng bảng delegate mới.
 - **2026-10-26 — D5 v0.6.2 bản soát cuối (sau commit 310efff, chưa có nhãn)**: cổng `sheet` dùng `check-delegates --strict` (phản đối chưa thống nhất vẫn chặn; thủ tục ở GOLD_PROTOCOL §2.3 và DELEGATE_REVIEW.md); bỏ miễn trừ router / bridge ở CODEBOOK §3.4, thêm ca 7d; (j′) `delegate_named` + κ `_no_delegate_any`; bước A tách rõ hai dòng `unknown`. Tập mẫu, khoá không đổi. 115 test pass. Hash mới ở FINDINGS_LOG mục v0.6.2. Chưa commit, chưa tag, chưa sinh Excel.
 - **2026-10-26 — D5 CODEBOOK v0.6.2 (soát lần ba, sau tag `prereg-gold-v0.6`, trước khi có nhãn)**: phát hiện 141/208 mẫu `code_at_event = 7702` có delegate hôm nay tạo SAU tx → nay `unknown` (người gán tra tab Authorizations), còn 67 mẫu do bảng delegate quyết định; luật cơ học so dấu tầng κ 0,744 → 0,457. Ca 7: chỉ ví có nhãn sàn (7a) mới không tính, 7b/7c vẫn tính (`low` + note); đếm lại: 160 mẫu ≥ 2 lần rút nhanh, −N4 vẫn 30/30 NONE, 7c cũ sẽ làm ~47 mẫu (gần hết dương) thành NONE; thêm phân tích độ nhạy (§4 k). Ca 13b thêm ngoại lệ ví sàn có nhãn. `check-delegates` thoát mã 1, `sheet --set main` từ chối khi chưa rà xong; cột `note_A`/`note_B`, lệnh `delegate-copy`, `merge-delegates`; `DELEGATE_REVIEW.md` cập nhật. §4 (j) viết rõ đại lượng ước lượng, CI hơi hẹp, bản kết hợp (b)+(j). `calldata_kind` không tra được → `unknown`. `HUONG_DAN_GAN_NHAN.md` thay bằng dòng trỏ tới CODEBOOK. Tập mẫu giống hệt 194ecfc/6400e8d (chỉ cột `code_at_event` đổi 141 ô), hai file khoá giữ hash. 111 test pass. Hash v0.6.2 ở FINDINGS_LOG (thay hash v0.6.1). Chưa commit, chưa tag, chưa sinh Excel.

@@ -1146,3 +1146,40 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 - **(h) silver (dấu tầng tác giả) so với vàng:** đồng ý 92.0%, κ 0.835. Tỉ lệ dương vàng: +NCD 0,98, +PCD 0,98, +D6 0,98, +KEY 0,89, +ADDR 0,87; −N1 0,20, −N3 0,20, −N8 0,12, −N5 0,08, −N2 0,02, −N4/−N6/−N7 0.
 - **(g) case study** (địa chỉ ẩn bớt): ở `data/interim/gold_eval.json` → `g_case_study` (TP: 5 +KEY `leaked_key` R 91,4; FP: G328, G290, G712, G458, G680; FN: G530, G544, G348 +ADDR T5 R 10,2, G284, G465 −N3 T5 R 0).
 - Tái tạo: `PYTHONPATH=src python -X utf8 -m address_misuse.gold_final build` rồi `... gold_final evaluate` (24 s).
+
+## 2026-11-10 — Engine v2 (tiền đăng ký `prereg-engine-v2`, GOLD_PROTOCOL §10) trên lô 1: TRONG MẪU, khám phá
+
+- **Vì sao v1 bỏ sót (74 FN, trọng số 176,5):**
+  - **T5/KEY: 46 địa chỉ, trọng số 139.** Tải lịch sử tài sản đầy đủ của 45 địa chỉ:
+    - 36 địa chỉ (trọng số 113) đã có ≥ 2 lần rút nhanh **trước `at`**;
+    - 6 địa chỉ (trọng số 12) chỉ đủ 2 lần khi tính cả sau `at`;
+    - 3 địa chỉ có < 2 lần trong toàn lịch sử.
+    - 36/46 có lần rút là token.
+    - Vậy phần lớn bỏ sót **không phải do mốc thời gian**. Nguyên nhân là v1 chỉ xem coin gốc trong 1.000 tx gần nhất (`HISTORY_WINDOW`) với luật `find_sweep_pairs` của tác giả.
+  - **T1/T4 không có code: 21 địa chỉ.** R = 62,39, ngay dưới τ_warn 63,01: tín hiệu T1 đầy đủ × trọng số bytecode 0,522.
+- **Lịch sử đầy đủ** (`engine/fullhist.py`): 584/584 mẫu không có code lúc tx. 25 địa chỉ bị cắt ở 20.000 sự kiện mỗi loại.
+- **Kết quả theo địa chỉ, HT, bootstrap 1.000 lần** (`gold_eval_v2 dev` → `data/interim/gold_eval_v2_dev.json`):
+
+| Bản | P | R [CI95] | F1 | FPR |
+|---|---|---|---|---|
+| v1 đóng băng (kết quả chính) | 0,939 | 0,675 [0,616–0,745] | 0,785 | 0,021 |
+| v1 + `ncd_call` | 0,922 | 0,724 | 0,811 | 0,029 |
+| v1 + `sweeper_full` (cắt tại `at`) | 0,842 | 0,900 | 0,870 | 0,081 |
+| **v2-at** (chính của v2) | **0,834** | **0,935 [0,896–0,969]** | **0,882** | 0,089 |
+| v2-at, theo dòng | 0,893 | 0,874 | 0,884 | 0,047 |
+| v2-at, (b) bỏ KEY/ADDR | 0,794 | 0,913 | 0,850 | 0,074 |
+| v2-at, (j) bỏ mẫu do delegate quyết định | 0,825 | 0,926 | 0,873 | 0,084 |
+| v2-at, (k) ca 7 lật về 0 | 0,602 | 0,939 | 0,734 | 0,188 |
+| v2-at, (k) ca 7 bỏ khỏi miền | 0,791 | 0,939 | 0,859 | 0,086 |
+| v2-now (toàn lịch sử) | 0,772 | 0,957 | 0,855 | 0,135 |
+
+- **Cờ mới của v2-at so với v1:** 81 địa chỉ, trong đó 59 dương vàng và 22 âm.
+  - Theo luật: `sweeper_full` 52, `ncd_call` 29.
+  - Âm theo tầng: −N4 11, −N1 4, −N8 4, +NCD 2, −N3 1.
+  - −N4 là ví nạp của sàn, tự gom về ví nóng có nhãn (ca 7a). Engine không đọc nhãn explorer, nên đây là nguồn FP chính.
+- **Đánh đổi:** F1 tăng 0,785 → 0,882, recall 0,675 → 0,935, precision giảm 0,939 → 0,834, FPR tăng 0,021 → 0,089.
+- **Giới hạn:**
+  - Đây là kết quả trong mẫu, vì v2 được thiết kế sau khi xem FN lô 1. Ngưỡng lấy nguyên từ CODEBOOK, không chỉnh theo nhãn.
+  - Luật `sweeper_full` và nhãn KEY dùng cùng loại bằng chứng (§4 b), nên bản (b) và (k) quan trọng.
+  - Đánh giá giữ lại là lô 2 (§10.4 b), chờ A gán.
+- Tái tạo: `python -X utf8 -m address_misuse.engine.fullhist fetch-items data/gold/main_items.csv` rồi `... -m address_misuse.gold_eval_v2 dev`.
