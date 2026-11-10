@@ -1183,3 +1183,7 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
   - Luật `sweeper_full` và nhãn KEY dùng cùng loại bằng chứng (§4 b), nên bản (b) và (k) quan trọng.
   - Đánh giá giữ lại là lô 2 (§10.4 b), chờ A gán.
 - Tái tạo: `python -X utf8 -m address_misuse.engine.fullhist fetch-items data/gold/main_items.csv` rồi `... -m address_misuse.gold_eval_v2 dev`.
+
+## 2026-11-10 — Rà delegate lô 2 xong
+
+Delegate mới duy nhất của lô 2 (eth `0x612373d7…51d3`, CaliburEntry của Uniswap Calibur, ví thông minh EIP-7702): A và B rà độc lập, cả hai đồng ý `legit_wallet`. Lý do: `execute` chỉ chạy với root key hoặc key đã đăng ký; đăng ký key chỉ qua self-call; không có hàm sweep/forward và không có địa chỉ đích cố định (hằng PUSH20 duy nhất là EntryPoint). 15/16 delegate còn lại của lô 2 đã có trong bảng lô 1. Tái tạo: gộp `delegate_review_batch2_{A,B}.xlsx` vào `delegate_lookup_batch2.csv`, chạy `check_delegates(strict=True)`, rồi `python -m address_misuse.gold_batch2 sheet`.

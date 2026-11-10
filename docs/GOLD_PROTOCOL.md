@@ -320,5 +320,5 @@ Băm sau khi chuẩn hoá LF, trừ file khoá (nguyên byte). Gắn tag trướ
 | `data/gold/batch2_items.csv` (124 mẫu) | `56938ffab266df65f6566e974b912a03a2b8d9d5fd93fcc6ab8251c1c7ca7367` |
 | `data/gold/batch2_key.csv` (không commit, nguyên byte) | `65d88042c012084cb9e5b112466db36f1a7e1ede256f85a4cb1a7891aa47bbe5` |
 
-- `data/gold/delegate_lookup_batch2.csv`: 1 delegate mới (eth `0x612373d7…51d3`, CaliburEntry của Uniswap, `legit_wallet`). Có ở mẫu L029, mẫu này `code_at_event = none`. Bảng lô 1 không sửa. Cột `class_A` và `class_B` sẽ được điền khi rà, nên bản băm ghi khi rà xong.
+- `data/gold/delegate_lookup_batch2.csv`: 1 delegate mới (eth `0x612373d7…51d3`, CaliburEntry của Uniswap, `legit_wallet`). Có ở mẫu L029, mẫu này `code_at_event = none`. Bảng lô 1 không sửa. A và B đã rà độc lập trên bản sao riêng (2026-11-10): cả hai ghi `ok` sau khi đọc source verified. Đã gộp; `check_delegates --strict` báo 0 lỗi. sha256 (LF) sau khi gộp: `7f66259da083d44e912205109299172ea021d83d291bac4a21b7deda6fbefd0d`. Sau đó mới sinh `annotator_batch2_A.xlsx` (124 mẫu; không commit).
 - Khi sinh bằng chứng, symexec lỗi ở 2 contract (TypeError trong bộ thực thi). Ô của 2 contract này để `-`, như quy tắc §3.
