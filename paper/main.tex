@@ -672,7 +672,18 @@ from the public-code candidate pool. These author-label numbers are optimistic
 compared with the gold set above.
 
 \subsection{Latency}
-\todo{Median and p95 for engine and Snap on a warm cache and a cold cache; effect of the per-network timeout on score availability.}
+We replay 300 destinations from the test split through the online engine
+(local HTTP service, public RPCs, one laptop). With a cold
+cache and a 300~ms timeout per network, the median is 138~ms, p95 236~ms and p99
+289~ms; 69\% of checks finish under 150~ms and 99\% see all eight networks.
+Lowering the timeout to 150~ms cuts p95 to 169~ms but only 76\% of checks then
+see all eight networks (0.37 networks missed on average), so the timeout trades
+latency for cross-chain coverage. With a warm cache a check takes 0.04~ms (p99
+0.08~ms). The cold-path floor is the round trip to the public RPC, about
+110--140~ms from our network, so the 150~ms budget is met at the median but needs
+a nearby or dedicated RPC at the tail. Decisions are identical under both
+timeouts (41 blocks, 40 of them on author-positive addresses). \todo{End-to-end
+latency inside MetaMask Flask (Snap transaction insight) and a screenshot.}
 
 %------------------------------------------------------------------
 \section{Discussion and Limitations}
