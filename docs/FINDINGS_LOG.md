@@ -1230,6 +1230,6 @@ A gán 124 mẫu (0 lỗi hình thức). Chạy `python -X utf8 -m address_misus
 - Ví Truffle `0x6273…ef57`: **block**, R 91,7, T5 KEY, lý do: delegate 7702 trong danh sách đen + khoá lộ công khai. Lần gọi đầu tiên sau khi bật engine: 1.033 ms và báo không kiểm tra được 7/8 mạng (kết nối RPC chưa mở); gọi lại (cache): engine 0,08 ms, HTTP 0,3 ms, đủ mạng.
 - PancakeSwap Router BSC `0x10ed…024e` trên ETH: **ok**, R 11,1. Hôm nay địa chỉ này trên ETH ĐÃ có code (khác BSC) → PCD-XC; demo Anvil trước đây chặn vì fork ở block cũ khi chưa có code. Dự đoán "cảnh báo" của người điều phối sai, engine đúng: cảnh báo phản ánh trạng thái lúc ký. Gửi kèm calldata + value (gọi trực tiếp engine): R 16,1, vẫn ok.
 - USDT: **ok**, R 11,1, engine 244 ms (lần đầu với địa chỉ này).
-- Ảnh: `paper/figures/snap_block_truffle_full.png`, `snap_ok_pancake_eth_full.png`, `snap_ok_usdt.png`.
+- Paper chỉ dùng số liệu, không dùng ảnh chụp (người dùng quyết định 2026-11-13); ảnh gốc nằm ở thư mục Screenshots của người dùng, không đưa vào repo.
 - Cho paper: Snap hiển thị đúng quyết định của engine; độ trễ engine trong ví 244–265 ms lần đầu với một địa chỉ (cao hơn bench p50 138 ms), 0,08 ms khi cache. Gợi ý sửa: mở sẵn kết nối RPC lúc khởi động (`OnlineStore.warm`). MetaMask không cho đo lúc panel hiện, nên chỉ báo thời gian phía engine.
 
