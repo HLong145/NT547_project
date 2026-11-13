@@ -218,22 +218,55 @@ derived addresses. Personal addresses are truncated in the text
 \paragraph{Address misuse.} Shao et al.~\cite{shao2026lost} introduce the
 problem, detection rules and a dataset for Ethereum and BSC. We differ in
 treating the chains jointly, in measuring the timeline needed for prevention,
-and in evaluating a wallet-side defense. \todo{Add the 3--5 papers on address poisoning, sweeper bots and leaked-key theft that the team selects.}
+and in evaluating a wallet-side defense. Address poisoning is the closest
+sending error caused by an adversary: look-alike addresses are planted in a
+victim's history so that the victim copies the wrong one. Guan and
+Li~\cite{guan2024poisoning} characterize it on Ethereum, and Tsuchiya et
+al.~\cite{tsuchiya2025poisoning} count 270M attack attempts on Ethereum and BSC
+with at least 83.8M USD lost and suggest wallet interface changes. Poisoning
+relies on a look-alike address; misuse can happen with the intended address
+when that address cannot hold the asset on the chain used. Leaked keys, the source of our T5
+class, are a long-standing problem: secrets leak at scale in public
+repositories~\cite{meli2019git}, guessable brain-wallet keys are drained by
+attackers who watch them~\cite{vasek2016brain}, and Zhou et
+al.~\cite{zhou2024keyleak} link keys leaked on websites to asset withdrawals on
+Ethereum and BSC. The bots that sweep such wallets belong to the wider class of
+automated agents that watch pending transactions and act first~\cite{daian2020flash,torres2021frontrunner}.
 
 \paragraph{EIP-7702 delegation.} EIP-7702~\cite{eip7702} lets an EOA point its
 code to a delegate contract. Because a delegate that can move funds is also what
 every legitimate smart wallet is, ``can transfer'' cannot define maliciousness.
 We show this on the data (Section~\ref{sec:replication}) and use a verified
-allow-list of benign delegates (N6). \todo{Add measurement studies of 7702 abuse.}
+allow-list of benign delegates (N6). Huang et al.~\cite{huang2026eip7702}
+study the risks that 7702 introduced on seven chains, find 924 malicious
+contract accounts and group the attacks by victim (EOA-targeted, CA-targeted,
+composite). Their focus is the attacker's contracts; ours is the honest sender
+who pays into an address that a malicious delegate controls.
 
-\paragraph{Multi-chain deployment.} Deterministic deployers and CREATE2 factories
-are widely used to give a protocol the same address on every chain. We use them
-as a source of benign negatives (N7) and as the mechanism behind redeployability.
-\todo{Add references on cross-chain deployment practices and replay issues.}
+\paragraph{Multi-chain deployment.} \texttt{CREATE2}~\cite{eip1014} makes a
+contract address depend only on the deployer, a salt and the init code, and
+factories built on it now create most contracts~\cite{wang2026factories}.
+Deterministic deployers and such factories give a protocol the same address on
+every chain. We use them as a source of benign negatives (N7) and as the
+mechanism behind redeployability. Reusing a contract across chains is
+error-prone: Wang et al.~\cite{wang2025copypaste} find code that does not behave
+the same on other EVM chains, and transaction replay across chains was serious
+enough that EIP-155~\cite{eip155} added the chain id to signatures. An address
+also need not keep its code, since many Ethereum contracts are
+upgradeable~\cite{salehi2022immutable}; this is why our engine checks code at
+signing time rather than trusting a stored label.
 
 \paragraph{Wallet-side protection.} Transaction simulation and warnings in
-wallets reveal balance changes and approvals. They do not reason about
-destination type or cross-chain state. \todo{Cite simulation-based pre-sign defenses and MetaMask Snaps transaction-insight documentation.}
+wallets reveal balance changes and approvals. TxPhishScope~\cite{he2023txphishscope}
+visits suspicious sites, simulates the transactions they request and flags the
+phishing ones; Chen et al.~\cite{chen2025payload} study phishing carried in
+transaction payloads and observe that current anti-phishing tools rely on
+pre-execution and blacklists. Hu et al.~\cite{hu2026walletruth} test 39 widely
+used browser wallet extensions, identify 12 attack vectors and find that all of
+the wallets can be abused to steal assets. These defenses target a malicious counterparty; they do not
+reason about destination type or cross-chain state, which is what an honest
+mistake needs. We deliver our check through MetaMask's transaction-insight
+interface for Snaps~\cite{metamask_insights}.
 
 %------------------------------------------------------------------
 \section{Data and Methodology}

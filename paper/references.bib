@@ -1,14 +1,196 @@
+% Every entry below was checked on 2026-11-13 against the publisher record (Crossref DOI or the
+% USENIX / NDSS / EIP page). Only peer-reviewed venues and official specifications are cited.
+% Verification notes: docs/FINDINGS_LOG.md, 2026-11-13 "Tài liệu tham khảo".
+
+% ---------------------------------------------------------------- address misuse
 @inproceedings{shao2026lost,
-  author    = {Shao, Zhenzhe and others},
-  title     = {Lost in Blockchain: Address Misuse},
-  booktitle = {Proceedings of the USENIX Security Symposium},
+  author    = {Shao, Zhenzhe and Zhang, Jiashuo and Li, Zihao and Wu, Daoyuan and Chen, Chong and
+               Shen, Yiming and Bao, Lingfeng and Wang, Yanlin and Chen, Jiachi},
+  title     = {Lost in Blockchain Address Misuse: Hidden Cross-Platform Risks and Their Security Impact},
+  booktitle = {Proceedings of the 35th USENIX Security Symposium (USENIX Security '26)},
+  publisher = {USENIX Association},
   year      = {2026},
-  note      = {TODO: verify full author list, title and venue against the USENIX page}
+  url       = {https://www.usenix.org/conference/usenixsecurity26/presentation/shao-zhenzhe}
 }
 
+% ---------------------------------------------------------------- address poisoning
+@inproceedings{guan2024poisoning,
+  author    = {Guan, Shixuan and Li, Kai},
+  title     = {Characterizing {Ethereum} Address Poisoning Attack},
+  booktitle = {Proceedings of the 2024 ACM SIGSAC Conference on Computer and Communications Security (CCS '24)},
+  pages     = {986--1000},
+  publisher = {ACM},
+  year      = {2024},
+  doi       = {10.1145/3658644.3690277}
+}
+
+@inproceedings{tsuchiya2025poisoning,
+  author    = {Tsuchiya, Taro and Dong, Jin-Dong and Soska, Kyle and Christin, Nicolas},
+  title     = {Blockchain Address Poisoning},
+  booktitle = {Proceedings of the 34th USENIX Security Symposium (USENIX Security '25)},
+  pages     = {1243--1262},
+  publisher = {USENIX Association},
+  year      = {2025},
+  url       = {https://www.usenix.org/conference/usenixsecurity25/presentation/tsuchiya}
+}
+
+% ---------------------------------------------------------------- leaked keys, bots
+@inproceedings{meli2019git,
+  author    = {Meli, Michael and McNiece, Matthew R. and Reaves, Bradley},
+  title     = {How Bad Can It Git? {Characterizing} Secret Leakage in Public {GitHub} Repositories},
+  booktitle = {Proceedings of the Network and Distributed System Security Symposium (NDSS)},
+  publisher = {Internet Society},
+  year      = {2019},
+  doi       = {10.14722/ndss.2019.23418}
+}
+
+@inproceedings{vasek2016brain,
+  author    = {Vasek, Marie and Bonneau, Joseph and Castellucci, Ryan and Keith, Cameron and Moore, Tyler},
+  title     = {The {Bitcoin} Brain Drain: Examining the Use and Abuse of {Bitcoin} Brain Wallets},
+  booktitle = {Financial Cryptography and Data Security (FC 2016)},
+  series    = {Lecture Notes in Computer Science},
+  pages     = {609--618},
+  publisher = {Springer},
+  year      = {2017},
+  doi       = {10.1007/978-3-662-54970-4_36}
+}
+
+@inproceedings{zhou2024keyleak,
+  author    = {Zhou, Yuxuan and Chen, Jiaqi and Wang, Yibo and Tang, Yuzhe and Gu, Guofei},
+  title     = {Towards Understanding Crypto-Asset Risks on {Ethereum} Caused by Key Leakage on the Internet},
+  booktitle = {Companion Proceedings of the ACM Web Conference 2024 (WWW '24)},
+  pages     = {875--878},
+  publisher = {ACM},
+  year      = {2024},
+  doi       = {10.1145/3589335.3651573}
+}
+
+@inproceedings{daian2020flash,
+  author    = {Daian, Philip and Goldfeder, Steven and Kell, Tyler and Li, Yunqi and Zhao, Xueyuan and
+               Bentov, Iddo and Breidenbach, Lorenz and Juels, Ari},
+  title     = {Flash Boys 2.0: Frontrunning in Decentralized Exchanges, Miner Extractable Value, and
+               Consensus Instability},
+  booktitle = {2020 IEEE Symposium on Security and Privacy (SP)},
+  pages     = {910--927},
+  publisher = {IEEE},
+  year      = {2020},
+  doi       = {10.1109/SP40000.2020.00040}
+}
+
+@inproceedings{torres2021frontrunner,
+  author    = {Ferreira Torres, Christof and Camino, Ramiro and State, Radu},
+  title     = {Frontrunner Jones and the Raiders of the Dark Forest: An Empirical Study of Frontrunning on
+               the {Ethereum} Blockchain},
+  booktitle = {Proceedings of the 30th USENIX Security Symposium (USENIX Security '21)},
+  publisher = {USENIX Association},
+  year      = {2021},
+  url       = {https://www.usenix.org/conference/usenixsecurity21/presentation/torres}
+}
+
+% ---------------------------------------------------------------- EIP-7702
 @misc{eip7702,
-  author       = {Buterin, Vitalik and others},
-  title        = {{EIP-7702}: Set {EOA} account code},
+  author       = {Buterin, Vitalik and Wilson, Sam and Dietrichs, Ansgar and {lightclient}},
+  title        = {{EIP-7702}: Set Code for {EOAs}},
   year         = {2024},
-  howpublished = {\url{https://eips.ethereum.org/EIPS/eip-7702}}
+  howpublished = {Ethereum Improvement Proposals, \url{https://eips.ethereum.org/EIPS/eip-7702}}
+}
+
+@inproceedings{huang2026eip7702,
+  author    = {Huang, Mingyuan and Liu, Han and Yang, Shuo and Wu, Daoyuan and Wang, Shuai},
+  title     = {Revealing the Dark Side of Smart Accounts: An Empirical Study of {EIP-7702} Incurred Risks
+               in Blockchain Ecosystem},
+  booktitle = {Proceedings of the 35th USENIX Security Symposium (USENIX Security '26)},
+  publisher = {USENIX Association},
+  year      = {2026},
+  url       = {https://www.usenix.org/conference/usenixsecurity26/presentation/huang-mingyuan}
+}
+
+% ---------------------------------------------------------------- multi-chain deployment
+@misc{eip1014,
+  author       = {Buterin, Vitalik},
+  title        = {{EIP-1014}: Skinny {CREATE2}},
+  year         = {2018},
+  howpublished = {Ethereum Improvement Proposals, \url{https://eips.ethereum.org/EIPS/eip-1014}}
+}
+
+@misc{eip155,
+  author       = {Buterin, Vitalik},
+  title        = {{EIP-155}: Simple replay attack protection},
+  year         = {2016},
+  howpublished = {Ethereum Improvement Proposals, \url{https://eips.ethereum.org/EIPS/eip-155}}
+}
+
+@article{wang2026factories,
+  author    = {Wang, Ziyue and Shen, Zongwen and Chen, Lei and Song, Wei and Ge, Jidong and Huang, LiGuo and
+               Luo, Bin},
+  title     = {Empirical Analysis of Smart Contract Factories on {EVM}-Compatible Chains},
+  journal   = {ACM Transactions on Software Engineering and Methodology},
+  volume    = {35},
+  number    = {8},
+  pages     = {1--29},
+  year      = {2026},
+  doi       = {10.1145/3787216}
+}
+
+@article{wang2025copypaste,
+  author    = {Wang, Zexu and Chen, Jiachi and Zhang, Tao and Zhang, Yu and Zhang, Weizhe and Feng, Yuming and
+               Zheng, Zibin},
+  title     = {Copy-and-Paste? {Identifying} {EVM}-Inequivalent Code Smells in Multi-chain Reuse Contracts},
+  journal   = {Proceedings of the ACM on Software Engineering},
+  volume    = {2},
+  number    = {ISSTA},
+  pages     = {1031--1053},
+  year      = {2025},
+  doi       = {10.1145/3728921}
+}
+
+@inproceedings{salehi2022immutable,
+  author    = {Salehi, Mehdi and Clark, Jeremy and Mannan, Mohammad},
+  title     = {Not so Immutable: Upgradeability of Smart Contracts on {Ethereum}},
+  booktitle = {Financial Cryptography and Data Security. FC 2022 International Workshops},
+  series    = {Lecture Notes in Computer Science},
+  pages     = {539--554},
+  publisher = {Springer},
+  year      = {2023},
+  doi       = {10.1007/978-3-031-32415-4_33}
+}
+
+% ---------------------------------------------------------------- wallet-side protection
+@inproceedings{he2023txphishscope,
+  author    = {He, Bowen and Chen, Yuan and Chen, Zhuo and Hu, Xiaohui and Hu, Yufeng and Wu, Lei and
+               Chang, Rui and Wang, Haoyu and Zhou, Yajin},
+  title     = {{TxPhishScope}: Towards Detecting and Understanding Transaction-based Phishing on {Ethereum}},
+  booktitle = {Proceedings of the 2023 ACM SIGSAC Conference on Computer and Communications Security (CCS '23)},
+  pages     = {120--134},
+  publisher = {ACM},
+  year      = {2023},
+  doi       = {10.1145/3576915.3623210}
+}
+
+@inproceedings{chen2025payload,
+  author    = {Chen, Zhuo and Hu, Yufeng and He, Bowen and Luo, Dong and Wu, Lei and Zhou, Yajin},
+  title     = {Dissecting Payload-based Transaction Phishing on {Ethereum}},
+  booktitle = {Proceedings of the Network and Distributed System Security Symposium (NDSS)},
+  publisher = {Internet Society},
+  year      = {2025},
+  doi       = {10.14722/ndss.2025.230311}
+}
+
+@article{hu2026walletruth,
+  author    = {Hu, Xiaohui and He, Ningyu and Wang, Haoyu},
+  title     = {{WalleTruth}: Visual-Oriented Software Testing for {Web3} Wallet Browser Extensions},
+  journal   = {Proceedings of the ACM on Software Engineering},
+  volume    = {3},
+  number    = {FSE},
+  pages     = {182--204},
+  year      = {2026},
+  doi       = {10.1145/3797150}
+}
+
+@misc{metamask_insights,
+  author       = {{MetaMask}},
+  title        = {Transaction insights ({MetaMask} {Snaps} documentation)},
+  year         = {2026},
+  howpublished = {\url{https://docs.metamask.io/snaps/features/transaction-insights/}},
+  note         = {Accessed 2026-11-13}
 }

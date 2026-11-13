@@ -1248,3 +1248,12 @@ A gán 124 mẫu (0 lỗi hình thức). Chạy `python -X utf8 -m address_misus
 - `pd.read_parquet('data/final/dataset_v2.parquet').groupby(['grp','chain']).size()`:
   N1 200/200 (BSC/ETH), N2 800/800, N3 280/456, N4 46/37, N5 60/58, N6 0/5, N7 18/18 (18 contract, mỗi chain một mẫu), N8 985/984.
 - Tổng: N2 1.600, N3 736, N4 83, N5 118 (42 bị tool tác giả gắn PCD), N8 1.969.
+
+## 2026-11-13 — Tài liệu tham khảo (paper/references.bib): chỉ nguồn đã bình duyệt, đã xác minh
+
+- Tiêu chí (người dùng yêu cầu): chỉ bài ở hội nghị/tạp chí uy tín hoặc đặc tả chính thức (EIP, tài liệu MetaMask); bỏ bài chỉ có trên arXiv/ePrint.
+- Cách kiểm: Crossref `api.crossref.org/works` (tên, tác giả, nơi đăng, trang, DOI), trang USENIX (tên, tác giả), file EIP gốc trên GitHub ethereum/EIPs (tác giả, ngày), tải trang tài liệu MetaMask (HTTP 200). Câu mô tả mỗi bài trong paper chỉ dùng điều có trong abstract.
+- 19 mục: Shao USENIX Sec '26 (**tên đúng: "Lost in Blockchain Address Misuse: Hidden Cross-Platform Risks and Their Security Impact"**, 9 tác giả; bib cũ ghi sai tên); Guan & Li CCS '24; Tsuchiya et al. USENIX Sec '25; Meli et al. NDSS '19; Vasek et al. FC '16; Zhou et al. WWW '24 Companion (bài ngắn 4 trang); Daian et al. IEEE S&P '20; Torres et al. USENIX Sec '21; Huang et al. USENIX Sec '26 (EIP-7702, 924 contract độc, 7 chain); Wang et al. TOSEM 2026 (factory/CREATE2); Wang et al. PACMSE/ISSTA '25 (contract dùng lại đa chuỗi); Salehi et al. FC '22 Workshops; He et al. CCS '23 (TxPhishScope); Chen et al. NDSS '25; Hu et al. PACMSE/FSE '26 (WalleTruth); EIP-155, EIP-1014, EIP-7702; tài liệu MetaMask Snaps transaction insights.
+- Đã loại vì chỉ là preprint: "EIP-7702 Phishing Attack" (arXiv 2512.12174), "Who Swept My ETH?" (arXiv 2610.41153), "Blockchain Transaction Simulation Phishing" (arXiv 2607.28747), DelegProof (ePrint 2026/2060), approval-phishing intervention (ePrint 2026/1310). Nếu sau này được nhận ở hội nghị thì có thể thêm.
+- Không xác minh được và đã KHÔNG dùng: con số "63% authorization 7702 gắn với tấn công" (chỉ thấy ở nguồn thứ cấp, không có trong abstract của Huang et al.).
+- Còn để nhóm: tuyên bố công bố có trách nhiệm (responsible disclosure) và lời cảm ơn.
