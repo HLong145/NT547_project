@@ -323,7 +323,25 @@ $\ge0.8$, followed by adjudication and codebook revision. We first run a pilot
 of 50 items. The evidence presented to annotators is \emph{blinded}: every item
 gets the same evidence columns for all strata, because in an earlier version a
 column that was filled only for some strata let annotators infer the stratum.
-The hidden key is never shown. \todo{Final size of the gold set (target about 2{,}000), $\kappa$ on misuse and on type, and number of items adjudicated.}
+The hidden key is never shown.
+
+\paragraph{Sample and agreement.} The sampling frame is the 2{,}010 test and
+out-of-time rows of our dataset, grouped into cells by author stratum, chain and
+whether the frozen detector flags the address. Batch~1 labels every
+author-positive address and the flagged negatives (a census) and a simple random
+sample of the unflagged negative cells, 758 addresses in total; estimates use
+Horvitz--Thompson weights (cell size over labelled count) and a bootstrap that
+resamples within sampled cells. Of these, 200 were labelled by both annotators.
+The first 50 double-labelled items served as a gate: $\kappa=0.69$ missed the
+pre-registered 0.70, so we revised the codebook once (v0.6.3) and measured the
+official $\kappa$ on the 200 items that had not been used for the revision:
+$\kappa(\text{misuse})=0.80$ [0.69--0.90], 180/200 agreement, and
+$\kappa(\text{type})=0.82$. A rule that labels mechanically from the evidence
+columns agrees with the final labels only at $\kappa=0.48$, and annotator
+disagreement concentrates where it fails ($\kappa=0.10$ on those 54 items), so
+the labels add information beyond the columns. All 30 disagreements were
+adjudicated in writing; the final set has 441 positives (T5 261, T4 137, T1 41,
+T2 1, T3 1) and 317 negatives.
 
 \paragraph{Negatives.} A detector can only be evaluated against realistic
 benign cases.
@@ -384,7 +402,12 @@ The warning threshold $\tau_{\mathrm{warn}}$ is the lowest value with false
 positive rate $\le1\%$ on ordinary transactions (N8) on the validation set.
 Two hard rules, leaked key and known malicious delegate, warn regardless of $R$;
 we report their effect separately so they do not inflate the score's apparent
-quality. \todo{Learned weights and thresholds.}
+quality. The learned weights are $w_{\mathrm{bytecode}}=0.522$,
+$w_{\mathrm{osint}}=0.359$, $w_{\mathrm{cross}}=0.086$ and
+$w_{\mathrm{history}}=0.033$, with $\tau_{\mathrm{warn}}=63.0$ and
+$\tau_{\mathrm{block}}=65.7$. The threshold is fragile: an address-level
+bootstrap of the validation set (only 186 ordinary-transaction negatives) gives
+$\tau_{\mathrm{warn}}$ percentiles p5 25.9, p50 63.0 and p95 65.7.
 
 \subsection{Wallet-side warning}
 The warning is split into an \emph{offline} part that precomputes expensive
@@ -541,8 +564,76 @@ different code there. The ETH column reflects the updated Binplorer coverage; th
 earlier ETH unknown count of 14{,}955 has dropped to 1{,}572.
 
 \subsection{Detection quality (RQ3)}
-\todo{Gold set results: precision, recall, F1 and FPR by type and by chain with bootstrap confidence intervals; ROC and PR curves of $R(A,C)$; $\kappa$.}
-\todo{Ablation: drop each $S_i$; $S_{\mathrm{cross}}$ alone; the original rules alone. Report hard-rule and score contributions separately. Note that $S_{\mathrm{osint}}$ is binary in this version and cannot separate positives from N1, since both come from the public-code candidate pool.}
+\paragraph{Frozen detector (main result).} The detector was frozen before any
+gold label was seen. Table~\ref{tab:gold} reports it against the gold labels of
+batch~1, per address with Horvitz--Thompson weights.
+\begin{table}[t]
+\caption{Frozen detector (v1) and the revised engine (v2) on the gold set,
+batch~1, per address. v2 was designed after inspecting v1's misses on this batch
+and is therefore in-sample. 95\% CIs from a stratified bootstrap.}
+\label{tab:gold}
+\centering
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Detector / scenario & Precision & Recall & F1 & FPR\\
+\midrule
+v1, main & 0.939 & 0.675 [0.62--0.75] & 0.785 & 0.021\\
+v1, per transaction row & 0.939 & 0.380 & 0.541 & 0.011\\
+v1, without KEY/ADDR strata & 0.974 & 0.544 & 0.698 & 0.005\\
+v1, without delegate-decided items & 0.930 & 0.638 & 0.757 & 0.020\\
+v1, ambiguous sweeps as negative & 0.801 & 0.801 & 0.801 & 0.061\\
+\midrule
+v1 + \texttt{ncd\_call} & 0.922 & 0.724 & 0.811 & 0.029\\
+v1 + \texttt{sweeper\_full} (before $t$) & 0.842 & 0.900 & 0.870 & 0.081\\
+v2 (cut at $t$) & 0.834 & 0.935 [0.90--0.97] & 0.882 & 0.089\\
+v2 (full history to today) & 0.772 & 0.957 & 0.855 & 0.135\\
+\bottomrule
+\end{tabular}
+\end{table}
+Precision is high, but recall is only 0.68, and the gap is not where the
+original rules are weak. Hidden positives, that is gold positives in
+author-negative cells that the detector does not flag, are estimated at 143
+addresses (one-sided 95\% upper bound 188), so recall could be as low as 0.61.
+Scenario analyses bracket the main number: removing the leaked-key and
+address-poisoning strata, whose labels are lower bounds, lowers recall to 0.54;
+counting sweeps to unlabelled wallets (codebook case~7b--d) as benign raises it
+to 0.80 at a precision of 0.80. Per transaction row recall falls to 0.38 because
+a few missed sweepers carry many rows.
+
+\paragraph{Why v1 misses.} Two causes explain most false negatives. First, a pure
+T1 signal (a call with data to an empty address) gives
+$R=100\,w_{\mathrm{bytecode}}=62.4$, just below $\tau_{\mathrm{warn}}=63.0$, so
+the learned weights suppress T1 unless another component fires. Second, the
+history feature sees only the last 1{,}000 native-coin transactions before $t$,
+whereas 36 of the 45 missed leaked-key addresses had already made at least two
+fast withdrawals before $t$, mostly of tokens. Engine v2 therefore adds two
+pre-registered rules with thresholds taken unchanged from the codebook: warn
+on a call with data to an address with no code (\texttt{ncd\_call}), and warn when the
+full asset history (native, internal, ERC-20/721/1155) shows at least two fast
+withdrawals ($\le600$\,s, 90--102\% of the deposit, to a third party, no asset
+returned) before $t$ (\texttt{sweeper\_full}). On batch~1, v2 raises recall to
+0.935 at precision 0.834 (Table~\ref{tab:gold}). Of its 81 new warnings, 59 are
+gold positives; 11 of the 22 false warnings are exchange deposit wallets whose
+forwards look like sweeps, which a wallet could suppress with exchange labels.
+Because v2 was designed on this batch, we evaluate it on a held-out batch below.
+
+\paragraph{Held-out batch.} \todo{Batch 2 (pre-registered, GOLD\_PROTOCOL \S10.4):
+100 further random author-negatives from the unflagged cells, labelled by a single
+annotator, plus 24 hidden re-labels of that annotator's batch-1 items.
+Report (a) the re-label disagreement with Clopper--Pearson CI; (b) hidden
+positives found and recall/FPR of v1, v2 (cut at $t$) and v2 (today) on batch~2
+with weights $(N_c-k_c)/n_2$; (c) v1 and v2 on batch~1 $\cup$ batch~2.}
+
+\paragraph{Baselines and ablation (author labels, test split).} A commercial
+address-security API (GoPlus), queried today and thus with hindsight, reaches
+precision 0.29, recall 0.020 and F1 0.038, against F1 0.925 for the engine on the
+same items; combining both does not help. The naive rule ``no code and calldata''
+has precision 0.24 and FPR 0.36. Dropping one component at a time gives F1 0.905
+without $S_{\mathrm{bytecode}}$, 0.822 without $S_{\mathrm{cross}}$, 0.925 without
+$S_{\mathrm{osint}}$ and 0.874 without $S_{\mathrm{history}}$ (all four: 0.926).
+$S_{\mathrm{osint}}$ barely matters because positives and N1 negatives both come
+from the public-code candidate pool. These author-label numbers are optimistic
+compared with the gold set above.
 
 \subsection{Latency}
 \todo{Median and p95 for engine and Snap on a warm cache and a cold cache; effect of the per-network timeout on score availability.}
