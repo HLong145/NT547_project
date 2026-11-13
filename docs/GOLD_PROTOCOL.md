@@ -261,7 +261,7 @@ Chỉ là lịch sử, đã áp dụng ở v0.4–v0.6; có thể khác quy tắ
 - v1 đóng băng (994bb2b) vẫn là **kết quả chính** của paper (§4, FINDINGS_LOG 2026-11-08). v2 không thay v1.
 - v2 được thiết kế **sau khi xem FN của v1 trên lô 1**:
   - 74 địa chỉ FN, trọng số HT 176,5. Trong đó T5/KEY có 46 địa chỉ, trọng số 139,0.
-  - 21 địa chỉ T1/T4 không có code lúc tx có R = 62,39, ngay dưới τ_warn = 63,01. Tín hiệu T1 đầy đủ chỉ được nhân trọng số bytecode 0,522.
+  - 21 địa chỉ T1/T4 không có code lúc tx có R = 62,39, ngay dưới τ_warn = 63,01. Tín hiệu T1 đầy đủ chỉ được nhân trọng số bytecode 0,522. (Đính chính 2026-11-13, không đổi thiết kế: chính xác R = 100·(0,522·1 + 0,359·0,2835), phần 10,2 điểm là S_osint của địa chỉ có trong mã nguồn công khai; xem FINDINGS_LOG cùng ngày.)
 - Vì vậy kết quả v2 trên lô 1 là **trong mẫu / khám phá**. Đánh giá giữ lại (held-out) là lô 2 (§10.3).
 
 ### 10.2. Định nghĩa v2 (đóng băng ở tag `prereg-engine-v2`)

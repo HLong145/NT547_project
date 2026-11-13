@@ -6,6 +6,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{amsmath,amssymb}
 \usepackage{xcolor}
 \usepackage{siunitx}
@@ -149,7 +150,8 @@ $\kappa$ (contract code) and $\delta$ (an EIP-7702 delegation indicator, bytecod
 starting with \texttt{0xef0100}). A contract created with \texttt{CREATE} lives at
 $\text{keccak}_{160}(\text{rlp}(d,n))$ for deployer $d$ and nonce $n$; with
 \texttt{CREATE2} at $\text{keccak}_{160}(\texttt{0xff}\Vert d\Vert s\Vert
-\text{keccak}(\mathit{init}))$. Neither formula contains a chain identifier.
+\text{keccak}(\mathit{init}))$~\cite{wood2014yellow,eip1014}. Neither formula
+contains a chain identifier.
 Hence the same deployer using the same nonce, or the same factory with the same
 salt and init code, yields the same address on every EVM chain. This property is
 what makes multi-chain deployments convenient and misalignment possible.
@@ -179,7 +181,7 @@ class of this paper.
 first transaction to the address on the chain under study.}
 \label{tab:taxonomy}
 \centering
-\begin{tabular}{@{}llp{6.9cm}@{}}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{6.4cm}@{}}
 \toprule
 Type & Name & Defining condition\\
 \midrule
@@ -187,7 +189,7 @@ T1 & Call to empty address & \NCD{} and no contract at that address on any other
 chain before $t_0$\\
 T2 & Black-hole contract & Code present, receives coin, no withdrawal path
 (no \texttt{transfer}/\texttt{delegatecall} out in symbolic execution)\\
-T3 & Token sent to its own contract & ERC-20 \texttt{transfer} with
+T3 & Token sent to its own contract & ERC-20~\cite{eip20} \texttt{transfer} with
 $\mathit{to}$ equal to the token contract\\
 T4 & Cross-chain misalignment & \NCD{} here, and a contract with that address
 deployed on another chain before $t_0$\\
@@ -230,7 +232,9 @@ class, are a long-standing problem: secrets leak at scale in public
 repositories~\cite{meli2019git}, guessable brain-wallet keys are drained by
 attackers who watch them~\cite{vasek2016brain}, and Zhou et
 al.~\cite{zhou2024keyleak} link keys leaked on websites to asset withdrawals on
-Ethereum and BSC. The bots that sweep such wallets belong to the wider class of
+Ethereum and BSC. Contracts that accept Ether but can never release it, our T2,
+correspond to the ``greedy'' contracts that lock funds indefinitely in the
+analysis of Nikoli\'c et al.~\cite{nikolic2018maian}. The bots that sweep such wallets belong to the wider class of
 automated agents that watch pending transactions and act first~\cite{daian2020flash,torres2021frontrunner}.
 
 \paragraph{EIP-7702 delegation.} EIP-7702~\cite{eip7702} lets an EOA point its
@@ -280,13 +284,13 @@ returns.
 \label{tab:data}
 \centering
 \small
-\begin{tabular}{@{}p{2.1cm}p{3.2cm}p{6.1cm}@{}}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.6cm}>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{5.9cm}@{}}
 \toprule
 Id & Source & Use and known limit\\
 \midrule
 D0 & Zenodo release of~\cite{shao2026lost} & Seed addresses and labels (CA and EOA misuse, delegates, symbolic-execution results)\\
 D1 & Google BigQuery \texttt{crypto\_ethereum} & Ethereum transactions to 35{,}664 seed addresses (22{,}397{,}803 rows, key = block number and index; \texttt{input} column excluded to avoid a 3.3~TB scan)\\
-D1 (BSC) & Etherscan V2 (eth/arb/polygon/sepolia only); NodeReal \texttt{nr\_getTransactionByAddress} & No BSC dataset exists in BigQuery; NodeReal gives the first external transaction\\
+D1 (BSC) & Etherscan V2 (eth/arb/polygon/sepolia only); NodeReal \texttt{nr\_getTransaction}\-\texttt{ByAddress} & No BSC dataset exists in BigQuery; NodeReal gives the first external transaction\\
 D3 & \texttt{eth\_getCode} on eight networks; Etherscan \texttt{getcontractcreation}; Binplorer & Code state; creator and creation time (Etherscan free tier lacks BSC/OP/Base, so Binplorer covers BSC)\\
 D5 & Manual audit & Gold labels, Section~\ref{sec:gold}\\
 \bottomrule
@@ -358,7 +362,7 @@ capture funds that users keep sending.
 \label{sec:gold}
 \paragraph{Protocol.} The unit of annotation is a pair (chain, address). Two
 annotators label independently with a written codebook that contains a decision
-tree and hard cases; agreement is measured by Cohen's $\kappa$ with target
+tree and hard cases; agreement is measured by Cohen's $\kappa$~\cite{cohen1960kappa} with target
 $\ge0.8$, followed by adjudication and codebook revision. We first run a pilot
 of 50 items. The evidence presented to annotators is \emph{blinded}: every item
 gets the same evidence columns for all strata, because in an earlier version a
@@ -370,8 +374,8 @@ out-of-time rows of our dataset, grouped into cells by author stratum, chain and
 whether the frozen detector flags the address. Batch~1 labels every
 author-positive address and the flagged negatives (a census) and a simple random
 sample of the unflagged negative cells, 758 addresses in total; estimates use
-Horvitz--Thompson weights (cell size over labelled count) and a bootstrap that
-resamples within sampled cells. Of these, 200 were labelled by both annotators.
+Horvitz--Thompson weights~\cite{horvitz1952} (cell size over labelled count)
+and a bootstrap~\cite{efron1979bootstrap} that resamples within sampled cells. Of these, 200 were labelled by both annotators.
 The first 50 double-labelled items served as a gate: $\kappa=0.69$ missed the
 pre-registered 0.70, so we revised the codebook once (v0.6.3) and measured the
 official $\kappa$ on the 200 items that had not been used for the revision:
@@ -391,7 +395,8 @@ are not flagged (200 per chain);
 \item N6: five verified benign 7702 delegates (MetaMask, Coinbase, Uniswap,
 eth-infinitism Simple7702Account, Ambire);
 \item N7: 18 infrastructure contracts deployed at the same address on at least
-six networks (CREATE2 factories, Multicall3, Permit2, Safe, EntryPoint, 1inch,
+six networks (CREATE2 factories, Multicall3, Permit2, Safe, the ERC-4337
+EntryPoint~\cite{erc4337}, 1inch,
 0x, Seaport);
 \item N2: 1{,}600 ordinary contract calls and N8: 1{,}969 transactions drawn at
 random (one per block) from random blocks in 2020--2026, half per chain; N8 is
@@ -445,7 +450,7 @@ earlier hits of the replicated rules from multiple senders.
 
 \paragraph{Learning and thresholds.} We fit a logistic regression with
 non-negative coefficients on the four components using a time-split, address-disjoint
-train/validation/test partition, then normalize coefficients to obtain $w_i$.
+train, validation and test partition, then normalize coefficients to obtain $w_i$.
 The warning threshold $\tau_{\mathrm{warn}}$ is the lowest value with false
 positive rate $\le1\%$ on ordinary transactions (N8) on the validation set.
 Two hard rules, leaked key and known malicious delegate, warn regardless of $R$;
@@ -460,7 +465,8 @@ $\tau_{\mathrm{warn}}$ percentiles p5 25.9, p50 63.0 and p95 65.7.
 \subsection{Wallet-side warning}
 The warning is split into an \emph{offline} part that precomputes expensive
 facts and an \emph{online} part that stays within the latency budget.
-Symbolic execution takes seconds to minutes and also exhausted memory on 37 of
+Symbolic execution of EVM code~\cite{luu2016oyente,krupp2018teether} takes
+seconds to minutes and also exhausted memory on 37 of
 344 contracts at 850~MB, so it is run offline and stored in a lookup table;
 unknown contracts fall back to a fast opcode scan for \texttt{CALL},
 \texttt{DELEGATECALL} and \texttt{SELFDESTRUCT}. Online, the engine reads the
@@ -493,7 +499,8 @@ current mode adds little loss but changes labels over time.
 \caption{Replication on 500 Ethereum addresses.}
 \label{tab:repl}
 \centering
-\begin{tabular}{@{}lll@{}}
+\small
+\begin{tabular}{@{}ll>{\raggedright\arraybackslash}p{5.6cm}@{}}
 \toprule
 Mode & Result & Observation\\
 \midrule
@@ -653,9 +660,10 @@ to 0.80 at a precision of 0.80. Per transaction row recall falls to 0.38 because
 a few missed sweepers carry many rows.
 
 \paragraph{Why v1 misses.} Two causes explain most false negatives. First, a pure
-T1 signal (a call with data to an empty address) gives
-$R=100\,w_{\mathrm{bytecode}}=62.4$, just below $\tau_{\mathrm{warn}}=63.0$, so
-the learned weights suppress T1 unless another component fires. Second, the
+T1 signal (a call with data to an empty address) on an address that also
+appears in public code ($S_{\mathrm{osint}}=0.28$) gives $R=100\,(w_{\mathrm{bytecode}}+0.28\,w_{\mathrm{osint}})=62.4$,
+just below $\tau_{\mathrm{warn}}=63.0$, so the learned weights suppress T1
+unless a third component fires. Second, the
 history feature sees only the last 1{,}000 native-coin transactions before $t$,
 whereas 36 of the 45 missed leaked-key addresses had already made at least two
 fast withdrawals before $t$, mostly of tokens. Engine v2 therefore adds two
@@ -675,7 +683,7 @@ the unlabelled part of the unflagged negative cells, where batch~1 had found
 hidden positives, and mixes in 24 batch-1 items that one annotator had labelled,
 re-identified and shuffled. That annotator labels batch~2 alone.
 (a)~On the hidden re-labels the annotator disagrees with their own first label on
-4 of 24 items (16.7\%, Clopper--Pearson 95\% CI 4.7--37.4\%), all of them gate items
+4 of 24 items (16.7\%, Clopper--Pearson~\cite{clopper1934} 95\% CI 4.7--37.4\%), all of them gate items
 labelled before the codebook revision, and with the final adjudicated labels on
 none (0/24, CI 0--14.3\%). Since the annotator took part in adjudication, the
 latter figure may partly reflect memory.
@@ -713,7 +721,7 @@ almost all low-confidence leaked-key sweepers, so the gain depends on the
 codebook's treatment of sweeps to unlabelled wallets (case~7).
 
 \paragraph{Baselines and ablation (author labels, test split).} A commercial
-address-security API (GoPlus), queried today and thus with hindsight, reaches
+address-security API (GoPlus~\cite{goplus}), queried today and thus with hindsight, reaches
 precision 0.29, recall 0.020 and F1 0.038, against F1 0.925 for the engine on the
 same items; combining both does not help. The naive rule ``no code and calldata''
 has precision 0.24 and FPR 0.36. Dropping one component at a time gives F1 0.905
