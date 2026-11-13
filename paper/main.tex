@@ -56,7 +56,14 @@ large, but the monetary loss is concentrated elsewhere (only 18.9\% and 3.1\% of
 loss), which changes how a defender should prioritize. Building on these
 findings we define a risk score $R(A,C)\in[0,100]$ with four components and a
 MetaMask Snap that shows the score and its reasons before the user signs.
-\todo{Detection quality (precision/recall/FPR with Cohen's $\kappa$) and Snap median latency once the gold set and Module~4 are finished.}
+On a two-annotator gold set of 858 addresses ($\kappa=0.80$), our frozen
+detector reaches precision 0.94 but recall only 0.65; it misses mostly
+leaked-key wallets emptied by sweeper bots and calls with data to code-less
+addresses. Two pre-registered rules for these cases raise recall to 0.92 at
+precision 0.84 (false-positive rate 8.8\%), and on a held-out batch labelled
+after the design was fixed they find 10 of the 15 hidden positives that the
+frozen detector misses. The local engine answers in 138~ms (median; p95
+236~ms) on a cold cache and 0.04~ms on a warm one.
 \keywords{Address misuse \and Cross-chain \and EVM \and Smart contracts \and Wallet security \and EIP-7702.}
 \end{abstract}
 
@@ -353,8 +360,16 @@ eth-infinitism Simple7702Account, Ambire);
 \item N7: 18 infrastructure contracts deployed at the same address on at least
 six networks (CREATE2 factories, Multicall3, Permit2, Safe, EntryPoint, 1inch,
 0x, Seaport);
-\item N2--N5, N8 (exchange deposits, inscriptions, ordinary transactions):
-\todo{build after D1.}
+\item N2: 1{,}600 ordinary contract calls and N8: 1{,}969 transactions drawn at
+random (one per block) from random blocks in 2020--2026, half per chain; N8 is
+the background used to measure false warnings;
+\item N3: 736 transfers to EOAs whose input is readable text (inscriptions and
+on-chain messages), which a naive ``calldata to an EOA'' rule would flag;
+\item N4: 83 exchange deposit addresses, which forward funds to a hot wallet
+within minutes and therefore look like sweeper activity;
+\item N5: 118 official recovery contracts deployed at PCD addresses (for
+example PancakeSwap Recovery); 42 of them are flagged as PCD positives by the
+authors' tool, so we move them to the negatives.
 \end{itemize}
 The negatives already reveal pitfalls. Permit2, 1inch, 0x and Seaport have
 \emph{different} bytecode across chains (chain id and immutables), so a
@@ -417,17 +432,21 @@ Symbolic execution takes seconds to minutes and also exhausted memory on 37 of
 unknown contracts fall back to a fast opcode scan for \texttt{CALL},
 \texttt{DELEGATECALL} and \texttt{SELFDESTRUCT}. Online, the engine reads the
 code at the destination on the current chain and, in parallel, on the other seven
-networks with a 100~ms timeout per network; a network that times out is skipped
+networks with a short per-network timeout (300~ms by default); a network that times out is skipped
 and listed in the explanation, and the transaction is never blocked merely
 because an RPC was slow.
 
 A MetaMask Snap uses the transaction-insight interface to call this engine
 before the user signs, and shows the score, the suspected type and one-line
 reasons (``this address is a contract on Ethereum, deployed 3 days earlier, but
-empty on this chain''). The latency target is \SI{150}{\milli\second}. Our
-measurements of public RPCs from our network give 0.9--1.3~s per call with peaks
-of 8--9~s, so the target requires caching, a dedicated RPC provider and short
-timeouts. \todo{Architecture figure and measured median and p95 latency.}
+empty on this chain''). The latency target is \SI{150}{\milli\second}. Early
+measurements of some public RPCs from our network gave 0.9--1.3~s per call with
+peaks of 8--9~s, so the engine keeps a cache of offline facts and code lookups,
+uses the fastest public endpoint per network and bounds every call by the
+timeout. The Snap only displays; all lookups run in the local engine, and if the
+engine is unreachable the Snap says so and does not block (fail-open). With
+these choices the cold-path median is 138~ms and p95 236~ms, and a cached check
+takes 0.04~ms (Section~\ref{sec:eval}).
 
 %------------------------------------------------------------------
 \section{Evaluation}
@@ -696,8 +715,12 @@ PCD-XC with low risk, illustrating that the warning reflects the state at signin
 time. Engine-side latency in the wallet was 244--265~ms for the first check of an
 address and 0.08~ms (0.3~ms including the local HTTP hop) once cached. The very
 first check after the engine started took 1{,}033~ms and missed seven of eight
-networks, because RPC connections were not yet open; opening them at start-up
-would remove this case. MetaMask does not expose when the panel is rendered, so
+networks. A fresh connection to a public RPC costs about 0.9~s (TLS handshake)
+against 0.23~s once open; the engine opens all eight at start-up, yet in three
+repeated runs the first check still took 300--690~ms, while checks after four
+idle minutes took 260--300~ms. The slow case is therefore a start-up effect, not
+connections dropped while idle; the RTT on that day was about 230~ms, above the
+110--140~ms of the benchmark run, which explains most of the in-wallet gap. MetaMask does not expose when the panel is rendered, so
 we report engine-side time only.
 
 %------------------------------------------------------------------
@@ -739,9 +762,19 @@ most misused contract addresses are empty on the victim chain but real contracts
 elsewhere, and that those contracts almost always came first. This gives wallets
 a signal available before signing, and gives project owners a concrete action,
 claiming the address. The cross-chain class is large in count but small in value,
-so a defense needs more than one signal. Future work: complete the gold set and
-evaluation, add the history and OSINT features, and measure the Snap in real
-conditions. \todo{Update after RQ3 results.}
+so a defense needs more than one signal. Our gold set confirms this: the
+frozen detector is precise (0.94) but finds only about two thirds of the misuse
+(recall 0.65), and the missing third is mostly leaked-key wallets emptied by
+sweeper bots and calls with data to code-less addresses. Two pre-registered
+rules raise recall to 0.92 at precision 0.84, and they still find most
+positives (10 of 15) on a batch labelled after the design was fixed. The main
+cost is false warnings on exchange deposit wallets, whose automatic forwarding
+resembles a sweeper. The local engine meets the 150~ms budget at the median
+(138~ms) but needs a nearby RPC at the tail. Future work: a feature that tells
+deposit wallets from sweepers, full asset history in the online engine (which
+the sweeper rule needs; the engine currently relies on offline facts and
+\texttt{getCode}), larger held-out
+batches and a user study of the warning text.
 
 \subsubsection*{Acknowledgments.} \todo{Funding, supervisor and data providers (Google BigQuery public data, NodeReal, Etherscan, Binplorer).}
 

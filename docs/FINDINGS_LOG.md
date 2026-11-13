@@ -1233,3 +1233,18 @@ A gán 124 mẫu (0 lỗi hình thức). Chạy `python -X utf8 -m address_misus
 - Paper chỉ dùng số liệu, không dùng ảnh chụp (người dùng quyết định 2026-11-13); ảnh gốc nằm ở thư mục Screenshots của người dùng, không đưa vào repo.
 - Cho paper: Snap hiển thị đúng quyết định của engine; độ trễ engine trong ví 244–265 ms lần đầu với một địa chỉ (cao hơn bench p50 138 ms), 0,08 ms khi cache. Gợi ý sửa: mở sẵn kết nối RPC lúc khởi động (`OnlineStore.warm`). MetaMask không cho đo lúc panel hiện, nên chỉ báo thời gian phía engine.
 
+
+## 2026-11-13 — Lần check đầu chậm trong ví: không phải do kết nối rảnh
+
+- Đo bằng `OnlineStore` (timeout 0,3 s), script tạm trong scratchpad (gọi `s.check` với địa chỉ ngẫu nhiên để tránh cache):
+  - getCode lần đầu mỗi mạng (kết nối mới, TLS): 841–1.039 ms; từ lần 2: 114–266 ms (RTT hôm nay ~230 ms, bench trước 110–140 ms).
+  - Check đầu tiên sau `warm()`: 304, 668, 686 ms (3 lần chạy); sau 15–150 s rảnh: 255–309 ms; sau 240 s rảnh: 259–301 ms.
+  - Thêm luồng keep-warm (gọi lại `warm` mỗi 30 s rảnh): sau 240 s rảnh 259–270 ms, không khác bản không có (277–301 ms) → đã bỏ, không commit.
+- Kết luận: ca 1.033 ms trong thử Snap là hiệu ứng khởi động (lần check đầu sau khi bật engine), không phải RPC đóng kết nối khi rảnh. Ghi chú trước đó "kết nối RPC chưa mở" không đúng: `warm()` đã mở từ 2026-10-23. Độ trễ trong ví (244–265 ms) cao hơn bench p50 138 ms chủ yếu vì RTT hôm đó cao hơn.
+- Cho paper: đoạn "In the wallet" đã sửa theo số trên.
+
+## 2026-11-13 — Số lượng nhóm âm trong dataset v2 (cho đoạn Negatives của paper)
+
+- `pd.read_parquet('data/final/dataset_v2.parquet').groupby(['grp','chain']).size()`:
+  N1 200/200 (BSC/ETH), N2 800/800, N3 280/456, N4 46/37, N5 60/58, N6 0/5, N7 18/18 (18 contract, mỗi chain một mẫu), N8 985/984.
+- Tổng: N2 1.600, N3 736, N4 83, N5 118 (42 bị tool tác giả gắn PCD), N8 1.969.
