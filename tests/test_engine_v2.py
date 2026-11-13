@@ -37,3 +37,10 @@ def test_v2_flags_ncd_call_and_sweeper_cut_at():
     assert at.hard_v2.tolist() == [None, "sweeper_full", "ncd_call", None]
     now = v2.flags_rows(e, fast, cut="now")
     assert now.f_v2.tolist() == [True, True, True, False]
+
+
+def test_cp_interval_matches_known_values():
+    from address_misuse.gold_eval_v2 import cp_interval
+    assert cp_interval(0, 24) == [0.0, 0.1425]
+    assert cp_interval(2, 24) == [0.0103, 0.27]
+    assert cp_interval(24, 24) == [0.8575, 1.0]

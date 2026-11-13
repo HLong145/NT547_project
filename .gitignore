@@ -43,6 +43,7 @@ CLAUDE.local.md
 data/gold/*_key.csv
 # nhãn vàng cuối (chứa nhãn của B và A): không commit cho tới khi xong lô 2 (A còn gán lại mẫu dương lấy lại, §2.7)
 data/gold/gold_final.csv
+data/gold/batch2_gold.csv
 
 # Snap (Module 4)
 node_modules/

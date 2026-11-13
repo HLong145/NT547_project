@@ -4,7 +4,7 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-11-10
+**Cập nhật lần cuối:** 2026-11-13
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
@@ -107,6 +107,7 @@
 
 ## 4. Nhật ký (mới nhất ở trên)
 
+- 2026-11-13: Viết `gold_eval_v2 heldout` (§10.4 a–c), commit TRƯỚC khi có nhãn lô 2 (hash ở GOLD_PROTOCOL §10.5); chạy thử bằng nhãn giả OK; 126 test pass. Tải fullhist lô 2: BSC 28/28 xong (0 lỗi), ETH đang chạy. **Chờ:** file `annotator_batch2_A.xlsx` đã gán của A (bản trong `data/gold/` vẫn trống, chưa thấy bản A gửi lại).
 - 2026-11-10: **A và B rà xong delegate lô 2** (CaliburEntry `0x612373d7…`, cả hai `ok` → `legit_wallet`). Đã gộp vào `delegate_lookup_batch2.csv`, cổng strict 0 lỗi, hash ghi GOLD_PROTOCOL §10.5. Đã sinh `data/gold/annotator_batch2_A.xlsx` (124 mẫu L001–L124, không commit). Kèm `delegate_lookup_batch2_A.xlsx` (16 delegate của lô 2 = 15 từ bảng lô 1 + 1 mới; chỉ chain/delegate/explorer_url/final_class/source/note, không cột rà A/B; không commit). **Bước kế:** người dùng gửi file cho A (chỉ file này; không nói có mẫu gán lại); A gán xong → `sample_gold check`, tải fullhist lô 2, viết `gold_eval_v2 heldout` theo §10.4.
 - 2026-11-10: **Tiền đăng ký engine v2 + lô 2 (tag `prereg-engine-v2`, GOLD_PROTOCOL §10).** Lô 2: `gold_batch2` → `data/gold/batch2_items.csv` 124 mẫu (100 âm dự phòng lô 1–2 + 24 mẫu kiểm nhất quán của A, mã L001…; khoá `batch2_key.csv` gitignore). 1 delegate mới (CaliburEntry, Uniswap, legit_wallet) trong `delegate_lookup_batch2.csv`: **chờ A và B rà** (class_A, class_B) rồi mới `gold_batch2 sheet` → `annotator_batch2_A.xlsx`. v2 = v1 + `ncd_call` + `sweeper_full` (lịch sử tài sản đầy đủ, `engine/fullhist.py`). Trên lô 1 (trong mẫu): v2-at P 0,834, R 0,935, F1 0,882, FPR 0,089 (v1: 0,939/0,675/0,785/0,021). 36/45 FN KEY của v1 đã có ≥ 2 lần rút nhanh trước `at` (chủ yếu token). 125 test pass. **Bước kế:** A, B rà delegate → giao lô 2 cho A → đánh giá giữ lại §10.4; viết phần đánh giá paper.
 - **2026-10-23 — D6 delegates xong**: 482/484 delegate có symexec; điều kiện ADDR của tác giả đúng ở 318 delegate / 52.004 EOA, trong đó 36.041 EOA là MetaMask (ví hợp lệ) → FINDINGS_LOG. Không chạy `rules --only ADDR` riêng: lần `rules` đầy đủ (tự chạy sau `created`) sẽ dùng bảng delegate mới.
