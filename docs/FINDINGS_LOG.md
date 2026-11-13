@@ -1187,3 +1187,40 @@ Rà độc lập trên 33 delegate: đồng ý ban đầu 17/33 (236/264 mẫu).
 ## 2026-11-10 — Rà delegate lô 2 xong
 
 Delegate mới duy nhất của lô 2 (eth `0x612373d7…51d3`, CaliburEntry của Uniswap Calibur, ví thông minh EIP-7702): A và B rà độc lập, cả hai đồng ý `legit_wallet`. Lý do: `execute` chỉ chạy với root key hoặc key đã đăng ký; đăng ký key chỉ qua self-call; không có hàm sweep/forward và không có địa chỉ đích cố định (hằng PUSH20 duy nhất là EntryPoint). 15/16 delegate còn lại của lô 2 đã có trong bảng lô 1. Tái tạo: gộp `delegate_review_batch2_{A,B}.xlsx` vào `delegate_lookup_batch2.csv`, chạy `check_delegates(strict=True)`, rồi `python -m address_misuse.gold_batch2 sheet`.
+
+## 2026-11-13 — Lô 2 (held-out, GOLD_PROTOCOL §10.4): 15/100 âm không cờ là dương; v2-at bắt 10/15, v1 bắt 0/15
+
+A gán 124 mẫu (0 lỗi hình thức). Chạy `python -X utf8 -m address_misuse.gold_eval_v2 heldout` → `data/interim/gold_eval_v2_heldout.json`; nhãn theo mã gốc ở `data/gold/batch2_gold.csv` (gitignore). Lịch sử đầy đủ: 59/59 mẫu dự phòng cần có (`fullhist fetch-items data/gold/batch2_items.csv`).
+
+**(a) Nhất quán của A (24 mẫu kiểm, A không biết là mẫu cũ).**
+- So với nhãn lượt đầu của A: khác 4/24 = 16,7% [CP 4,7–37,4%]. Cả 4 là mẫu cổng (G085, G108, G173, G194): lượt đầu A gán 0 theo CODEBOOK v0.6.2, nay gán 1.
+- So với nhãn gần nhất của A trước phân xử (r2, sau v0.6.3; phụ, thêm sau): 2/24 = 8,3% [1,0–27,0%].
+- So với nhãn cuối lô 1: 0/24 [0–14,3%], cả is_misuse và type.
+- Hạn chế: A đã tham gia phân xử các mẫu này, nên khớp nhãn cuối có thể một phần do nhớ hoặc do học quy tắc mới. Các mẫu kiểm đều là dương, nên đây không đo được việc A gán nhầm âm thành dương.
+- Lần chạy đầu báo 19/24 do lỗi mã đọc nhãn cũ; đã sửa, ghi GOLD_PROTOCOL §8 (2026-11-13).
+
+**Nhãn 100 âm dự phòng** (tầng −N1/−N2/−N3/−N4/−N8 không cờ thiết kế): 15 dương (T5 KEY 13, T2 2), 85 âm. Cả 13 KEY đều `confidence = low` (rút nhanh tới ví không nhãn, ca 7b/7c ở 6 mẫu). 2 T2 `high`: tx gửi coin tới contract token không có hàm nhận, và tới contract chuyển tiếp ngay.
+
+**(b) Held-out (mã R####, thô / có trọng số (cell_n − k)/n₂):**
+
+| | bắt dương | báo nhầm âm | recall có trọng số | FPR có trọng số |
+|---|---|---|---|---|
+| v1 (đóng băng) | 0/15 | 0/85 | 0,00 | 0,000 |
+| v2-at (chính) | 10/15 | 6/85 (CP 2,6–14,7%) | 0,662 [0,41–0,90] | 0,074 [0,04–0,11] |
+| v2-now | 13/15 | 8/85 (CP 4,2–17,7%) | 0,862 [0,68–1,00] | 0,097 [0,06–0,15] |
+
+- v2-at bỏ sót 5: 3 KEY chỉ có ≥ 2 lần rút nhanh SAU `at` (v2-now bắt), 2 T2 (contract có code, v2 không có luật cho T2).
+- 6 báo nhầm của v2-at: 4 là ví nạp sàn (rút về Binance/Coinbase, ca 7a), 2 là địa chỉ A chỉ thấy 1 lần rút nhanh (engine đếm 8 và 2; khác ở token/định nghĩa). Engine không đọc nhãn sàn; thêm danh sách ví nóng sàn có thể bỏ phần lớn báo nhầm.
+- Dương ẩn của v1 trong miền (b) (phần chưa gán của 10 ô âm không cờ), chỉ từ lô 2: điểm 164, cận trên 95% 216 địa chỉ. Gộp (c) cho v1: 155 (cận trên 188); lô 1 một mình: 143 (188).
+
+**(c) Gộp lô 1 ∪ lô 2 (858 mẫu, trọng số cell_n/(k + n₂)), theo địa chỉ:**
+
+| | P | R [CI95] | F1 | FPR |
+|---|---|---|---|---|
+| v1 (cập nhật kết quả chính) | 0,939 | 0,654 [0,606–0,700] | 0,771 | 0,021 |
+| v2-at (lô 1 trong mẫu) | 0,840 | 0,917 [0,877–0,951] | 0,877 | 0,088 |
+| v2-now | 0,787 | 0,957 [0,930–0,981] | 0,864 | 0,130 |
+
+- Theo dòng: v1 R 0,447; v2-at P 0,880, R 0,873. Bỏ KEY/ADDR: v1 R 0,518, v2-at R 0,886. Ca 7 lật về 0: v1 P 0,800 R 0,754; v2-at P 0,616 R 0,909.
+- Cho paper: (1) recall của v1 thấp hơn lô 1 cho thấy (0,654 so với 0,675) và cận dưới thấp hơn, vì 15% âm không cờ thực ra là dương; (2) v2 giữ được phần lớn mức tăng recall trên dữ liệu chưa thấy (held-out recall 0,66, so với trong mẫu 0,94 trên lô 1), cái giá là FPR ≈ 7% trong miền âm không cờ, chủ yếu ví nạp sàn; (3) dương mới gần như toàn KEY `low`: phụ thuộc định nghĩa ca 7.
+

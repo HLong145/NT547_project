@@ -118,11 +118,20 @@ def consistency(lab: pd.DataFrame) -> dict:
     """(a) A gán lại 24 mẫu cũ: tỉ lệ khác nhãn lượt đầu của chính A (file dùng để rút mẫu) và khác nhãn cuối lô 1."""
     from address_misuse.gold_batch2 import A_DOUBLE
     from address_misuse.sample_gold import read_labels
-    old = pd.concat([read_labels(p) for p in A_DOUBLE]).drop_duplicates("item_id").set_index("item_id")
+    def labelled(p):                                     # file gán đôi có đủ 200 dòng, chỉ 50 dòng cổng có nhãn: bỏ dòng trống
+        d = read_labels(p)
+        return d[d.is_misuse != ""]
+    old = pd.concat([labelled(p) for p in A_DOUBLE])
+    if old.item_id.duplicated().any():
+        raise SystemExit("một mẫu có hai nhãn lượt đầu của A")
+    old = old.set_index("item_id")
+    # Phụ (thêm sau khi chạy, §10.5): nhãn gần nhất của A trước phân xử = lượt gán lại r2 của 50 mẫu cổng (sau CODEBOOK v0.6.3)
+    latest = pd.concat([labelled(GOLD_DIR / "annotator_main_double_r2_A.xlsx"), old.reset_index()]).drop_duplicates(
+        "item_id").set_index("item_id")
     gold = pd.read_csv(GOLD_FINAL, dtype=str, keep_default_na=False).set_index("item_id")
     c = lab[lab.source == "consistency"].set_index("orig_id")
     n, out = len(c), {"n": len(c)}
-    for name, ref in (("vs_A_first", old), ("vs_gold_final", gold)):
+    for name, ref in (("vs_A_first", old), ("vs_A_latest_pre_adjudication", latest), ("vs_gold_final", gold)):
         r = ref.reindex(c.index)
         dm = c.is_misuse != r.is_misuse
         dt = dm | (c.type.str.upper() != r.type.str.upper())
