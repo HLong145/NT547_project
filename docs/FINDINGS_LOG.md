@@ -1224,3 +1224,12 @@ A gán 124 mẫu (0 lỗi hình thức). Chạy `python -X utf8 -m address_misus
 - Theo dòng: v1 R 0,447; v2-at P 0,880, R 0,873. Bỏ KEY/ADDR: v1 R 0,518, v2-at R 0,886. Ca 7 lật về 0: v1 P 0,800 R 0,754; v2-at P 0,616 R 0,909.
 - Cho paper: (1) recall của v1 thấp hơn lô 1 cho thấy (0,654 so với 0,675) và cận dưới thấp hơn, vì 15% âm không cờ thực ra là dương; (2) v2 giữ được phần lớn mức tăng recall trên dữ liệu chưa thấy (held-out recall 0,66, so với trong mẫu 0,94 trên lô 1), cái giá là FPR ≈ 7% trong miền âm không cờ, chủ yếu ví nạp sàn; (3) dương mới gần như toàn KEY `low`: phụ thuộc định nghĩa ca 7.
 
+## 2026-11-13 — Snap thật trên MetaMask Flask (Edge, ví test, mọi giao dịch đều Cancel)
+
+- Cài Snap `local:http://localhost:8080` qua `snap/install.html`; mở xác nhận giao dịch 0 ETH trên Ethereum qua `snap/test_tx.html`. Log engine (`wallet/api.py` nay in thời gian mỗi lần /check).
+- Ví Truffle `0x6273…ef57`: **block**, R 91,7, T5 KEY, lý do: delegate 7702 trong danh sách đen + khoá lộ công khai. Lần gọi đầu tiên sau khi bật engine: 1.033 ms và báo không kiểm tra được 7/8 mạng (kết nối RPC chưa mở); gọi lại (cache): engine 0,08 ms, HTTP 0,3 ms, đủ mạng.
+- PancakeSwap Router BSC `0x10ed…024e` trên ETH: **ok**, R 11,1. Hôm nay địa chỉ này trên ETH ĐÃ có code (khác BSC) → PCD-XC; demo Anvil trước đây chặn vì fork ở block cũ khi chưa có code. Dự đoán "cảnh báo" của người điều phối sai, engine đúng: cảnh báo phản ánh trạng thái lúc ký. Gửi kèm calldata + value (gọi trực tiếp engine): R 16,1, vẫn ok.
+- USDT: **ok**, R 11,1, engine 244 ms (lần đầu với địa chỉ này).
+- Ảnh: `paper/figures/snap_block_truffle_full.png`, `snap_ok_pancake_eth_full.png`, `snap_ok_usdt.png`.
+- Cho paper: Snap hiển thị đúng quyết định của engine; độ trễ engine trong ví 244–265 ms lần đầu với một địa chỉ (cao hơn bench p50 138 ms), 0,08 ms khi cache. Gợi ý sửa: mở sẵn kết nối RPC lúc khởi động (`OnlineStore.warm`). MetaMask không cho đo lúc panel hiện, nên chỉ báo thời gian phía engine.
+

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thử Snap</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; line-height: 1.5; }
+  button { font-size: 15px; padding: 6px 12px; margin: 4px 0; cursor: pointer; display: block; }
+  pre { background: #f4f4f4; padding: 8px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Thử Address Misuse Guard</h1>
+<p>Mỗi nút mở màn hình xác nhận giao dịch 0 ETH trên mạng đang chọn trong MetaMask Flask. Xem tab của Snap rồi
+<b>bấm Reject</b>; không ký.</p>
+<button id="connect">1. Kết nối ví (eth_requestAccounts)</button>
+<button data-to="0x627306090abab3a6e1400e9345bc60c78a8bef57">Ví Truffle lộ key (kỳ vọng block)</button>
+<button data-to="0x10ed43c718714eb63d5aa57b78b54704e256024e">PancakeSwap Router BSC, gửi trên ETH (kỳ vọng cảnh báo T1/T4)</button>
+<button data-to="0xdAC17F958D2ee523a2206206994597C13D831ec7">USDT trên ETH (kỳ vọng ok)</button>
+<pre id="out"></pre>
+<script>
+  const out = document.getElementById('out');
+  const log = (s) => { out.textContent += s + '\n'; };
+  let from = null;
+  document.getElementById('connect').onclick = async () => {
+    try {
+      [from] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      log('Đã kết nối ' + from.slice(0, 6) + '…' + from.slice(-4) + ', chain ' + await window.ethereum.request({ method: 'eth_chainId' }));
+    } catch (e) { log('Lỗi kết nối: ' + (e.message || e)); }
+  };
+  for (const b of document.querySelectorAll('button[data-to]')) {
+    b.onclick = async () => {
+      if (!from) { log('Bấm "Kết nối ví" trước.'); return; }
+      const t0 = performance.now();
+      log('Gửi yêu cầu tới ' + b.dataset.to + ' …');
+      try {
+        await window.ethereum.request({ method: 'eth_sendTransaction',
+          params: [{ from, to: b.dataset.to, value: '0x0', data: '0x' }] });
+        log('Đã ký (không mong muốn!)');
+      } catch (e) {
+        log('Kết thúc sau ' + Math.round(performance.now() - t0) + ' ms: ' + (e.message || e));
+      }
+    };
+  }
+</script>
+</body>
+</html>

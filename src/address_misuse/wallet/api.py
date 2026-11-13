@@ -11,6 +11,7 @@ python -X utf8 -m address_misuse.wallet.api [--port 8711] [--timeout 0.3]
 
 import argparse
 import json
+import time
 
 from address_misuse.config import NETWORKS
 from address_misuse.wallet.online import OnlineStore
@@ -47,8 +48,14 @@ class Api(Proxy):
         if self.path.rstrip("/") != "/check":
             return self._send({"error": "chỉ có POST /check"}, 404)
         try:
+            t0 = time.perf_counter()
             req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-            self._send(check_request(self.store, req, self.chain))
+            res = check_request(self.store, req, self.chain)
+            self._send(res)
+            to = str(req.get("to") or "")
+            print(f"check {req.get('chain') or self.chain} {to[:6]}…{to[-4:]} → {res.get('decision')} "
+                  f"R={res.get('score')} engine={res.get('ms_total')} ms, http={1000 * (time.perf_counter() - t0):.1f} ms"
+                  f"{' (cache)' if res.get('cached') else ''}", flush=True)
         except Exception as e:                                  # lỗi đầu vào: báo lỗi, Snap tự fail-open
             self._send({"error": f"{type(e).__name__}: {e}"[:200]}, 400)
 

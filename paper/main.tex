@@ -682,8 +682,24 @@ latency for cross-chain coverage. With a warm cache a check takes 0.04~ms (p99
 0.08~ms). The cold-path floor is the round trip to the public RPC, about
 110--140~ms from our network, so the 150~ms budget is met at the median but needs
 a nearby or dedicated RPC at the tail. Decisions are identical under both
-timeouts (41 blocks, 40 of them on author-positive addresses). \todo{End-to-end
-latency inside MetaMask Flask (Snap transaction insight) and a screenshot.}
+timeouts (41 blocks, 40 of them on author-positive addresses).
+
+\paragraph{In the wallet.} We installed the Snap in MetaMask Flask and opened
+confirmation screens for 0-ETH transfers on Ethereum from a fresh test account,
+rejecting each one. For the leaked-key wallet the insight panel showed
+``dangerous: cancel this transaction'', $R=91.7$, type T5/KEY and the two reasons
+(blacklisted EIP-7702 delegate, publicly leaked key); for USDT it showed no
+misuse ($R=11.1$). PancakeSwap's BSC router address, blocked in our historical
+fork demo when it had no code on Ethereum, is also \emph{not} flagged today: the
+address now holds different code on Ethereum, so the engine classifies it as
+PCD-XC with low risk, illustrating that the warning reflects the state at signing
+time. Engine-side latency in the wallet was 244--265~ms for the first check of an
+address and 0.08~ms (0.3~ms including the local HTTP hop) once cached. The very
+first check after the engine started took 1{,}033~ms and missed seven of eight
+networks, because RPC connections were not yet open; opening them at start-up
+would remove this case. MetaMask does not expose when the panel is rendered, so
+we report engine-side time only. \todo{Figure: crop of the insight panel
+(\texttt{paper/figures/}).}
 
 %------------------------------------------------------------------
 \section{Discussion and Limitations}
