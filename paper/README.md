@@ -2,6 +2,8 @@
 
 Khung bài báo theo mẫu **Springer LNCS** (`llncs.cls`). Các chỗ `\todo{...}` hiện màu đỏ là phần cần điền.
 
+**Người viết tiếp: đọc [HANDOFF.md](HANDOFF.md) trước.** File đó có tình trạng bản thảo, bảng số liệu → nguồn, quy tắc viết và trích dẫn, và các việc còn lại.
+
 ## Lấy file mẫu của Springer (không kèm trong repo)
 
 Tải gói "LaTeX2e Proceedings Templates" ở trang hướng dẫn của Springer

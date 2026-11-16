@@ -458,7 +458,11 @@ we report their effect separately so they do not inflate the score's apparent
 quality. The learned weights are $w_{\mathrm{bytecode}}=0.522$,
 $w_{\mathrm{osint}}=0.359$, $w_{\mathrm{cross}}=0.086$ and
 $w_{\mathrm{history}}=0.033$, with $\tau_{\mathrm{warn}}=63.0$ and
-$\tau_{\mathrm{block}}=65.7$. The threshold is fragile: an address-level
+$\tau_{\mathrm{block}}=65.7$ (L2 penalty $10^{-3}$). The individual weights are
+not identifiable: the training set is nearly separable, so moving the penalty from
+$10^{-4}$ to $10^{-1}$ shifts $w_{\mathrm{osint}}$ from 0.62 to 0.05 and
+$\tau_{\mathrm{warn}}$ from 50.3 to 66.2 while test F1 stays at 0.925--0.926.
+We therefore do not read the weights as feature importance. The threshold is fragile: an address-level
 bootstrap of the validation set (only 186 ordinary-transaction negatives) gives
 $\tau_{\mathrm{warn}}$ percentiles p5 25.9, p50 63.0 and p95 65.7.
 

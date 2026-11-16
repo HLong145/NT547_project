@@ -1264,3 +1264,9 @@ A gán 124 mẫu (0 lỗi hình thức). Chạy `python -X utf8 -m address_misus
 - Thêm 11 tài liệu, cùng cách xác minh (Crossref/USENIX/file ERC gốc): Cohen 1960 (κ), Horvitz–Thompson 1952, Efron 1979 (bootstrap), Clopper–Pearson 1934, Oyente CCS '16, teEther USENIX Sec '18, MAIAN ACSAC '18 (contract "greedy" khoá tiền ≈ T2), Yellow Paper (công thức địa chỉ CREATE), ERC-20, ERC-4337 (EntryPoint trong N7), tài liệu GoPlus API. Tổng 30 mục, khớp 30 trích dẫn.
 - **Đính chính (paper + GOLD_PROTOCOL §10.1):** R = 62,39 của 21 địa chỉ T1/T4 bị bỏ sót KHÔNG phải 100·w_bytecode (= 52,2). Đúng là 100·(0,522·1 + 0,359·0,2835): địa chỉ có trong mã nguồn công khai nên S_osint = 1 − e^(−1/k) = 0,2835. Tái tạo: `engine_eval.parquet`, R tính lại bằng trọng số `engine_metrics.json` → 235 dòng R = 62,39, 224 dòng có (bytecode 1, cross 0, osint 0,2835, history 0). Kết luận không đổi (vẫn ngay dưới τ_warn 63,0).
 - Paper 18 trang: nếu hội nghị giới hạn 16 trang LNCS (thường gồm cả tài liệu tham khảo) thì phải rút gọn.
+
+## 2026-11-16 — Trọng số học và ngưỡng của engine v1 (nguồn cho §Risk Score của paper)
+
+- Đọc từ `data/interim/engine_metrics.json` (`python -m address_misuse.engine.metrics`), khoá `main.weights` và `main.threshold_boot.warn`:
+  w_bytecode 0,5222, w_osint 0,3586, w_cross 0,0863, w_history 0,0329; τ_warn = p50 bootstrap 63,01, τ_block = p95 65,67.
+- Bản tính lại độc lập ngày 2026-10-25 (mục "Tính lại độc lập số liệu chính") cho w ≈ 0,518 / 0,085 / 0,364 / 0,033, lệch dưới 0,01. Paper dùng bộ trong `engine_metrics.json` vì đó là detector đóng băng.

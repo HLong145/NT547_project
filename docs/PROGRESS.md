@@ -4,7 +4,7 @@
 > Cập nhật sau mỗi bước xong, mỗi lần chạy dài, mỗi quyết định. Phát hiện cho paper → [FINDINGS_LOG.md](FINDINGS_LOG.md).
 > Ký hiệu: ✅ xong · 🔄 đang làm · ⏳ chờ người dùng · ⬜ chưa làm
 
-**Cập nhật lần cuối:** 2026-11-13
+**Cập nhật lần cuối:** 2026-11-16
 **Giai đoạn hiện tại:** Tuần 1 — D0 (chuẩn bị dữ liệu và code)
 
 ## 1. Đang làm / bước kế tiếp
@@ -106,6 +106,7 @@
 - ⬜ Viết paper, Docker, slide (tuần 9–10).
 
 ## 4. Nhật ký (mới nhất ở trên)
+- 2026-11-16: **Bàn giao viết paper.** Thêm `paper/HANDOFF.md` (tình trạng; bảng số liệu → mục FINDINGS + file JSON/lệnh; quy tắc viết: chỉ số liệu không ảnh, ẩn địa chỉ, v1 là kết quả chính; quy tắc trích dẫn đã bình duyệt + `paper/check_refs.py`; dữ liệu không trong repo). FINDINGS ghi trọng số học từ `engine_metrics.json`. Paper thêm câu: trọng số không xác định theo L2 (đã ghi FINDINGS 2026-10-25 nhưng paper chưa nêu). `attx_cache*.json` vào .gitignore. Còn lại (nhóm): tên tác giả, công bố có trách nhiệm, lời cảm ơn, giới hạn trang.
 
 - 2026-11-13: **Paper dịch được (Tectonic 0.17.0, ngoài repo): 18 trang, 0 lỗi.** Thêm 11 tài liệu đã xác minh (tổng 30: thống kê κ/HT/bootstrap/CP, Oyente, teEther, MAIAN, Yellow Paper, ERC-20/4337, GoPlus). Đính chính R = 62,4 = 100·(w_bytecode + 0,28·w_osint) trong paper và GOLD_PROTOCOL. Sửa bảng tràn lề. Bước kế: nhóm viết responsible disclosure + lời cảm ơn; xem giới hạn số trang của nơi nộp.
 - 2026-11-13: **Paper: trích dẫn xong.** 19 tài liệu, chỉ nguồn đã bình duyệt (USENIX Sec, CCS, NDSS, S&P, FC, WWW, TOSEM, ISSTA/FSE) và đặc tả chính thức, xác minh qua Crossref/USENIX/EIP; bỏ preprint arXiv. Sửa tên bài Shao et al. trong bib. TODO còn lại: công bố có trách nhiệm, lời cảm ơn (việc của nhóm). Danh sách ở FINDINGS_LOG cùng ngày.

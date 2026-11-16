@@ -48,3 +48,6 @@ data/gold/batch2_gold.csv
 # Snap (Module 4)
 node_modules/
 paper/main.pdf
+
+# Cache API của gold_attx.py / gold_batch2.py (tạo lại được)
+data/interim/attx_cache*.json
