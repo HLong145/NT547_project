@@ -6,12 +6,15 @@ Tài liệu cho người viết tiếp `main.tex`. Đọc theo thứ tự: file 
 
 - Bản thảo đủ mọi phần (Intro → Conclusion). Dịch bằng Tectonic: 18 trang, 0 lỗi, 0 trích dẫn thiếu.
 - `references.bib` có 30 mục, mục nào cũng được trích và đã xác minh (xem §4).
-- **Còn phải làm (việc của nhóm, không tự điền được):**
-  1. Tên tác giả, MSSV, email và giảng viên thật. Khối `\author`/`\institute` hiện vẫn là chỗ giữ chỗ "Nguyen Van A…".
-  2. `\todo` công bố có trách nhiệm (khoảng dòng 215): đã báo cho ai (nhà cung cấp ví, dự án bị ảnh hưởng) và vào ngày nào. **Chưa ai liên hệ**, nên không được viết như thể đã báo.
-  3. `\todo` Acknowledgments (khoảng dòng 820): nguồn tài trợ, giảng viên hướng dẫn, nhà cung cấp dữ liệu.
-  4. Giới hạn số trang của hội nghị đích. LNCS thường cho 12–16 trang không tính tài liệu tham khảo, nên có thể phải rút gọn. Nên cắt ở Background và các đoạn phụ của RQ2 trước, không cắt kết quả RQ3.
-  5. Đọc soát văn phong tiếng Anh.
+- **Đã điền 2026-11-16 (cần nhóm xác nhận):**
+  1. Tác giả: Nguyen Hoang Long (24521005), Lam Tu Lan (24520943). Email sinh viên theo mẫu `MSSV@gm.uit.edu.vn`. Tên giảng viên (Tran Tuan Dung) đã bỏ khỏi danh sách tác giả theo yêu cầu ngày 2026-11-16.
+  2. Công bố có trách nhiệm: viết đúng sự thật là **chưa liên hệ ai**, và "dự định báo trước khi công bố". Nếu nhóm không định báo thì phải sửa câu này.
+  3. Acknowledgments: cảm ơn Shao et al. và các nhà cung cấp dữ liệu. **Không ghi tài trợ** (nếu có thì thêm).
+  4. Thêm kết quả D2 toàn bộ ETH (KEY, ADDR) và pilot 580 vào RQ1; cập nhật mục Contributions theo kết quả đã có.
+- **Còn phải làm:**
+  1. Giới hạn số trang của hội nghị đích. LNCS thường cho 12–16 trang không tính tài liệu tham khảo, nên có thể phải rút gọn. Nên cắt ở Background và các đoạn phụ của RQ2 trước, không cắt kết quả RQ3. Tóm tắt hiện 278 từ (LNCS khuyên 150–250).
+  2. Dịch lại sau lần sửa 2026-11-16 (máy sửa không có LaTeX; chỉ kiểm cân bằng ngoặc và `check_refs.py`).
+  3. Đọc soát văn phong tiếng Anh lần cuối.
 
 ## 2. Số liệu → nguồn
 

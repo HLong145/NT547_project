@@ -1,5 +1,5 @@
 % Springer LNCS template. Needs llncs.cls and splncs04.bst (see paper/README.md).
-% \todo{...} marks text that still needs data; every number below comes from docs/FINDINGS_LOG.md.
+% Every number below comes from docs/FINDINGS_LOG.md (see paper/HANDOFF.md for the mapping).
 \documentclass[runningheads]{llncs}
 
 \usepackage[T1]{fontenc}
@@ -12,6 +12,8 @@
 \usepackage{siunitx}
 \usepackage[hidelinks]{hyperref}
 \usepackage{url}
+\raggedbottom % no stretched gaps around headings on short pages
+\setlength{\tabcolsep}{4pt} % llncs default (1.4pt) lets adjacent column headers touch
 
 % Reminder macro: red in drafts. Redefine as {} before submission.
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
@@ -24,20 +26,16 @@
 
 \begin{document}
 
-\title{Characterizing and Mitigating Address Misuse Risks\\in Cross-Chain EVM Ecosystems}
+\title{Characterizing and Mitigating Address Misuse\\Risks in Cross-Chain EVM Ecosystems}
 \titlerunning{Address Misuse in Cross-Chain EVM Ecosystems}
 
-\author{Nguyen Van A\inst{1} \and
-Tran Thi B\inst{1} \and
-Le Van C\inst{1} \and
-Pham Van D\inst{1,2}\thanks{Corresponding author}}
-\authorrunning{N. V. A et al.}
-\institute{Faculty of Information Security, University of Information Technology,\\
-Ho Chi Minh City, Vietnam\\
-\email{\{23520001,23520002,23520003\}@gm.uit.edu.vn}
+\author{Nguyen Hoang Long\inst{1,2} \and
+Lam Tu Lan\inst{1,2}}
+\authorrunning{H. L. Nguyen and T. L. Lam}
+\institute{University of Information Technology, Ho Chi Minh City, Vietnam\\
+\email{\{24521005,24520943\}@gm.uit.edu.vn}
 \and
-Vietnam National University Ho Chi Minh City, Ho Chi Minh City, Vietnam\\
-\email{lecturer@uit.edu.vn}}
+Vietnam National University, Ho Chi Minh City, Vietnam}
 
 \maketitle
 
@@ -130,13 +128,16 @@ flags. We document four defects in the released code
 matrix of 45{,}633 misused contract addresses over eight networks, with root
 cause (deployer, nonce, factory), timing and redeployability
 (Section~\ref{sec:matrix}, Section~\ref{sec:eval-xc}).
-\item \emph{Gold labels and negatives.} A codebook, two-annotator protocol with
-a target Cohen's $\kappa\ge0.8$, and negative sets N1--N8 that include benign
+\item \emph{Gold labels and negatives.} A codebook and a two-annotator protocol
+that yield 858 gold-labelled addresses (Cohen's $\kappa=0.80$ on 200
+double-labelled items), and negative sets N1--N8 that include benign
 EIP-7702 delegates and multi-chain infrastructure contracts that a naive
 detector would flag (Section~\ref{sec:gold}).
 \item \emph{Mitigation.} A four-component risk score $R(A,C)$ with
-explanations and hard rules, and a MetaMask Snap design with a 150~ms budget
-(Section~\ref{sec:design}).
+explanations and hard rules, delivered through a MetaMask Snap. A detector
+frozen before labelling reaches precision 0.94 and recall 0.65 on the gold set,
+two pre-registered rules raise recall to 0.92, and a cold check takes 138~ms at
+the median (Sections~\ref{sec:design} and~\ref{sec:eval}).
 \end{itemize}
 
 %------------------------------------------------------------------
@@ -212,7 +213,12 @@ before signing but cannot know the user's intent.
 All measurements are passive reads of public data. We never sign or send a
 transaction with a leaked key and never store private keys; the data contain only
 derived addresses. Personal addresses are truncated in the text
-(\texttt{0x1234\ldots abcd}). \todo{Responsible-disclosure statement: which wallet vendors and affected projects were notified, and when.}
+(\texttt{0x1234\ldots abcd}). Every test transaction in a wallet was rejected before signing, and the
+fork demonstration impersonates the sender on a local fork without any key.
+The misused addresses and leaked keys we study are already public, and we add
+no new way to exploit them. At the time of writing we have not yet contacted
+wallet vendors or the projects whose contract addresses remain claimable on
+another chain; we intend to report the findings to them before publication.
 
 %------------------------------------------------------------------
 \section{Related Work}
@@ -284,7 +290,7 @@ returns.
 \label{tab:data}
 \centering
 \small
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.6cm}>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{5.9cm}@{}}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.6cm}>{\raggedright\arraybackslash}p{4.1cm}>{\raggedright\arraybackslash}p{5.5cm}@{}}
 \toprule
 Id & Source & Use and known limit\\
 \midrule
@@ -432,7 +438,7 @@ after the first transaction, and a score that reads today's state would
 \paragraph{Components.}
 \begin{itemize}
 \item $S_{\mathrm{bytecode}}$ examines $\code{C}{A}$: a call with data to an empty
-address scores 1 (T1); a code that offline symbolic execution shows has no
+address scores 1 (T1); code for which offline symbolic execution finds no
 withdrawal path scores 1 (T2); a known malicious delegate scores 1 (T5); a
 verified benign delegate scores 0; an unknown delegate that can move funds
 scores 0.5, because the ability to move funds does not distinguish a sweeper from
@@ -468,7 +474,16 @@ $\tau_{\mathrm{warn}}$ percentiles p5 25.9, p50 63.0 and p95 65.7.
 
 \subsection{Wallet-side warning}
 The warning is split into an \emph{offline} part that precomputes expensive
-facts and an \emph{online} part that stays within the latency budget.
+facts and an \emph{online} part that stays within the latency budget
+(Fig.~\ref{fig:arch}).
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_architecture.pdf}
+\caption{Wallet-side warning. The Snap asks the local engine before the user
+signs; the engine reads code on eight networks and combines it with
+precomputed facts.}
+\label{fig:arch}
+\end{figure}
 Symbolic execution of EVM code~\cite{luu2016oyente,krupp2018teether} takes
 seconds to minutes and also exhausted memory on 37 of
 344 contracts at 850~MB, so it is run offline and stored in a lookup table;
@@ -515,7 +530,18 @@ Current & loss $+0.02\%$ & 98 new NCD misuse tx on 20 addresses;\\
 \end{tabular}
 \end{table}
 Misuse is therefore continuing after the original collection, and NCD/PCD labels
-change over time, so any dataset must carry its observation date.
+change over time, so any dataset must carry its observation date. An extended
+sample of 580 addresses, which adds 50 ADDR wallets and 30 addresses with
+5{,}000--50{,}000 transactions, also matches on every address in snapshot mode.
+
+For the two EOA rules, which do not need the \texttt{input} field, we repeat
+the replication on all Ethereum seed addresses with the BigQuery data. KEY
+reproduces all 54{,}891 misuse transactions on 4{,}256 addresses with a loss
+gap of $-0.02\%$ (103{,}690 against 103{,}711~ETH; two addresses differ). ADDR
+reproduces all 28{,}886 sweep pairs on 3{,}893 addresses with no gap
+(1{,}627.4~ETH). Exact integer arithmetic matters here: reading transaction
+values as floating-point numbers drops sweeps that withdraw exactly the
+deposited amount, which produced a spurious $-4.5\%$ gap in our first run.
 
 \paragraph{Symbolic execution.} On 344 contracts (all EIP-7702 delegates, proxy
 logic and 150 sampled misuse addresses), 307 completed within memory. On the 246
@@ -536,28 +562,29 @@ from KEY or ADDR EOAs, so there is no benign EIP-7702 EOA among the positives.
 \paragraph{Prevalence.} Table~\ref{tab:xc} classifies the 45{,}633 contract-misuse
 addresses (49{,}344 chain--address pairs).
 \begin{table}[t]
-\caption{Cross-chain labels on the victim chain. Loss share is the fraction of
-that chain's loss.}
+\caption{Cross-chain labels on the victim chain (address counts; shares are in
+Fig.~\ref{fig:xc}).}
 \label{tab:xc}
 \centering
-\begin{tabular}{@{}llrrr@{}}
+\begin{tabular}{@{}lrrrrrr@{}}
 \toprule
-Victim chain & Label & Addresses & \% addresses & \% loss\\
+Victim chain & Addresses & Loss & \NCDXC & NCD-Other & \PCDXC & PCD-Other\\
 \midrule
-BSC (21{,}775; 8{,}681 BNB) & \NCDXC & 16{,}819 & 77.2 & 18.9\\
- & NCD-Other & 4{,}380 & 20.1 & 67.6\\
- & \PCDXC & 496 & 2.3 & 13.0\\
- & PCD-Other & 80 & 0.4 & 0.4\\
-\midrule
-ETH (27{,}569; 22{,}738 ETH) & \NCDXC & 18{,}782 & 68.1 & 3.1\\
- & NCD-Other & 8{,}201 & 29.7 & 81.5\\
- & \PCDXC & 491 & 1.8 & 2.2\\
- & PCD-Other & 95 & 0.3 & 13.2\\
+BSC & 21{,}775 & 8{,}681 BNB & 16{,}819 & 4{,}380 & 496 & 80\\
+ETH & 27{,}569 & 22{,}738 ETH & 18{,}782 & 8{,}201 & 491 & 95\\
 \bottomrule
 \end{tabular}
 \end{table}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_crosschain.pdf}
+\caption{Share of addresses and share of loss per cross-chain label, in percent
+of the victim chain's total. Segments below 6\% are not labelled.}
+\label{fig:xc}
+\end{figure}
 Cross-chain misalignment is the dominant pattern by \emph{count} but not by
-\emph{value}: NCD-Other holds 67.6\% (BSC) and 81.5\% (ETH) of the loss. Only
+\emph{value} (Fig.~\ref{fig:xc}): \NCDXC{} is 77.2\% (BSC) and 68.1\% (ETH) of the addresses but 18.9\% and 3.1\% of
+the loss, while NCD-Other holds 67.6\% and 81.5\% of the loss. Only
 about 10--13\% of NCD-XC addresses ever received a positive value; the rest lost
 only gas. For a wallet this means that warning on T4 prevents many mistakes but
 few large losses, whereas the high-value cases need other signals. The
@@ -569,7 +596,7 @@ victims have code on ETH; 13{,}492 ETH victims have code on BSC).
 
 An asymmetry appears in the top-100 NCD addresses per chain: 36 of 100 on BSC
 are contracts on another chain (13\% of the loss, for example Uniswap V3
-SwapRouter) but only 2 of 100 on ETH. The largest NCD on Ethereum are probably
+SwapRouter) but only 2 of 100 on ETH. The largest NCD addresses on Ethereum are probably
 copies from decommissioned testnets (Ropsten, Rinkeby, Kovan, Goerli), which no
 live RPC can show; GitHub context is needed to confirm this.
 
@@ -596,7 +623,7 @@ and on ETH 6.9\% of the cases fall within one day and 44.8\% within 30 days. A
 short gap suggests mistakes near a multi-chain launch. Cases with
 deployed\_after are mostly Sepolia (82 of 320) and Arbitrum (62) and are T1 by
 the codebook. Because creation data are missing for OP, Base and BSC testnet
-sources, deployed\_before is a lower bound. Two counterexamples show that history
+sources, deployed\_before is a lower bound. One example shows that history
 matters: Uniswap V2 Router02, an Ethereum contract, was misused on BSC (30{,}124 tx,
 669.6 BNB) and today has the same bytecode on four other chains, yet in that
 period it was a PCD. The cross-chain state \emph{today} would therefore label a
@@ -621,8 +648,8 @@ unknown & 815 & 1{,}572\\
 \end{tabular}
 \end{table}
 On BSC most misused addresses can still be deployed by their owner, a concrete
-mitigation: the owner can claim the address and recover or at least stop
-capturing user value. Conversely, anyone holding the deployer key could place
+mitigation: the owner can deploy at the address and recover the value
+stranded there. Conversely, anyone holding the deployer key could place
 different code there. The ETH column reflects the updated Binplorer coverage; the
 earlier ETH unknown count of 14{,}955 has dropped to 1{,}572.
 
@@ -657,8 +684,8 @@ Precision is high, but recall is only 0.68, and the gap is not where the
 original rules are weak. Hidden positives, that is gold positives in
 author-negative cells that the detector does not flag, are estimated at 143
 addresses (one-sided 95\% upper bound 188), so recall could be as low as 0.61.
-Scenario analyses bracket the main number: removing the leaked-key and
-address-poisoning strata, whose labels are lower bounds, lowers recall to 0.54;
+Scenario analyses bracket the main number: removing the KEY and ADDR
+strata, whose labels are lower bounds, lowers recall to 0.54;
 counting sweeps to unlabelled wallets (codebook case~7b--d) as benign raises it
 to 0.80 at a precision of 0.80. Per transaction row recall falls to 0.38 because
 a few missed sweepers carry many rows.
@@ -714,8 +741,15 @@ v2 (today) & 13/15 & 8/85 & 0.86 [0.68--1.00] & 0.097\\
 \bottomrule
 \end{tabular}
 \end{table}
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.78\textwidth]{figures/fig_detector.pdf}
+\caption{Frozen detector v1 and engine v2 on the pooled gold set (858
+addresses). Error bars: 95\% CI of recall.}
+\label{fig:detector}
+\end{figure}
 (c)~Pooling both batches (858 addresses, weights $N_c/(k_c+n_2)$) updates the
-main result: v1 has precision 0.939, recall 0.654 [0.61--0.70], F1 0.771 and FPR
+main result (Fig.~\ref{fig:detector}): v1 has precision 0.939, recall 0.654 [0.61--0.70], F1 0.771 and FPR
 0.021, with 155 estimated hidden positives (upper bound 188); v2 cut at $t$ has
 precision 0.840, recall 0.917 [0.88--0.95], F1 0.877 and FPR 0.088, where its
 batch-1 part remains in-sample. In short, v2's gain in recall carries over to unseen
@@ -742,11 +776,19 @@ cache and a 300~ms timeout per network, the median is 138~ms, p95 236~ms and p99
 289~ms; 69\% of checks finish under 150~ms and 99\% see all eight networks.
 Lowering the timeout to 150~ms cuts p95 to 169~ms but only 76\% of checks then
 see all eight networks (0.37 networks missed on average), so the timeout trades
-latency for cross-chain coverage. With a warm cache a check takes 0.04~ms (p99
+latency for cross-chain coverage (Fig.~\ref{fig:latency}). With a warm cache a check takes 0.04~ms (p99
 0.08~ms). The cold-path floor is the round trip to the public RPC, about
 110--140~ms from our network, so the 150~ms budget is met at the median but needs
 a nearby or dedicated RPC at the tail. Decisions are identical under both
 timeouts (41 blocks, 40 of them on author-positive addresses).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.78\textwidth]{figures/fig_latency.pdf}
+\caption{Cumulative distribution of cold-cache check latency for 300
+destinations under two per-network timeouts.}
+\label{fig:latency}
+\end{figure}
 
 \paragraph{In the wallet.} We installed the Snap in MetaMask Flask and opened
 confirmation screens for 0-ETH transfers on Ethereum from a fresh test account,
@@ -788,8 +830,9 @@ timing a lower bound; the original ETH dataset itself is a snapshot.
 \item \emph{External transactions only.} The first transaction ignores internal
 transfers.
 \item \emph{Rules requiring \texttt{input}.} We excluded \texttt{input} from the
-BigQuery scan for cost reasons, so NCD/PCD rules are evaluated on subsets
-through an explorer.
+BigQuery scan for cost reasons, so the NCD and PCD rules are replicated on
+samples through an explorer, whereas KEY and ADDR are replicated on all
+Ethereum seed addresses.
 \item \emph{Label subjectivity.} Intent cannot be observed; we mitigate with a
 codebook and $\kappa$, but a residual remains.
 \item \emph{Scope.} Two source chains and eight networks; results may differ for
@@ -821,10 +864,105 @@ the sweeper rule needs; the engine currently relies on offline facts and
 \texttt{getCode}), larger held-out
 batches and a user study of the warning text.
 
-\subsubsection*{Acknowledgments.} \todo{Funding, supervisor and data providers (Google BigQuery public data, NodeReal, Etherscan, Binplorer).}
+\subsubsection*{Acknowledgments.} We thank Shao et al.\ for releasing their dataset and code, on which the
+replication builds. This work used the public Ethereum dataset on Google
+BigQuery and the free tiers of Etherscan, NodeReal, Binplorer and Blockscout.
 
 %------------------------------------------------------------------
-\bibliographystyle{splncs04}
-\bibliography{references}
+% BEGIN GENERATED BIBLIOGRAPHY (paper/make_bibliography.py)
+\begin{thebibliography}{30}
+
+\bibitem{shao2026lost}
+Shao, Z., Zhang, J., Li, Z., Wu, D., Chen, C., Shen, Y., Bao, L., Wang, Y., Chen, J.: Lost in blockchain address misuse: Hidden cross-platform risks and their security impact. In: Proceedings of the 35th USENIX Security Symposium (USENIX Security '26). USENIX Association (2026), \url{https://www.usenix.org/conference/usenixsecurity26/presentation/shao-zhenzhe}
+
+\bibitem{eip7702}
+Buterin, V., Wilson, S., Dietrichs, A., lightclient: EIP-7702: Set code for EOAs. Ethereum Improvement Proposals, \url{https://eips.ethereum.org/EIPS/eip-7702} (2024)
+
+\bibitem{wood2014yellow}
+Wood, G.: Ethereum: A secure decentralised generalised transaction ledger. \url{https://ethereum.github.io/yellowpaper/paper.pdf} (2014), Ethereum Yellow Paper, continuously updated
+
+\bibitem{eip1014}
+Buterin, V.: EIP-1014: Skinny CREATE2. Ethereum Improvement Proposals, \url{https://eips.ethereum.org/EIPS/eip-1014} (2018)
+
+\bibitem{eip20}
+Vogelsteller, F., Buterin, V.: ERC-20: Token standard. Ethereum Request for Comments, \url{https://eips.ethereum.org/EIPS/eip-20} (2015)
+
+\bibitem{guan2024poisoning}
+Guan, S., Li, K.: Characterizing Ethereum address poisoning attack. In: Proceedings of the 2024 ACM SIGSAC Conference on Computer and Communications Security (CCS '24). pp.~986--1000. ACM (2024). \url{https://doi.org/10.1145/3658644.3690277}
+
+\bibitem{tsuchiya2025poisoning}
+Tsuchiya, T., Dong, J.D., Soska, K., Christin, N.: Blockchain address poisoning. In: Proceedings of the 34th USENIX Security Symposium (USENIX Security '25). pp.~1243--1262. USENIX Association (2025), \url{https://www.usenix.org/conference/usenixsecurity25/presentation/tsuchiya}
+
+\bibitem{meli2019git}
+Meli, M., McNiece, M.R., Reaves, B.: How bad can it git? Characterizing secret leakage in public GitHub repositories. In: Proceedings of the Network and Distributed System Security Symposium (NDSS). Internet Society (2019). \url{https://doi.org/10.14722/ndss.2019.23418}
+
+\bibitem{vasek2016brain}
+Vasek, M., Bonneau, J., Castellucci, R., Keith, C., Moore, T.: The Bitcoin brain drain: Examining the use and abuse of Bitcoin brain wallets. In: Financial Cryptography and Data Security (FC 2016). pp.~609--618. Lecture Notes in Computer Science, Springer (2017). \url{https://doi.org/10.1007/978-3-662-54970-4_36}
+
+\bibitem{zhou2024keyleak}
+Zhou, Y., Chen, J., Wang, Y., Tang, Y., Gu, G.: Towards understanding crypto-asset risks on Ethereum caused by key leakage on the internet. In: Companion Proceedings of the ACM Web Conference 2024 (WWW '24). pp.~875--878. ACM (2024). \url{https://doi.org/10.1145/3589335.3651573}
+
+\bibitem{nikolic2018maian}
+Nikoli\'{c}, I., Kolluri, A., Sergey, I., Saxena, P., Hobor, A.: Finding the greedy, prodigal, and suicidal contracts at scale. In: Proceedings of the 34th Annual Computer Security Applications Conference (ACSAC '18). pp.~653--663. ACM (2018). \url{https://doi.org/10.1145/3274694.3274743}
+
+\bibitem{daian2020flash}
+Daian, P., Goldfeder, S., Kell, T., Li, Y., Zhao, X., Bentov, I., Breidenbach, L., Juels, A.: Flash boys 2.0: Frontrunning in decentralized exchanges, miner extractable value, and consensus instability. In: 2020 IEEE Symposium on Security and Privacy (SP). pp.~910--927. IEEE (2020). \url{https://doi.org/10.1109/SP40000.2020.00040}
+
+\bibitem{torres2021frontrunner}
+Ferreira Torres, C., Camino, R., State, R.: Frontrunner jones and the raiders of the dark forest: An empirical study of frontrunning on the Ethereum blockchain. In: Proceedings of the 30th USENIX Security Symposium (USENIX Security '21). USENIX Association (2021), \url{https://www.usenix.org/conference/usenixsecurity21/presentation/torres}
+
+\bibitem{huang2026eip7702}
+Huang, M., Liu, H., Yang, S., Wu, D., Wang, S.: Revealing the dark side of smart accounts: An empirical study of EIP-7702 incurred risks in blockchain ecosystem. In: Proceedings of the 35th USENIX Security Symposium (USENIX Security '26). USENIX Association (2026), \url{https://www.usenix.org/conference/usenixsecurity26/presentation/huang-mingyuan}
+
+\bibitem{wang2026factories}
+Wang, Z., Shen, Z., Chen, L., Song, W., Ge, J., Huang, L., Luo, B.: Empirical analysis of smart contract factories on EVM-compatible chains. ACM Transactions on Software Engineering and Methodology \textbf{35}(8), 1--29 (2026). \url{https://doi.org/10.1145/3787216}
+
+\bibitem{wang2025copypaste}
+Wang, Z., Chen, J., Zhang, T., Zhang, Y., Zhang, W., Feng, Y., Zheng, Z.: Copy-and-paste? Identifying EVM-inequivalent code smells in multi-chain reuse contracts. Proceedings of the ACM on Software Engineering \textbf{2}(ISSTA), 1031--1053 (2025). \url{https://doi.org/10.1145/3728921}
+
+\bibitem{eip155}
+Buterin, V.: EIP-155: Simple replay attack protection. Ethereum Improvement Proposals, \url{https://eips.ethereum.org/EIPS/eip-155} (2016)
+
+\bibitem{salehi2022immutable}
+Salehi, M., Clark, J., Mannan, M.: Not so immutable: Upgradeability of smart contracts on Ethereum. In: Financial Cryptography and Data Security. FC 2022 International Workshops. pp.~539--554. Lecture Notes in Computer Science, Springer (2023). \url{https://doi.org/10.1007/978-3-031-32415-4_33}
+
+\bibitem{he2023txphishscope}
+He, B., Chen, Y., Chen, Z., Hu, X., Hu, Y., Wu, L., Chang, R., Wang, H., Zhou, Y.: TxPhishScope: Towards detecting and understanding transaction-based phishing on Ethereum. In: Proceedings of the 2023 ACM SIGSAC Conference on Computer and Communications Security (CCS '23). pp.~120--134. ACM (2023). \url{https://doi.org/10.1145/3576915.3623210}
+
+\bibitem{chen2025payload}
+Chen, Z., Hu, Y., He, B., Luo, D., Wu, L., Zhou, Y.: Dissecting payload-based transaction phishing on Ethereum. In: Proceedings of the Network and Distributed System Security Symposium (NDSS). Internet Society (2025). \url{https://doi.org/10.14722/ndss.2025.230311}
+
+\bibitem{hu2026walletruth}
+Hu, X., He, N., Wang, H.: WalleTruth: Visual-oriented software testing for Web3 wallet browser extensions. Proceedings of the ACM on Software Engineering \textbf{3}(FSE), 182--204 (2026). \url{https://doi.org/10.1145/3797150}
+
+\bibitem{metamask_insights}
+MetaMask: Transaction insights (MetaMask Snaps documentation). \url{https://docs.metamask.io/snaps/features/transaction-insights/} (2026), Accessed 2026-11-13
+
+\bibitem{cohen1960kappa}
+Cohen, J.: A coefficient of agreement for nominal scales. Educational and Psychological Measurement \textbf{20}(1), 37--46 (1960). \url{https://doi.org/10.1177/001316446002000104}
+
+\bibitem{horvitz1952}
+Horvitz, D.G., Thompson, D.J.: A generalization of sampling without replacement from a finite universe. Journal of the American Statistical Association \textbf{47}(260), 663--685 (1952). \url{https://doi.org/10.1080/01621459.1952.10483446}
+
+\bibitem{efron1979bootstrap}
+Efron, B.: Bootstrap methods: Another look at the jackknife. The Annals of Statistics \textbf{7}(1), 1--26 (1979). \url{https://doi.org/10.1214/aos/1176344552}
+
+\bibitem{erc4337}
+Buterin, V., Weiss, Y., Tirosh, D., Nacson, S., Forshtat, A., Gazso, K., Hess, T.: ERC-4337: Account abstraction using alt mempool. Ethereum Request for Comments, \url{https://eips.ethereum.org/EIPS/eip-4337} (2021)
+
+\bibitem{luu2016oyente}
+Luu, L., Chu, D.H., Olickel, H., Saxena, P., Hobor, A.: Making smart contracts smarter. In: Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (CCS '16). pp.~254--269. ACM (2016). \url{https://doi.org/10.1145/2976749.2978309}
+
+\bibitem{krupp2018teether}
+Krupp, J., Rossow, C.: teEther: Gnawing at Ethereum to automatically exploit smart contracts. In: Proceedings of the 27th USENIX Security Symposium (USENIX Security '18). USENIX Association (2018), \url{https://www.usenix.org/conference/usenixsecurity18/presentation/krupp}
+
+\bibitem{clopper1934}
+Clopper, C.J., Pearson, E.S.: The use of confidence or fiducial limits illustrated in the case of the binomial. Biometrika \textbf{26}(4), 404--413 (1934). \url{https://doi.org/10.1093/biomet/26.4.404}
+
+\bibitem{goplus}
+GoPlus Security: GoPlus security API documentation. \url{https://docs.gopluslabs.io/} (2026), Accessed 2026-11-13
+
+\end{thebibliography}
+% END GENERATED BIBLIOGRAPHY
 
 \end{document}
